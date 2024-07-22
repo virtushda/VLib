@@ -1,0 +1,23 @@
+{
+    "name": "VLib",
+    "rootNamespace": "VLib",
+    "references": [
+        "GUID:d8b63aba1907145bea998dd612889d6b",
+        "GUID:e0cd26848372d4e5c891c569017e11f1",
+        "GUID:2665a8d13d1b3f18800f46e256720795",
+        "GUID:de4e6084e6d474788bb8c799d6b461ec",
+        "GUID:4320d046b3ac557479e01d4c6b9e6c15",
+        "GUID:4c1a3d26ba481b74fb4a69c0e5c9f2c5",
+        "GUID:fd228c28e14f1a34cbe508676c914dd7",
+        "GUID:4315be1468245344b9e96f8607469877"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,11 @@
+﻿using System;
+using System.Collections.Concurrent;
+
+namespace VLib
+{
+    /// <summary> Interface for implementing support for a pool of typed pools, backed by a concurrent dictionary. </summary>
+    public interface IConcurrentDictionaryPoolContainer
+    {
+        public ConcurrentDictionary<Type, IPool> Map { get; }
+    }
+}

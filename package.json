@@ -1,0 +1,12 @@
+{
+    "name": "com.virtus.vlib",
+    "displayName": "VLib",
+    "version": "1.0.0",
+    "unity": "2022.3",
+    "description": "Custom collections, utilities and extensions for Unity.",
+    "keywords": [
+        "maths",
+        "unity"
+    ],
+    "category": "Unity"
+}
