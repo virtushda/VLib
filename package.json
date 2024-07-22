@@ -3,7 +3,7 @@
   "displayName": "VLib",
   "version": "1.0.0",
   "unity": "2022.3",
-  "description": "Custom collections, utilities and extensions for Unity.",
+  "description": "Custom collections, utilities and extensions for Unity. External Dependencies: https://github.com/TommasoBelluzzo/FastHashes, https://github.com/MrUnbelievable92/MaxMath",
    "keywords": [
     "Unity"
   ],
