@@ -8,8 +8,7 @@
     "Unity"
   ],
    "dependencies": {
-    "maxmath": "2.3.5": "git://github.com/MrUnbelievable92/MaxMath.git",
-	"fasthashes": "1.0.0": "git://github.com/TommasoBelluzzo/FastHashes.git"
+    "maxmath": "2.3.5": "git://github.com/MrUnbelievable92/MaxMath.git"
   },
   "author": {
     "name": "Seth Kelley",
