@@ -7,9 +7,6 @@
    "keywords": [
     "Unity"
   ],
-   "dependencies": {
-	"maxmath": "2.3.5"
-  },
   "author": {
     "name": "Seth Kelley",
     "email": "virtushda@gmail.com"
