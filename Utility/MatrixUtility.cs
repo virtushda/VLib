@@ -1,6 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Security.Policy;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
