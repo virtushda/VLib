@@ -289,5 +289,16 @@ namespace VLib
             intersection = new float3(intersectionXZ.x, lerp(ya, yb, heightLerp), intersectionXZ.y);
             return true;
         }
+
+        public static class Grid
+        {
+            // Method to compute coord from index
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static int2 IndexToCoord(int index, int width) => new(index % width, index / width);
+        
+            // Method to compute index from coord
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static int CoordToIndex(int x, int y, int width) => y * width + x;
+        }
     }
 }
