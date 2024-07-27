@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PrehistoricKingdom
+namespace VLib.Collections
 {
     public struct IndirectRenderCall
     {

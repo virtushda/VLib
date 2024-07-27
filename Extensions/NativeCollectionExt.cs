@@ -309,6 +309,12 @@ namespace VLib
                 list.Length = index + 1;
             list[index] = value;
         }
+        
+        public static long MemoryFootprintBytes<T>(this VUnsafeList<T> list)
+            where T : unmanaged
+        {
+            return list.IsCreated ? list.Capacity * UnsafeUtility.SizeOf<T>() : 0;
+        }
 
     #endregion
 

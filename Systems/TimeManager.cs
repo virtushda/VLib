@@ -3,7 +3,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VLib;
 
-namespace PrehistoricKingdom
+namespace VLib.Systems
 {
     public class VTimeManager
     {
