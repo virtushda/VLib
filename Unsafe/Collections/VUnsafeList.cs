@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace VLib
@@ -834,8 +835,8 @@ namespace VLib
         /// <remarks>
         /// Use <see cref="AsParallelWriter"/> to create a parallel writer for a list.
         /// </remarks>
-        [NativeContainer]
-        [NativeContainerIsAtomicWriteOnly]
+        //[NativeContainer]
+        //[NativeContainerIsAtomicWriteOnly]
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
         public unsafe struct ParallelWriter
         {
@@ -1066,32 +1067,17 @@ namespace VLib
         #endregion
 
         public void ClearUnusedMemory() => listData->ClearUnusedMemory();
+        
+        public JobHandle DisposeAfter(JobHandle inDeps) => new DisposeJob<T> { list = this }.Schedule(inDeps);
     }
 
-    /*[NativeContainer]
-    [GenerateTestsForBurstCompatibility]
-    internal unsafe struct VUnsafeListDispose
+    internal struct DisposeJob<T> : IJob
+        where T : unmanaged
     {
-        [NativeDisableUnsafePtrRestriction] public UntypedUnsafeList* m_ListData;
-
-        public void Dispose()
-        {
-            var listData = (UnsafeList<int>*) m_ListData;
-            UnsafeList<int>.Destroy(listData);
-        }
+        internal VUnsafeList<T> list;
+        
+        public void Execute() => list.Dispose();
     }
-
-    [BurstCompile]
-    [GenerateTestsForBurstCompatibility]
-    internal unsafe struct VUnsafeListDisposeJob : IJob
-    {
-        internal VUnsafeListDispose Data;
-
-        public void Execute()
-        {
-            Data.Dispose();
-        }
-    }*/
 
     /// <summary>
     /// Provides extension methods for UnsafeList.

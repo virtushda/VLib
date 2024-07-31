@@ -107,7 +107,7 @@ namespace VLib
             array.IsCreated ? NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(array) : throw new NullReferenceException("Array is not created!");
 
         /// <summary>Dodgy with certain structs!</summary>
-        public static ref T GetRef<T>(ref this NativeArray<T> array, int index)
+        public static ref T GetRef<T>(this NativeArray<T> array, int index)
             where T : struct
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -118,7 +118,7 @@ namespace VLib
             return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafePtr(), index);
         }
 
-        public static ref T GetRefReadOnly<T>(ref this NativeArray<T> array, int index)
+        public static ref T GetRefReadOnly<T>(this NativeArray<T> array, int index)
             where T : struct
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -129,7 +129,7 @@ namespace VLib
             return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafeReadOnlyPtr(), index);
         }
 
-        public static ref T GetRefReadOnly<T>(ref this NativeArray<T>.ReadOnly array, int index)
+        public static ref T GetRefReadOnly<T>(this NativeArray<T>.ReadOnly array, int index)
             where T : struct
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -140,7 +140,7 @@ namespace VLib
             return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafeReadOnlyPtr(), index);
         }
 
-        public static ref T GetRefNoChecksUNSAFE<T>(ref this NativeArray<T> array, int index)
+        public static ref T GetRefNoChecksUNSAFE<T>(this NativeArray<T> array, int index)
             where T : struct
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
