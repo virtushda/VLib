@@ -7,12 +7,31 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
+using UnityEditor;
 using UnityEngine;
 
 namespace VLib
 {
     public static class CameraUtils
     {
+        /// <summary> In build or play mode: Camera.main <br/>
+        /// In edit mode: SceneView camera </summary>
+        public static Camera GetCurrent()
+        {
+            Camera camera = null;
+#if UNITY_EDITOR
+            if (Application.isPlaying)
+                camera = Camera.main;
+            else
+                camera = SceneView.lastActiveSceneView.camera;
+#else
+            camera = Camera.main;
+#endif
+            if (!camera)
+                Debug.LogError("Could not find current camera.");
+            return camera;
+        }
+        
         public static Matrix4x4 CalculateObliqueMatrixFromWorldPlane(Camera cam, Vector4 clipPlaneWorld)
         {
             Vector4 obliqueClipPlaneCamSpace = Matrix4x4.Transpose(Matrix4x4.Inverse(cam.worldToCameraMatrix)) * clipPlaneWorld;

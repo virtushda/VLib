@@ -300,6 +300,10 @@ namespace VLib
             // Method to compute index from coord
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static int CoordToIndex(int x, int y, int width) => y * width + x;
+        
+            // Method to compute index from coord
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static int CoordToIndex(int2 xy, int width) => xy.y * width + xy.x;
         }
 
         public static class DistField
