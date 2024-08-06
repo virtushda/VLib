@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using static Unity.Mathematics.math;
@@ -303,6 +304,35 @@ namespace VLib
             // Method to compute index from coord
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static int CoordToIndex(int2 xy, int width) => xy.y * width + xy.x;
+        }
+
+        public static class DistField
+        {
+            /// <summary> Adapted from: https://www.shadertoy.com/view/wdBXRW </summary>
+            public static float SignedDistPoly2D(in UnsafeList<float2> vertices, float2 point)
+            {
+                var vertCount = vertices.Length;
+                float d = dot(point - vertices[0], point - vertices[0]);
+                float s = 1.0f;
+                for (int i = 0, j = vertCount - 1; i < vertCount; j = i, i++)
+                {
+                    // distance
+                    float2 e = vertices[j] - vertices[i];
+                    float2 w = point - vertices[i];
+                    float2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0f, 1.0f);
+                    d = min(d, dot(b, b));
+
+                    // winding number from http://geomalgorithms.com/a03-_inclusion.html
+                    var cond = new bool3(
+                        point.y >= vertices[i].y,
+                        point.y < vertices[j].y,
+                        e.x * w.y > e.y * w.x);
+                    if (all(cond) || !any(cond))
+                        s = -s;
+                }
+
+                return s * sqrt(d);
+            }
         }
     }
 }

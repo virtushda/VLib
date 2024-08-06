@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Assertions;
 using Random = UnityEngine.Random;
 
 namespace VLib
@@ -130,9 +133,27 @@ namespace VLib
             if (TryGetIndex(key, out int insertIndex))
                 return false;
 
-            keys.Insert(~insertIndex, key);
-            values.Insert(~insertIndex, value);
+            insertIndex = ~insertIndex;
+            keys.Insert(insertIndex, key);
+            values.Insert(insertIndex, value);
             return true;
+        }
+
+        /// <summary> Has editor-only assertions to check sorting, runtime is not verified! </summary>
+        public void TryInsertUnsafe(int index, K key, V value)
+        {
+            keys.Insert(index, key);
+            values.Insert(index, value);
+        }
+        
+        public bool ReplaceValueStrict(K key, V value)
+        {
+            if (TryGetIndex(key, out int replaceIndex))
+            {
+                values[replaceIndex] = value;
+                return true;
+            }
+            return false;
         }
 
         public bool Remove(K key)
@@ -184,6 +205,7 @@ namespace VLib
         
         public bool TryGetValueAtIndex(int index, out V value) => values.TryGet(index, out value);
 
+        /// <summary> Returns true if the key exists, either way returns the index where it thinks the key does/should exist. If the key does not exist, the index will need to be flipped with ~. </summary>
         public bool TryGetIndex(K key, out int index)
         {
             index = keys.IndexOfComparableMatch(key);

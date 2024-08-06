@@ -32,7 +32,11 @@ namespace VLib
             isLocked = true;
         }
 
-        public void Dispose() => rwLock.ExitReadLock();
+        public void Dispose()
+        {
+            if (rwLock is {IsReadLockHeld: true})
+                rwLock.ExitReadLock();
+        }
     }
     
     public readonly struct RWLockSlimWriteScoped : IDisposable
@@ -55,6 +59,10 @@ namespace VLib
             isLocked = true;
         }
 
-        public void Dispose() => rwLock.ExitWriteLock();
+        public void Dispose()
+        {
+            if (rwLock.IsWriteLockHeld)
+                rwLock.ExitWriteLock();
+        }
     }
 }
