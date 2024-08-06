@@ -9,7 +9,7 @@ namespace VLib
 {
     public static class ListTExt
     {
-        public static bool TryGet<T>(this List<T> list, int index, out T value, bool logErrors = false)
+        public static bool TryGet<T>(this IList<T> list, int index, out T value, bool logErrors = false)
         {
             if (index < 0)
             {
@@ -37,6 +37,46 @@ namespace VLib
 
             value = list[index];
             return true;
+        }
+        
+        public static bool TryGetReadOnly<T>(this IReadOnlyList<T> readOnlyList, int index, out T value, bool logErrors = false)
+        {
+            if (index < 0)
+            {
+                if (logErrors)
+                    Debug.LogError($"Index '{index}' is below 0!");
+                value = default;
+                return false;
+            }
+
+            if (index >= readOnlyList.Count)
+            {
+                if (logErrors)
+                    Debug.LogError($"Index '{index}' is beyond the range of list of count {readOnlyList.Count}!");
+                value = default;
+                return false;
+            }
+
+            if (readOnlyList.Count < 1)
+            {
+                if (logErrors)
+                    Debug.LogError("List is empty!");
+                value = default;
+                return false;
+            }
+
+            value = readOnlyList[index];
+            return true;
+        }
+        
+        public static bool Contains<T>(this IReadOnlyList<T> list, T value)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i].Equals(value))
+                    return true;
+            }
+            return false;
         }
 
         public static T Pop<T>(this List<T> list)

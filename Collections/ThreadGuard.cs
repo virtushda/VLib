@@ -3,29 +3,37 @@ using System.Threading;
 
 namespace VLib
 {
-    public enum LockType : byte { Unlocked, ConcurrentRead, ReadWrite }
+    public enum LockType : byte { Unlocked, ConcurrentRead, Upgradable, ReadWrite }
     
     /// <summary> Custom guard object. </summary>
     public class ThreadGuard : IThreadGuard
     {
         public const int DefaultTimeout = 10000;
         
-        // Full thread guard
-        protected object guard;
-        public object Guard => guard;
-        
-        public LockType LockState => Monitor.IsEntered(guard) ? LockType.ReadWrite : LockType.Unlocked;
-        
-        public ThreadGuard() => guard = new();
-        
-        public void EngageLock() => Monitor.Enter(guard);
+        protected ReaderWriterLockSlim rwLock = new();
 
-        public bool TryEngageLock(int millisecondsTimeout = DefaultTimeout) => Monitor.TryEnter(guard, millisecondsTimeout);
+        public LockType LockState
+        {
+            get
+            {
+                if (rwLock.IsWriteLockHeld)
+                    return LockType.ReadWrite;
+                if (rwLock.IsUpgradeableReadLockHeld)
+                    return LockType.Upgradable;
+                if (rwLock.IsReadLockHeld)
+                    return LockType.ConcurrentRead;
+                return LockType.Unlocked;
+            }
+        }
 
+        /// <summary> Exclusive </summary>
+        public void EngageLock() => rwLock.EnterWriteLock();
+
+        /// <summary> Exclusive </summary>
         public void ReleaseLock()
         {
-            if (Monitor.IsEntered(guard))
-                Monitor.Exit(guard);
+            if (rwLock.IsWriteLockHeld)
+                rwLock.ExitWriteLock();
         }
     }
     
@@ -39,44 +47,45 @@ namespace VLib
             this.obj = obj;
         }
 
-        /// <summary> Don't forget to release the lock!! </summary> 
-        public bool LockGetRef(out T objOut, int millisecondsTimeout = DefaultTimeout, bool logErrorOnBlock = true)
-        {
-            if (TryEngageLock(millisecondsTimeout))
-            {
-                objOut = obj;
-                return true;
-            }
-            objOut = default;
-            if (logErrorOnBlock)
-                UnityEngine.Debug.LogError($"Failed to get lock for {obj.GetType().Name}!");
-            return false;
-        }
-
         /// <summary> Bypass the lock </summary> 
         public ref T ForceGetRef() => ref obj;
-
-        public object GetGuardOutRef(out T objOut)
-        {
-            objOut = ForceGetRef();
-            return guard;
-        }
         
-        public Lock UseLock(out T outObj) => new(this, out outObj);
-        public readonly struct Lock : IDisposable
+        public ExclusiveLock ScopedExclusiveLock(out T outObj) => new(this, out outObj);
+        public readonly struct ExclusiveLock : IDisposable, IThreadGuardLockExclusiveStruct<T>
         {
-            private readonly ThreadGuard<T> guard;
+            readonly ThreadGuard<T> guard;
+            readonly RWLockSlimWriteScoped rwLockHold;
+            
+            public bool IsLocked => rwLockHold.isLocked;
+            public ref T ObjRef => ref guard.obj;
 
-            public Lock(ThreadGuard<T> guard, out T outObj)
+            public ExclusiveLock(ThreadGuard<T> guard, out T outObj)
             {
                 this.guard = guard;
-                guard.LockGetRef(out outObj);
+                rwLockHold = guard.rwLock.ScopedExclusiveLock();
+                outObj = guard.obj;
             }
 
-            public void Dispose()
+            public void Dispose() => rwLockHold.Dispose();
+        }
+
+        public ReadLock ScopedReadLock(out T outObj) => new(this, out outObj);
+        public readonly struct ReadLock : IDisposable, IThreadGuardLockStruct<T>
+        {
+            readonly ThreadGuard<T> guard;
+            readonly RWLockSlimReadScoped rwLockHold;
+            
+            public bool IsLocked => rwLockHold.isLocked;
+            public ref T ObjRef => ref guard.obj;
+
+            public ReadLock(ThreadGuard<T> guard, out T outObj)
             {
-                guard.ReleaseLock();
+                this.guard = guard;
+                rwLockHold = guard.rwLock.ScopedReadLock();
+                outObj = guard.obj;
             }
+
+            public void Dispose() => rwLockHold.Dispose();
         }
     }
 }

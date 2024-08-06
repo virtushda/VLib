@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Assertions;
 using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
 
@@ -175,7 +177,11 @@ namespace VLib
         public virtual void Insert(int index, T item) => TryAddExclusive(item);
 
         /// <summary> Can easily violate sorting, but is fast. Use carefully! </summary>
-        public void InsertUnsafe(int index, T item) => list.Insert(index, item);
+        public void InsertUnsafe(int index, T item)
+        {
+            list.Insert(index, item);
+            VerifyLocalKeyOrder(index);
+        }
 
         public void CopyTo(T[] array, int arrayIndex)
         {
@@ -408,6 +414,15 @@ namespace VLib
         {
             list = unsortedCollection;
             Resort();
+        }
+        
+        [Conditional("UNITY_EDITOR")]
+        public void VerifyLocalKeyOrder(int index)
+        {
+            if (index > 0)
+                Assert.IsTrue(list[index - 1].CompareTo(list[index]) <= 0);
+            if (index < list.Count - 1)
+                Assert.IsTrue(list[index + 1].CompareTo(list[index]) >= 0);
         }
     }
 

@@ -327,7 +327,7 @@ namespace VLib
                         point.y >= vertices[i].y,
                         point.y < vertices[j].y,
                         e.x * w.y > e.y * w.x);
-                    if (all(cond) || !all(cond))
+                    if (all(cond) || !any(cond))
                         s = -s;
                 }
 
