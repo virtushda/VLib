@@ -173,14 +173,11 @@ namespace VLib
             return value;
         }
 
-        /// <summary> Redirects to .TryAddExclusive(), inserting in a sorted collection is impossible. </summary>
-        public virtual void Insert(int index, T item) => TryAddExclusive(item);
-
-        /// <summary> Can easily violate sorting, but is fast. Use carefully! </summary>
-        public void InsertUnsafe(int index, T item)
+        public void Insert(int index, T item)
         {
+            EditorOnlyAssertValidInsertionIndex(index);
             list.Insert(index, item);
-            VerifyLocalKeyOrder(index);
+            EditorOnlyVerifyLocalKeyOrder(index);
         }
 
         public void CopyTo(T[] array, int arrayIndex)
@@ -247,7 +244,7 @@ namespace VLib
         /// <summary> If the object is already in the collection OR an IComparer implementation decides the object already exists in this collection, it will be rejected. </summary>
         public bool TryAddExclusiveStrict(T value) => TryAddExclusiveInternal(value, IndexOfComparableMatch(value));
 
-        protected virtual bool TryAddExclusiveInternal(T value, int index)
+        protected bool TryAddExclusiveInternal(T value, int index)
         {
             if (index >= 0)
                 return false;
@@ -289,7 +286,7 @@ namespace VLib
             return val;
         }
 
-        public virtual void Resort()
+        public void Resort()
         {
             Resort(HasComparer ? Comparer : DefaultComparer);
 
@@ -415,9 +412,19 @@ namespace VLib
             list = unsortedCollection;
             Resort();
         }
+
+        /// <summary> Checks that the index is greater than or equal to 0, and less than or equal to list.Count. </summary>
+        [Conditional("UNITY_EDITOR")]
+        public void EditorOnlyAssertValidInsertionIndex(int index)
+        {
+            if (index < 0)
+                throw new IndexOutOfRangeException($"Index is: {index}.. Index cannot be negative!");
+            if (index > list.Count)
+                throw new IndexOutOfRangeException($"Index is: {index}.. Index for insertion specifically cannot be greater than list.Count! (but CAN be equal)");
+        }
         
         [Conditional("UNITY_EDITOR")]
-        public void VerifyLocalKeyOrder(int index)
+        public void EditorOnlyVerifyLocalKeyOrder(int index)
         {
             if (index > 0)
                 Assert.IsTrue(list[index - 1].CompareTo(list[index]) <= 0);
