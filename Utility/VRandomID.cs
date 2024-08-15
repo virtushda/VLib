@@ -30,11 +30,8 @@ namespace VLib
                 //Generates garbage, will fix later
                 ulong randomID = (ulong)(VRandomPool.Fetch(12345678).NextDouble() * long.MaxValue);
 
-                if (!usedIDs.Contains(randomID))
-                {
-                    usedIDs.Add(randomID);
+                if (usedIDs.Add(randomID))
                     return randomID;
-                }
             }
 
             return 0;

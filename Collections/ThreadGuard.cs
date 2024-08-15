@@ -10,30 +10,30 @@ namespace VLib
     {
         public const int DefaultTimeout = 10000;
         
-        protected ReaderWriterLockSlim rwLock = new();
+        protected VReaderWriterLockSlim vRWLock = new();
 
         public LockType LockState
         {
             get
             {
-                if (rwLock.IsWriteLockHeld)
+                if (vRWLock.internalLock.IsWriteLockHeld)
                     return LockType.ReadWrite;
-                if (rwLock.IsUpgradeableReadLockHeld)
+                if (vRWLock.internalLock.IsUpgradeableReadLockHeld)
                     return LockType.Upgradable;
-                if (rwLock.IsReadLockHeld)
+                if (vRWLock.internalLock.IsReadLockHeld)
                     return LockType.ConcurrentRead;
                 return LockType.Unlocked;
             }
         }
 
         /// <summary> Exclusive </summary>
-        public void EngageLock() => rwLock.EnterWriteLock();
+        public void EngageLock() => vRWLock.internalLock.EnterWriteLock();
 
         /// <summary> Exclusive </summary>
         public void ReleaseLock()
         {
-            if (rwLock.IsWriteLockHeld)
-                rwLock.ExitWriteLock();
+            if (vRWLock.internalLock.IsWriteLockHeld)
+                vRWLock.internalLock.ExitWriteLock();
         }
     }
     
@@ -54,15 +54,15 @@ namespace VLib
         public readonly struct ExclusiveLock : IDisposable, IThreadGuardLockExclusiveStruct<T>
         {
             readonly ThreadGuard<T> guard;
-            readonly RWLockSlimWriteScoped rwLockHold;
+            readonly VRWLockHoldScoped rwLockHold;
             
-            public bool IsLocked => rwLockHold.isLocked;
+            public bool IsLocked => rwLockHold.IsValidLock;
             public ref T ObjRef => ref guard.obj;
 
             public ExclusiveLock(ThreadGuard<T> guard, out T outObj)
             {
                 this.guard = guard;
-                rwLockHold = guard.rwLock.ScopedExclusiveLock();
+                rwLockHold = guard.vRWLock.ScopedExclusiveLock();
                 outObj = guard.obj;
             }
 
@@ -73,15 +73,15 @@ namespace VLib
         public readonly struct ReadLock : IDisposable, IThreadGuardLockStruct<T>
         {
             readonly ThreadGuard<T> guard;
-            readonly RWLockSlimReadScoped rwLockHold;
+            readonly VRWLockHoldScoped rwLockHold;
             
-            public bool IsLocked => rwLockHold.isLocked;
+            public bool IsLocked => rwLockHold.IsValidLock;
             public ref T ObjRef => ref guard.obj;
 
             public ReadLock(ThreadGuard<T> guard, out T outObj)
             {
                 this.guard = guard;
-                rwLockHold = guard.rwLock.ScopedReadLock();
+                rwLockHold = guard.vRWLock.ScopedReadLock();
                 outObj = guard.obj;
             }
 

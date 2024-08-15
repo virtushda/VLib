@@ -74,13 +74,13 @@ namespace VLib
         public static TryGetResult TryGetSentinelFromID<T>(T idable, out NativeSentinel<T> nativeSentinel)
             where T : struct, IUniqueID32U
         {
-            return TryGetSentinelFromIDInternal(idable.ID, out nativeSentinel, true);
+            return TryGetSentinelFromIDInternal(idable.UniqueID, out nativeSentinel, true);
         }
 
         public static void CompleteRemoveExistingSentinelForID<T>(T idable)
             where T : struct, IUniqueID32U
         {
-            UnsafeCompleteRemoveExistingSentinelForID<T>(idable.ID);
+            UnsafeCompleteRemoveExistingSentinelForID<T>(idable.UniqueID);
         }
 
         public static void UnsafeCompleteRemoveExistingSentinelForID<T>(uint id)
@@ -120,14 +120,14 @@ namespace VLib
                 where T : struct, IUniqueID32U
             {
                 //Check for old incorrect sentinel and handle
-                if (idSentinelMap.TryGetValue(idable.ID, out var sentinelBase))
+                if (idSentinelMap.TryGetValue(idable.UniqueID, out var sentinelBase))
                 {
                     sentinelBase.CompleteClearAllJobs();
-                    idSentinelMap.Remove(idable.ID);
+                    idSentinelMap.Remove(idable.UniqueID);
                 }
 
                 var sentinel = new NativeSentinel<T>(ref idable);
-                idSentinelMap.Add(idable.ID, sentinel);
+                idSentinelMap.Add(idable.UniqueID, sentinel);
                 return sentinel;
             }
 

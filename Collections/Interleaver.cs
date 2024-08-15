@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using UnityEngine;
 
 namespace VLib
 {
@@ -41,11 +42,15 @@ namespace VLib
         public static void AutoTryDispose<T>(this Interleaver<T> interleaver)
             where T : IDisposable
         {
-            Try.Catch(() =>
+            try
             {
                 interleaver.valueA.Dispose();
                 interleaver.valueB.Dispose();
-            });
+            }
+            catch (Exception e) 
+            {
+                Debug.LogException(e);
+            }
         }
     }
 }

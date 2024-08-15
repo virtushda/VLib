@@ -437,7 +437,7 @@ namespace VLib
                 locked = false;
             }
 
-            public bool AssertValid()
+            public bool GetIsValid()
             {
                 if (list.IsCreated && locked)
                     return true;
@@ -464,7 +464,7 @@ namespace VLib
             public ref T ElementAt(int index)
             {
 #if SAFETY
-                AssertValid();
+                GetIsValid();
 #endif
                 return ref list.ListRef.ElementAt(index);
             }

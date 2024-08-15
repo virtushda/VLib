@@ -2,28 +2,28 @@
 
 namespace VLib
 {
-    public interface IUniqueID8U : IComparable<byte>
+    public interface IUniqueID8U// : IComparable<byte>
     {
-        byte ID { get; set; }
+        byte UniqueID { get; }
     }
     
-    public interface IUniqueID16U : IComparable<ushort>
+    public interface IUniqueID16U// : IComparable<ushort>
     {
-        ushort ID { get; set; }
+        ushort UniqueID { get; }
     }
     
-    public interface IUniqueID32U : IComparable<uint>
+    public interface IUniqueID32U// : IComparable<uint>
     {
-        uint ID { get; set; }
+        uint UniqueID { get; }
     }
 
-    public interface IUniqueID64 : IComparable<long>
+    public interface IUniqueID64// : IComparable<long>
     {
-        long ID { get; set; }
+        long UniqueID { get; }
     }
     
-    public interface IUniqueID64U : IComparable<ulong>
+    public interface IUniqueID64U// : IComparable<ulong>
     {
-        ulong ID { get; set; }
+        ulong UniqueID { get; }
     }
 }

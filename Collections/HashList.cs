@@ -175,7 +175,7 @@ namespace VLib
         public void Insert(int index, T item)
         {
             //Move
-            if (hashset.Contains(item))
+            if (!hashset.Add(item))
             {
                 if (!list[index].Equals(item))
                 {
@@ -187,7 +187,6 @@ namespace VLib
             }
             else //Insert
             {
-                hashset.Add(item);
                 list.Insert(index, item);
             }
         }

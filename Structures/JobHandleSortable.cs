@@ -9,7 +9,7 @@ namespace VLib
         static VIdentityProviderUInt16 Identity16 => identity16 ??= new VIdentityProviderUInt16();
 
         ushort id;
-        public ushort ID
+        public ushort UniqueID
         {
             readonly get => id;
             set => throw new NotSupportedException("Setting the ID manually is not supported.");
@@ -38,11 +38,11 @@ namespace VLib
             Dispose();
         }
 
-        public int CompareTo(JobHandleSortable other) => ID.CompareTo(other.ID);
+        public int CompareTo(JobHandleSortable other) => UniqueID.CompareTo(other.UniqueID);
 
-        public int CompareTo(ushort other) => ID.CompareTo(other);
+        public int CompareTo(ushort other) => UniqueID.CompareTo(other);
 
-        public bool Equals(JobHandleSortable other) => ID.Equals(other.ID);
+        public bool Equals(JobHandleSortable other) => UniqueID.Equals(other.UniqueID);
 
         public void Dispose()
         {

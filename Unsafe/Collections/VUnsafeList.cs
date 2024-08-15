@@ -22,7 +22,7 @@ namespace VLib
     //[DebuggerDisplay("Length = {m_ListData == null ? default : m_ListData->Length}, Capacity = {m_ListData == null ? default : m_ListData->Capacity}")]
     //[DebuggerTypeProxy(typeof(NativeListDebugView<>))]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
-    public unsafe struct VUnsafeList<T> : IDisposable /*INativeDisposable*/, INativeList<T>, IEnumerable<T> // Used by collection initializers.
+    public unsafe struct VUnsafeList<T> : IDisposable /*INativeDisposable*/, INativeList<T>, IEnumerable<T>, IReadOnlyList<T> // Used by collection initializers.
         where T : unmanaged
     {
         [NativeDisableUnsafePtrRestriction] public UnsafeList<T>* listData;
@@ -130,6 +130,8 @@ namespace VLib
                 listData->Resize(value, NativeArrayOptions.ClearMemory);
             }
         }
+
+        public int Count => Length;
 
         /// <summary>
         /// The number of elements that fit in the current allocation.

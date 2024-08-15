@@ -201,6 +201,9 @@ namespace VLib
         
         [Pure]
         public readonly bool ContainsXZ(float2 point) => math.all(math.abs(point - m_Center.xz) < m_Extents.xz);
+        
+        [Pure]
+        public readonly bool ContainsY(float y) => y >= Min.y && y <= Max.y;
 
         public readonly float3 ClosestPointTo(float3 point) => math.clamp(point, Min, Max);
         

@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace VLib
 {
+    /// <summary> TODO: Legacy stuff, useful but could be updated. </summary>
     public static class LODExtendedUtility
     {
         //Return the LODGroup component with a renderer pointing to a specific GameObject. If the GameObject is not part of a LODGroup, returns null 
@@ -14,8 +15,8 @@ namespace VLib
                 return null;
             LOD[] LODs = LODGroupParent.GetLODs();
 
-            var FoundLOD = LODs.Where(lod => lod.renderers.Where(renderer => renderer == GO.GetComponent<Renderer>()).ToArray().Count() > 0).ToArray();
-            if (FoundLOD != null && FoundLOD.Count() > 0)
+            var FoundLOD = LODs.Where(lod => lod.renderers.Where(renderer => renderer == GO.GetComponent<Renderer>()).ToArray().Any()).ToArray();
+            if (FoundLOD is {Length: > 0}) // FoundLOD != null && FoundLOD.Count() > 0)
                 return (LODGroupParent);
 
             return null;
@@ -38,7 +39,7 @@ namespace VLib
                 return -1;
             LOD[] LODs = LODGroupParent.GetLODs();
 
-            var index = Array.FindIndex(LODs, lod => lod.renderers.Where(renderer => renderer == GO.GetComponent<Renderer>()).ToArray().Count() > 0);
+            var index = Array.FindIndex(LODs, lod => lod.renderers.Where(renderer => renderer == GO.GetComponent<Renderer>()).ToArray().Any());
             return index;
         }
 
