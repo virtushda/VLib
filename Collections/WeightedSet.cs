@@ -1,30 +1,58 @@
-﻿using Sirenix.OdinInspector;
-using System;
+﻿using System;
 using UnityEngine;
-using UnityEngine.PlayerLoop;
+#if ODIN_INSPECTOR
+using Sirenix.OdinInspector;
+using Sirenix.Serialization;
+#endif
 
 namespace VLib
 {
     [Serializable]
     public class WeightedSet<T>
     {
-        public void CopyTo(WeightedSet<T> other)
+/*#if ODIN_INSPECTOR
+        [OdinSerialize]
+        //[NonSerialized]
+        [ShowInInspector] 
+#endif */
+        public WeightedSetRep[] weightValuePairs;
+
+/*#if ODIN_INSPECTOR
+        [OdinSerialize, ShowInInspector]
+        //[NonSerialized]
+        [ReadOnly] 
+#else
+        [SerializeField]
+#endif*/
+        [SerializeField]
+        float totalWeight = -1;
+
+        [Serializable]
+        public class WeightedSetRep
         {
-            other.weightValuePairs = new WeightedSetRep[weightValuePairs.Length];
-            for (int i = 0; i < weightValuePairs.Length; i++)
+/*#if ODIN_INSPECTOR
+            [OdinSerialize] 
+            //[NonSerialized]
+#endif*/
+            public float weight;
+/*#if ODIN_INSPECTOR
+            [OdinSerialize] 
+            //[NonSerialized]
+#endif*/
+            public T value;
+
+            public WeightedSetRep(T value, float weight = 1)
             {
-                other.weightValuePairs[i] = new WeightedSetRep(default);
-                other.weightValuePairs[i].CopyFrom(weightValuePairs[i]);
+                this.weight = weight;
+                this.value = value;
             }
-
-            other.UpdateTotalWeight();
+            
+            public void CopyFrom(WeightedSetRep other)
+            {
+                weight = other.weight;
+                value = other.value;
+            }
         }
-        
-        public int Length => weightValuePairs.Length;
-
-        [SerializeField] public WeightedSetRep[] weightValuePairs;
-
-        [SerializeField, ReadOnly] float totalWeight = -1;
 
         public float[] Weights
         {
@@ -57,6 +85,20 @@ namespace VLib
             }
         }
 
+        public void CopyTo(WeightedSet<T> other)
+        {
+            other.weightValuePairs = new WeightedSetRep[weightValuePairs.Length];
+            for (int i = 0; i < weightValuePairs.Length; i++)
+            {
+                other.weightValuePairs[i] = new WeightedSetRep(default);
+                other.weightValuePairs[i].CopyFrom(weightValuePairs[i]);
+            }
+
+            other.UpdateTotalWeight();
+        }
+        
+        public int Length => weightValuePairs.Length;
+
         public float TotalWeight
         {
             get
@@ -64,25 +106,6 @@ namespace VLib
                 if (totalWeight <= 0.01f)
                     UpdateTotalWeight();
                 return totalWeight;
-            }
-        }
-
-        [Serializable]
-        public class WeightedSetRep
-        {
-            public float weight;
-            public T value;
-
-            public WeightedSetRep(T value, float weight = 1)
-            {
-                this.weight = weight;
-                this.value = value;
-            }
-            
-            public void CopyFrom(WeightedSetRep other)
-            {
-                weight = other.weight;
-                value = other.value;
             }
         }
 
@@ -144,6 +167,7 @@ namespace VLib
             return false;
         }*/
 
+        /// <summary> Main thread only </summary>
         public int GetRandomIndexWeighted()
         {
             float random = UnityEngine.Random.Range(0, TotalWeight);
@@ -151,11 +175,18 @@ namespace VLib
             return GetIndexByWeight(random);
         }
 
-        public unsafe int GetRandomIndexWeighted(ref Unity.Mathematics.Random random)
+        /// <summary> Thread-safe version </summary>
+        public int GetRandomIndexWeighted(ref Unity.Mathematics.Random random)
         {
             float weight = random.NextFloat(0, TotalWeight);
             return GetIndexByWeight(weight);
         }
+        
+        /// <summary> Main thread only </summary>
+        public T GetRandomValueWeighted() => weightValuePairs[GetRandomIndexWeighted()].value;
+        
+        /// <summary> Thread-safe version </summary>
+        public T GetRandomValueWeighted(ref Unity.Mathematics.Random random) => weightValuePairs[GetRandomIndexWeighted(ref random)].value;
 
         public int GetIndexByWeight(float weight)
         {
@@ -169,7 +200,9 @@ namespace VLib
             throw new UnityException($"Selection by weight failed! Weight: {weight} is outside range [0 - {totalWeight}]");
         }
 
+#if ODIN_INSPECTOR
         [Button]
+#endif
         public void UpdateTotalWeight()
         {
             totalWeight = 0;
