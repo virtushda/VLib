@@ -15,7 +15,6 @@ namespace VLib
 
     public interface IThreadGuardLockStruct<T>
     {
-        bool IsLocked { get; }
         ref T ObjRef { get; }
     }
     

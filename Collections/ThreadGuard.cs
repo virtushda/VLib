@@ -56,7 +56,6 @@ namespace VLib
             readonly ThreadGuard<T> guard;
             readonly VRWLockHoldScoped rwLockHold;
             
-            public bool IsLocked => rwLockHold.IsValidLock;
             public ref T ObjRef => ref guard.obj;
 
             public ExclusiveLock(ThreadGuard<T> guard, out T outObj)
@@ -75,7 +74,6 @@ namespace VLib
             readonly ThreadGuard<T> guard;
             readonly VRWLockHoldScoped rwLockHold;
             
-            public bool IsLocked => rwLockHold.IsValidLock;
             public ref T ObjRef => ref guard.obj;
 
             public ReadLock(ThreadGuard<T> guard, out T outObj)

@@ -1,37 +1,47 @@
-﻿//#define EXPOSE_MULTIPLE_DISPOSE
+﻿#if UNITY_EDITOR
+//#define PROFILING
+//#define SAFETY_TRACKING
+#endif
 
 using System;
 using System.Diagnostics;
-using UnityEngine;
 
 namespace VLib
 {
-    [DebuggerDisplay("Valid: {IsValidLock}, IsWrite: {isWrite}, ID: {wrapperID}, Index: {idArrayIndex}")]
+    [DebuggerDisplay("IsWrite: {isWrite}, ID: {wrapperID}")]
     public readonly struct VRWLockHoldScoped : IDisposable
     {
         readonly VReaderWriterLockSlim rwLock;
-        internal readonly long wrapperID;
-        internal readonly ushort idArrayIndex;
         public readonly bool isWrite;
-        
-        public bool IsValidLock => rwLock != null && rwLock.IsValid(this);
+#if SAFETY_TRACKING
+        internal readonly long wrapperID;
+#endif
 
-        public VRWLockHoldScoped(VReaderWriterLockSlim rwLock, long wrapperID, ushort idArrayIndex, bool isWrite)
+        public VRWLockHoldScoped(VReaderWriterLockSlim rwLock, bool isWrite
+#if SAFETY_TRACKING
+            , long wrapperID
+#endif
+        )
         {
             this.rwLock = rwLock;
-            this.wrapperID = wrapperID;
-            this.idArrayIndex = idArrayIndex;
             this.isWrite = isWrite;
+#if SAFETY_TRACKING
+            this.wrapperID = wrapperID;
+#endif
         }
 
         public void Dispose()
         {
-#if EXPOSE_MULTIPLE_DISPOSE
-            if (!rwLock.InvalidateScoped(this))
-                UnityEngine.Debug.LogError("Trying to dispose a VRWLockSlimScoped that has already been disposed!");
-#else
-            rwLock.InvalidateScoped(this);
+#if SAFETY_TRACKING
+            if (!rwLock.activeIDTracking.TryRemove(wrapperID, out _))
+                throw new InvalidOperationException($"{(isWrite ? "Write" : "Read")} scope lock is not active and cannot be invalidated twice! (This is an editor-only safety feature)");
 #endif
+            
+            // Release the lock
+            if (isWrite)
+                rwLock.internalLock.ExitWriteLock();
+            else
+                rwLock.internalLock.ExitReadLock();
         }
     }
 }

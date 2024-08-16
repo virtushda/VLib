@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace VLib.Libraries.VLib.Collections
 {
@@ -41,7 +42,7 @@ namespace VLib.Libraries.VLib.Collections
                     return null;
                 AssertTypeValid(objectAtIndex);
                 // Faster cast, guarded with an editor-only check
-                return Unsafe.As<T>(objectAtIndex);
+                return UnsafeUtility.As<object, T>(ref objectAtIndex);
                 //return (T)pooledList.Objects[index];
             }
             set
