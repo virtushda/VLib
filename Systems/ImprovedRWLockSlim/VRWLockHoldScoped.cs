@@ -17,6 +17,10 @@ namespace VLib
         internal readonly long wrapperID;
 #endif
 
+        public bool IsLockedForRead => rwLock.internalLock.IsReadLockHeld;
+        public bool IsLockedForWrite => rwLock.internalLock.IsWriteLockHeld;
+        public bool IsLockedAny => IsLockedForRead || IsLockedForWrite;
+
         public VRWLockHoldScoped(VReaderWriterLockSlim rwLock, bool isWrite
 #if SAFETY_TRACKING
             , long wrapperID
