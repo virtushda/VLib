@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 
 namespace VLib
 {
-    public class MultiPoolParameterless : IConcurrentDictionaryPoolContainer, ISafeDisposable
+    public class MultiPoolParameterless : IConcurrentTypedPoolContainer, ISafeDisposable
     {
         public ConcurrentDictionary<Type, IPool> Map { get; } = new();
 

@@ -463,6 +463,22 @@ namespace VLib
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SetForward<T>(this ref T trs, float3 forward)
+            where T : struct, ITRS
+        {
+            trs.RotationNative = quaternion.LookRotation(forward, trs.Up());
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SetForwardXZ<T>(this ref T trs, float3 forward)
+            where T : struct, ITRS
+        {
+            var forwardXZ = forward;
+            forwardXZ.y = 0f;
+            trs.RotationNative = quaternion.LookRotation(forwardXZ, VMath.Up3);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float3 ForwardXZ<T>(this T trs)
             where T : struct, ITRS
         {
@@ -472,12 +488,26 @@ namespace VLib
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 Right<T>(this T trs)
+            where T : struct, ITRS
+        {
+            return math.rotate(trs.RotationNative, VMath.Right3);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float3 RightXZ<T>(this T trs)
             where T : struct, ITRS
         {
-            var forward = math.rotate(trs.RotationNative, VMath.Right3);
-            forward.y = 0f;
-            return math.normalize(forward);
+            var right = trs.Right();
+            right.y = 0f;
+            return math.normalize(right);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 Up<T>(this T trs)
+            where T : struct, ITRS
+        {
+            return math.rotate(trs.RotationNative, VMath.Up3);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

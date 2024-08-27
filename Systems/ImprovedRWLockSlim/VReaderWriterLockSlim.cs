@@ -1,5 +1,4 @@
 ﻿#if UNITY_EDITOR
-//#define PROFILING
 //#define SAFETY_TRACKING
 #endif
 
@@ -7,7 +6,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using Unity.Jobs.LowLevel.Unsafe;
 
 // NOTE: Deprecated but powerful thread-safe safety tracking pattern:
 // Use an infinite ID system Interlocked + long value
@@ -69,9 +67,6 @@ namespace VLib
         
         public VRWLockHoldScoped ScopedExclusiveLock(int timeoutMS = 2000)
         {
-#if PROFILING
-            Profiler.BeginSample("ScopedExclusiveLock");
-#endif
             // Get lock
             if (!internalLock.TryEnterWriteLock(timeoutMS))
                 throw new TimeoutException($"Failed to acquire write lock within {timeoutMS}ms!");

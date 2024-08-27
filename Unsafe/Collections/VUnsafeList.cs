@@ -9,6 +9,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using VLib.UnsafeListSlicing;
 
 namespace VLib
 {
@@ -1066,6 +1067,18 @@ namespace VLib
             IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
         }
 
+        #endregion
+        
+        #region Slicing
+
+        /// <summary> An unsafe window into a portion of the list. </summary>
+        public VUnsafeListSlice<T> Slice(int start, int length)
+        {
+            CheckIndexInRange(start, Length);
+            CheckIndexInRange(start + length - 1, Length);
+            return new VUnsafeListSlice<T>(this, start, length);
+        }
+        
         #endregion
 
         public void ClearUnusedMemory() => listData->ClearUnusedMemory();

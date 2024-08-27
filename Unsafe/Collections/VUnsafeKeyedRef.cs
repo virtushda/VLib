@@ -20,7 +20,7 @@ namespace VLib
         [NativeDisableUnsafePtrRestriction] T* ptr;
 
         /// <summary> A special pointer that should be used to turn off this struct, by setting the pointer to zero. </summary>
-        uint* keyPtr;
+        [NativeDisableUnsafePtrRestriction] uint* keyPtr;
 
         internal AllocatorManager.AllocatorHandle m_AllocatorLabel;
 

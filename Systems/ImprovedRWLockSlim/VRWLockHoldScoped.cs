@@ -1,5 +1,4 @@
 ﻿#if UNITY_EDITOR
-//#define PROFILING
 //#define SAFETY_TRACKING
 #endif
 

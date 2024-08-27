@@ -1,4 +1,6 @@
-﻿using Drawing;
+﻿using System.Collections;
+using System.Collections.Generic;
+using Drawing;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -70,6 +72,8 @@ namespace VLib
             (boundsMin[(int)axisA], boundsMin[(int)axisB],
                 boundsMax[(int)axisA], boundsMax[(int)axisB]);
         }
+        
+        public static RectNative FromMinMax(float2 min, float2 max) => new(new float4(min, max));
 
         #endregion
 
@@ -464,6 +468,63 @@ namespace VLib
             var valueTR = valueArray[indices[3]];
 
             return VMath.Blerp<T, U>(valueBL, valueBR, valueTL, valueTR, weightsXY.x, weightsXY.y);
+        }
+        
+        public RectIntEnumerator GetIntEnumerable(bool inclusive = false) => new(this, inclusive);
+
+        /*public readonly struct RectIntEnumerable : IEnumerable<int2>
+        {
+            readonly RectNative rectCopy;
+            
+            
+        }*/
+
+        public struct RectIntEnumerator : IEnumerable<int2>, IEnumerator<int2>
+        {
+            RectNative rectCopy;
+            int minX;
+            int2 endXY;
+            
+            int2 current;
+            
+            public RectIntEnumerator(RectNative rectCopy, bool inclusive)
+            {
+                this.rectCopy = rectCopy;
+                
+                current = rectCopy.MinInt;
+                minX = current.x;
+                endXY = rectCopy.MaxInt;
+                
+                if (inclusive)
+                    ++endXY;
+            }
+            
+            public bool MoveNext()
+            {
+                ++current.x;
+                // Fast exit if we're still in the same row
+                if (current.x < endXY.x)
+                    return true;
+                
+                // Move to next row
+                current.x = minX;
+                ++current.y;
+
+                // Continue if this row is still within bounds
+                return current.y < endXY.y;
+            }
+
+            public void Reset() => current = rectCopy.MinInt;
+
+            public int2 Current => current;
+            object IEnumerator.Current => Current;
+
+            public void Dispose() { }
+            
+            public RectIntEnumerator GetEnumerator() => new(rectCopy, false);
+
+            IEnumerator<int2> IEnumerable<int2>.GetEnumerator() => throw new System.NotImplementedException();
+            IEnumerator IEnumerable.GetEnumerator() => throw new System.NotImplementedException();
         }
 
 #if UNITY_EDITOR

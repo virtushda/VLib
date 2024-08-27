@@ -4,10 +4,10 @@ using UnityEngine;
 namespace VLib
 {
     /// <summary>Implementation for IConcurrentDictionaryPoolContainer</summary>
-    public static class IConcurrentDictionaryPoolExtensions
+    public static class IConcurrentTypedPoolExtensions
     {
         public static bool TryGetExistingPool<TContainer, TPool, TPoolable>(this TContainer dictionaryPool, out TPool fetchedPool)
-            where TContainer : IConcurrentDictionaryPoolContainer
+            where TContainer : IConcurrentTypedPoolContainer
             where TPool : IPool<TPoolable>
         {
             if (dictionaryPool.Map.TryGetValue(typeof(TPoolable), out var poolObject))
@@ -20,7 +20,7 @@ namespace VLib
         }
         
         public static TPool GetOrCreatePool<TContainer, TPool, TPoolable>(this TContainer dictionaryPool)
-            where TContainer : IConcurrentDictionaryPoolContainer
+            where TContainer : IConcurrentTypedPoolContainer
             where TPool : IPool<TPoolable>, new()
         {
             if (dictionaryPool.Map.TryGetValue(typeof(TPoolable), out var poolObject))
@@ -31,7 +31,7 @@ namespace VLib
         }
         
         public static void GetOrCreatePoolAuto<TContainer, TPool, TPoolable>(this TContainer dictionaryPool, out TPool fetchedPool, out TPoolable autoHelper) 
-            where TContainer : IConcurrentDictionaryPoolContainer
+            where TContainer : IConcurrentTypedPoolContainer
             where TPool : IPool<TPoolable>, new()
             where TPoolable : new()
         {
@@ -40,7 +40,7 @@ namespace VLib
         }
         
         public static bool TryRemovePool<TContainer>(this TContainer dictionaryPool, Type key)
-            where TContainer : IConcurrentDictionaryPoolContainer
+            where TContainer : IConcurrentTypedPoolContainer
         {
             if (!dictionaryPool.Map.TryGetValue(key, out var pool))
                 return false;
@@ -54,7 +54,7 @@ namespace VLib
         }
         
         public static void ClearAllPools<TContainer>(this TContainer dictionaryPool)
-            where TContainer : IConcurrentDictionaryPoolContainer
+            where TContainer : IConcurrentTypedPoolContainer
         {
             if (dictionaryPool != null && dictionaryPool.Map != null)
             {

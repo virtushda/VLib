@@ -707,6 +707,18 @@ namespace VLib
             return default;
         }
         
+        public static bool TryPop<T>(ref this UnsafeList<T> list , out T value, bool logError = true)
+            where T : unmanaged
+        {
+            if (list.Length > 0)
+            {
+                value = list.Pop();
+                return true;
+            }
+            value = default;
+            return false;
+        }
+        
         /// <summary> Will return 'default' on a 0-length list. </summary>
         public static T Peek<T>(ref this UnsafeList<T> list, bool logError = true)
             where T : unmanaged

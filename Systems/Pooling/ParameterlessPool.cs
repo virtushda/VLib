@@ -5,12 +5,12 @@ using UnityEngine;
 namespace VLib
 {
     /// <summary> Automatic implementation for anything that can be created with a parameter-less constructor </summary>
-    public class SimplePoolParameterless<T> : SimplePool<T>, IPooledItemCreator<T>
+    public class ParameterlessPool<T> : SimplePool<T>, IPooledItemCreator<T>
         where T : new()
     {
-        public SimplePoolParameterless() { }
+        public ParameterlessPool() { }
         
-        public SimplePoolParameterless(int initPoolCapacity) : base(initPoolCapacity) { }
+        public ParameterlessPool(int initPoolCapacity) : base(initPoolCapacity) { }
 
         public virtual T CreateNewItem()
         {

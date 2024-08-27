@@ -45,10 +45,16 @@ namespace Libraries.KeyedAccessors.Lightweight
         
         public bool ContainsKey(TKey key) => keyIndexMap.ContainsKey(key);
 
-        public bool Remove(TKey key)
+        /// <summary> The last key will end up replacing the key you're removing. This will be at the <see cref="removalIndex"/>. </summary>
+        public bool RemoveSwapBack(TKey key, out int removalIndex)
         {
-            if (!keyIndexMap.TryGetValue(key, out var removeKeyIndex))
+            if (!keyIndexMap.TryGetValue(key, out removalIndex))
                 return false;
+            return RemoveAtSwapBack(key, removalIndex);
+        }
+
+        public bool RemoveAtSwapBack(TKey key, int removalIndex)
+        {
             keyIndexMap.Remove(key);
 
             // Handle case: Only element
@@ -63,10 +69,10 @@ namespace Libraries.KeyedAccessors.Lightweight
             var lastIndex = keys.Length - 1;
             var lastKey = keys[lastIndex];
             // Swapback
-            keys.RemoveAtSwapBack(removeKeyIndex);
+            keys.RemoveAtSwapBack(removalIndex);
             // Update index mapping, but only if the last key is not the removed key, setting this would re-add it to the map (was a bug, now fixed)
-            if (removeKeyIndex != lastIndex)
-                keyIndexMap[lastKey] = removeKeyIndex;
+            if (removalIndex != lastIndex)
+                keyIndexMap[lastKey] = removalIndex;
 
             return true;
         }
