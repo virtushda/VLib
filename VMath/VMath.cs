@@ -291,6 +291,19 @@ namespace VLib
             return true;
         }
 
+        public static AffineTransform Lerp(in this AffineTransform a, in AffineTransform b, float t)
+        {
+            var pos = lerp(a.t, b.t, t);
+            
+            a.rs.DecomposeRotScaleRaw(out var rotationA, out var scaleA);
+            b.rs.DecomposeRotScaleRaw(out var rotationB, out var scaleB);
+            
+            var rot = slerp(rotationA, rotationB, t);
+            var scale = lerp(scaleA, scaleB, t);
+            
+            return new AffineTransform(pos, rot, scale);
+        }
+        
         public static class Grid
         {
             // Method to compute coord from index

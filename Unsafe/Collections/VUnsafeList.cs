@@ -1021,22 +1021,12 @@ namespace VLib
             
             public readonly int Capacity => list.Capacity;
             
-            public T this[int index]
-            {
-                get
-                {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                    return ReadSafe(index);
-#else
-                    return list[index];
-#endif
-                }
-            }
+            public T this[int index] => list[index];
 
             public ReadOnly(VUnsafeList<T> list) => this.list = list;
 
             /// <summary> Performs a guarded read and logs and error if something was wrong. </summary>
-            public readonly T ReadSafe(int index)
+            public readonly T GetValueOrDefault(int index)
             {
                 if (list.TryGetValue(index, out var value))
                     return value;

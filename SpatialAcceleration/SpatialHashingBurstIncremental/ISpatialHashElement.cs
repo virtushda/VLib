@@ -4,7 +4,7 @@ namespace VLib.SpatialAcceleration
 {
     public interface ISpatialHashElement
     {
-        float2 Position { get; }
-        float HalfSize { get; }
+        float2 SpatialHashPosition { get; }
+        float SpatialHashHalfSize { get; }
     }
 }

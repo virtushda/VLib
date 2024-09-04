@@ -418,6 +418,17 @@ namespace VLib
             sortedList.Insert(index, valueToAdd);
         }
 
+        public static int AddSorted<T, U>(this ref UnsafeList<T> sortedList, T valueToAdd, U comparer)
+            where T : unmanaged, IComparable<T>
+            where U : struct, IComparer<T>
+        {
+            var index = sortedList.BinarySearch(valueToAdd, comparer);
+            if (index < 0)
+                index = ~index;
+            sortedList.Insert(index, valueToAdd);
+            return index;
+        }
+
         /// <summary> Adds to a sorted list, but only if the element does not already exist by the logic defined in 'T's IComparableT. </summary>
         /// <returns>True if added</returns>
         public static bool AddSortedExclusive<T>(this NativeList<T> sortedList, T valueToAdd, out int index)
@@ -830,6 +841,26 @@ namespace VLib
                 return false;
             }
             return true;
+        }
+
+        public static T GetFirst<T>(this UnsafeHashSet<T> hashSet)
+            where T : unmanaged, IEquatable<T>
+        {
+            foreach (var item in hashSet)
+                return item;
+            return default;
+        }
+        
+        public static bool TryGetFirst<T>(this UnsafeHashSet<T> hashSet, out T first)
+            where T : unmanaged, IEquatable<T>
+        {
+            foreach (var item in hashSet)
+            {
+                first = item;
+                return true;
+            }
+            first = default;
+            return false;
         }
         
         public static long MemoryFootprintBytes<T, U>(this NativeParallelHashMap<T, U> hashMap)
