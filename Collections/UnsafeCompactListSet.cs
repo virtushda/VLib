@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Unity.Burst.CompilerServices;
 using Unity.Collections;
 using VLib.UnsafeListSlicing;
 
@@ -28,8 +29,6 @@ namespace VLib.Libraries.VLib.Collections
         {
             buffer = new VUnsafeList<T>(initialCapacity, allocator);
             listStartLengths = new VUnsafeList<StartLength>(initialCapacity / 4, allocator);
-            // Create initial list
-            listStartLengths.Add(new StartLength {start = 0, length = 0});
         }
         
         public void Dispose()
@@ -37,14 +36,20 @@ namespace VLib.Libraries.VLib.Collections
             buffer.Dispose();
             listStartLengths.Dispose();
         }
-        
-        public VUnsafeListSlice<T> this[int index] => GetListSliceAtIndex(index);
 
         /// <summary> Creates a new sublist and sets it as the write target. </summary>
         public void AddList()
         {
-            var lastStartLength = listStartLengths[EndListIndex];
-            listStartLengths.Add(new StartLength {start = lastStartLength.start + lastStartLength.length, length = 0});
+            var noLists = listStartLengths.Length < 1;
+            if (Hint.Unlikely(noLists))
+            {
+                listStartLengths.Add(new StartLength {start = 0, length = 0});
+            }
+            else
+            {
+                var lastStartLength = listStartLengths[EndListIndex];
+                listStartLengths.Add(new StartLength {start = lastStartLength.start + lastStartLength.length, length = 0});
+            }
         }
 
         /// <summary> Adds to the list at index <see cref="EndListIndex"/> </summary>
@@ -62,13 +67,28 @@ namespace VLib.Libraries.VLib.Collections
             buffer.Clear();
             listStartLengths.Clear();
         }
-        
-        public VUnsafeListSlice<T> GetListSliceAtIndex(int i)
+
+        /// <summary> WARNING: Providing a length allocator will require you to dispose the slice! Small perf decrease also, but provides more capabilities. </summary>
+        public bool TryGetListSliceAtIndex(int i, Allocator lengthAllocator, out VUnsafeListSlice<T> bufferSlice)
         {
-            CheckListIndex(i);
-            var startLength = listStartLengths[i];
-            return buffer.Slice(startLength.start, startLength.length);
+            // Try get list
+            if (!listStartLengths.TryGetValue(i, out var startLength))
+            {
+                bufferSlice = default;
+                return false;
+            }
+            // See if list has any allocation
+            if (startLength.length < 1)
+            {
+                bufferSlice = default;
+                return false;
+            }
+
+            bufferSlice = buffer.Slice(startLength.start, startLength.length, lengthAllocator);
+            return true;
         }
+
+        public bool ListIndexInRange(int listIndex) => listIndex >= 0 && listIndex < listStartLengths.Length;
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         void CheckEndListIndex()
@@ -80,7 +100,7 @@ namespace VLib.Libraries.VLib.Collections
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         void CheckListIndex(int index)
         {
-            if (index < 0 || index >= listStartLengths.Length)
+            if (!ListIndexInRange(index))
                 throw new System.ArgumentOutOfRangeException(nameof(index), $"Index {index} is out of range. Must be between 0 and {listStartLengths.Length - 1}.");
         }
     }

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Drawing;
 using Libraries.KeyedAccessors.Lightweight;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
+using UnityEngine;
 using VLib.Iterators;
 
 namespace VLib.SpatialAcceleration
@@ -24,6 +26,8 @@ namespace VLib.SpatialAcceleration
             int2 cellCoord;
             public UnsafeKeyedList<int> elementIndices;
 
+            public int2 CellCoord => cellCoord;
+            
             public Cell(int2 cellCoord)
             {
                 this.cellCoord = cellCoord;
@@ -61,7 +65,7 @@ namespace VLib.SpatialAcceleration
             // ADD
             if (elements.Add(value, out var valueIndex))
             {
-                AddInternal(value, valueIndex, boundsIncExc);
+                AddElementToCellsInternal(value, valueIndex, boundsIncExc);
                 return true;
             }
             // UPDATE
@@ -104,7 +108,9 @@ namespace VLib.SpatialAcceleration
             // If single cell coverage
             if (cellBoundsIncExc.c0.Equals(cellBoundsIncExc.c1 - 1))
             {
-                ref var cell = ref GetCellRef(cellBoundsIncExc.c0);
+                ref var cell = ref cells.TryGetValueRef(cellBoundsIncExc.c0, out var success);
+                if (!success)
+                    return;
                 resultIndices.AddRange(cell.elementIndices.keys);
             }
             // Multiple cells, potential repeated elements
@@ -116,7 +122,11 @@ namespace VLib.SpatialAcceleration
                 var iterator = new IteratorInt2Coords(cellBoundsIncExc, out var iteratorValue);
                 while (iterator.MoveNext(ref iteratorValue))
                 {
-                    ref var cell = ref GetCellRef(iteratorValue);
+                    // Attempt to reference the cell
+                    ref var cell = ref cells.TryGetValueRef(iteratorValue, out var success);
+                    if (!success)
+                        continue;
+                    
                     for (var i = 0; i < cell.elementIndices.Length; i++)
                     {
                         var elementIndex = cell.elementIndices.keys[i];
@@ -163,15 +173,19 @@ namespace VLib.SpatialAcceleration
             }
         }*/
 
-        void AddInternal(in T value, int valueIndex, in int2x2 bounds)
+        /// <summary> Does not add the element itself. </summary>
+        void AddElementToCellsInternal(in T value, int valueIndex, in int2x2 bounds)
         {
             // Inject into bins
             var iterator = new IteratorInt2Coords(bounds, out var iteratorValue);
             while (iterator.MoveNext(ref iteratorValue))
             {
-                ref var cell = ref GetCellRef(iteratorValue);
+                ref var cell = ref GetOrCreateCellRef(iteratorValue);
                 cell.elementIndices.Add(valueIndex, out _);
             }
+            
+            // Store the bounds for the element
+            elementIndexToCellBounds[valueIndex] = bounds;
         }
 
         void MoveInternal(in T value, int valueIndex, in int2x2 oldBounds, in int2x2 newBounds)
@@ -180,12 +194,12 @@ namespace VLib.SpatialAcceleration
             var oldIterator = new IteratorInt2Coords(oldBounds, out var oldIteratorValue);
             while (oldIterator.MoveNext(ref oldIteratorValue))
             {
-                ref var cell = ref GetCellRef(oldIteratorValue);
+                ref var cell = ref GetOrCreateCellRef(oldIteratorValue);
                 cell.elementIndices.RemoveSwapBack(valueIndex, out _);
             }
 
             // Add the indices to the cells the new bounds cover
-            AddInternal(value, valueIndex, newBounds);
+            AddElementToCellsInternal(value, valueIndex, newBounds);
         }
 
         void RemoveInternal(in T value, int removalIndex, in int2x2 boundsIncExc)
@@ -198,7 +212,7 @@ namespace VLib.SpatialAcceleration
             var iterator = new IteratorInt2Coords(boundsIncExc, out var iteratorValue);
             while (iterator.MoveNext(ref iteratorValue))
             {
-                ref var cell = ref GetCellRef(iteratorValue);
+                ref var cell = ref GetOrCreateCellRef(iteratorValue);
                 cell.elementIndices.RemoveSwapBack(removalIndex, out _);
             }
 
@@ -208,7 +222,7 @@ namespace VLib.SpatialAcceleration
             var otherIterator = new IteratorInt2Coords(otherElementBoundsIncExc, out var otherIteratorValue);
             while (otherIterator.MoveNext(ref otherIteratorValue))
             {
-                ref var cell = ref GetCellRef(otherIteratorValue);
+                ref var cell = ref GetOrCreateCellRef(otherIteratorValue);
                 cell.elementIndices.RemoveSwapBack(otherElementOLDIndex, out _);
             }
 
@@ -216,7 +230,7 @@ namespace VLib.SpatialAcceleration
             otherIteratorValue = otherIterator.GetStartingIteratorValue();
             while (otherIterator.MoveNext(ref otherIteratorValue))
             {
-                ref var cell = ref GetCellRef(otherIteratorValue);
+                ref var cell = ref GetOrCreateCellRef(otherIteratorValue);
                 cell.elementIndices.Add(removalIndex, out _);
             }
 
@@ -224,7 +238,7 @@ namespace VLib.SpatialAcceleration
             elementIndexToCellBounds[removalIndex] = otherElementBoundsIncExc;
         }
 
-        ref Cell GetCellRef(int2 cellCoord)
+        ref Cell GetOrCreateCellRef(int2 cellCoord)
         {
             if (!cells.TryGetIndex(cellCoord, out var cellIndex))
             {
@@ -270,6 +284,77 @@ namespace VLib.SpatialAcceleration
             var min = (int2) math.floor((rectNative.Min) / cellSize);
             var max = (int2) math.ceil((rectNative.Max) / cellSize);
             return new int2x2(min, max);
+        }
+
+        public void DebugDrawAline(CommandBuilder draw, bool drawCells, bool drawElements, bool drawElementCellBounds, bool drawCellElementOwnership)
+        {
+            // Draw wire planes for each cell with 1 or more elements in it
+            if (drawCells)
+            {
+                foreach (var cell in cells.values)
+                {
+                    if (cell.elementIndices.Length < 1)
+                        continue;
+                    var cellBounds = new RectNative((float2)cell.CellCoord * cellSize + cellSize * .5f, cellSize);
+                    
+                    cellBounds.DebugDraw(Color.white, Axis.X, Axis.Z, Axis.Y, .1f, draw);
+                }
+            }
+            
+            // Draw elements
+            if (drawElements)
+            {
+                draw.PushColor(Color.green);
+                var upOffset = math.up() * .1f;
+                for (int i = 0; i < elements.Length; i++)
+                {
+                    ref var element = ref elements.keys.ElementAt(i);
+                    var pos = element.SpatialHashPosition.ToFloat3_SupplyY(0);
+                    draw.Circle(pos + upOffset, math.up(), element.SpatialHashHalfSize);
+                }
+                draw.PopColor();
+            }
+            
+            // Draw cell bounds stored for each element
+            if (drawElementCellBounds)
+            {
+                draw.PushColor(Color.red);
+                var upOffset = math.up() * .1f;
+                foreach (var elementIndexToCellBound in elementIndexToCellBounds)
+                {
+                    var bounds = elementIndexToCellBound.Value;
+                    var min = (float2)bounds.c0 * cellSize;
+                    var max = (float2)bounds.c1 * cellSize;
+                    var center = (min + max) * .5f;
+                    var size = max - min;
+                    
+                    draw.WirePlane(center.ToFloat3_SupplyY(0) + upOffset, math.up(), size);
+                }
+                draw.PopColor();
+            }
+
+            if (drawCellElementOwnership)
+            {
+                var upOffset = math.up() * .1f;
+                for (var i = 0; i < cells.values.Length; i++)
+                {
+                    // Get unique color for each cell based on index
+                    var color = Color.HSVToRGB((i / (float)cells.values.Length) % 1, 1, 1);
+                    
+                    draw.PushColor(color);
+                    var cell = cells.values[i];
+                    var center = (float2) cell.CellCoord * cellSize + cellSize * .5f;
+                    var center3 = center.ToFloat3_SupplyY(0);
+
+                    foreach (var elementIndex in cell.elementIndices.keys)
+                    {
+                        ref var element = ref elements.keys.ElementAt(elementIndex);
+                        var elementPos = element.SpatialHashPosition.ToFloat3_SupplyY(0);
+                        draw.Line(center3 + upOffset, elementPos + upOffset);
+                    }
+                    draw.PopColor();
+                }
+            }
         }
     }
 }

@@ -101,6 +101,93 @@ namespace VLib
             dst.Length = math.max(previousListLength, requiredCap);
         }
 
+        /// <summary> Memcpy wrapper that gives a bit more readable control, sparing you some pointer math. Zero safety. </summary>
+        public static void CopyToUnsafe<T>(this IntPtr srcPtr, int srcIndex, T* dstPtr, int dstIndex, int length)
+            where T : unmanaged
+        {
+            void* srcPtrVoid = ((T*)srcPtr) + srcIndex;
+            void* dstPtrVoid = dstPtr + dstIndex;
+            UnsafeUtility.MemCpy(dstPtrVoid, srcPtrVoid, length * UnsafeUtility.SizeOf<T>());
+        }
+        
+        /// <summary>
+        /// Clears this list and then copies all the elements of an array to this list.
+        /// </summary>
+        /// <typeparam name="T">The type of elements.</typeparam>
+        /// <param name="list">This list.</param>
+        /// <param name="array">The managed array to copy from.</param>
+        [ExcludeFromBurstCompatTesting("Takes managed array")]
+        public static void CopyFromNBC<T>(this VUnsafeList<T> list, T[] array)
+            where T : unmanaged
+        {
+            list.ConditionalAssertIsCreated();
+            list.Clear();
+            list.Resize(array.Length, NativeArrayOptions.UninitializedMemory);
+            array.PinArrayCopyOut(0, list.listData->Ptr, 0, array.Length);
+        }
+
+        /// <summary> Stops a managed array of blittable types from moving in memory, then memcpys the desired buffer range directly. </summary>
+        [ExcludeFromBurstCompatTesting("Takes managed array")]
+        public static void PinArrayCopyOut<T>(this T[] source,
+            int sourceIndex,
+            T* dest,
+            int destIndex,
+            int length)
+            where T : unmanaged
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            if (source.Length < sourceIndex + length)
+                throw new ArgumentException("Source array is smaller than the length of the copy!");
+            if (dest == null)
+                throw new ArgumentNullException(nameof(dest));
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            if (sourceIndex < 0)
+                throw new ArgumentOutOfRangeException($"Source index '{sourceIndex}' is less than 0!");
+            if (destIndex < 0)
+                throw new ArgumentOutOfRangeException($"Destination index '{destIndex}' is less than 0!");
+#endif
+            
+            GCHandle gcHandle = GCHandle.Alloc((object) source, GCHandleType.Pinned);
+            IntPtr num = gcHandle.AddrOfPinnedObject();
+            UnsafeUtility.MemCpy(
+                (void*) ((IntPtr) dest + destIndex * UnsafeUtility.SizeOf<T>()), 
+                (void*) ((IntPtr) (void*) num + sourceIndex * UnsafeUtility.SizeOf<T>()), 
+                (long) (length * UnsafeUtility.SizeOf<T>()));
+            gcHandle.Free();
+        }
+
+        /// <summary> Stops a managed array of blittable types from moving in memory, then memcpys the desired buffer range directly. </summary>
+        [ExcludeFromBurstCompatTesting("Takes managed array")]
+        public static void PinArrayCopyIn<T>(this T[] dest,
+            int sourceIndex,
+            T* source,
+            int destIndex,
+            int length)
+            where T : unmanaged
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            if (dest == null)
+                throw new ArgumentNullException(nameof(dest));
+            if (dest.Length < destIndex + length)
+                throw new ArgumentException("Destination array is smaller than the length of the copy!");
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            if (sourceIndex < 0)
+                throw new ArgumentOutOfRangeException($"Source index '{sourceIndex}' is less than 0!");
+            if (destIndex < 0)
+                throw new ArgumentOutOfRangeException($"Destination index '{destIndex}' is less than 0!");
+#endif
+            
+            GCHandle gcHandle = GCHandle.Alloc((object) dest, GCHandleType.Pinned);
+            IntPtr num = gcHandle.AddrOfPinnedObject();
+            UnsafeUtility.MemCpy(
+                (void*) ((IntPtr) (void*) num + destIndex * UnsafeUtility.SizeOf<T>()), 
+                (void*) ((IntPtr) source + sourceIndex * UnsafeUtility.SizeOf<T>()), 
+                (long) (length * UnsafeUtility.SizeOf<T>()));
+            gcHandle.Free();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void* ForceGetUnsafePtrNOSAFETY<T>(this NativeArray<T> array) 
             where T : struct =>

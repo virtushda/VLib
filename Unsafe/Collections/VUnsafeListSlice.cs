@@ -2,162 +2,279 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 namespace VLib.UnsafeListSlicing
 {
-    /// <summary> Lets you read/write a portion of a list with no copy. This must be used with caution, the main list safety will be checked. No disposal needed.
+    /// <summary> Lets you read/write a portion of a list with no copy. This must be used with caution, the main list safety will be checked.
     /// This acts like a list with a limited capacity as it constrains all operations within the slice. </summary>
-    public unsafe struct VUnsafeListSlice<T> : IEnumerable<T>
+    public unsafe struct VUnsafeListSlice<T> : IReadOnlyList<T>, IDisposable
         where T : unmanaged
     {
         VUnsafeList<T> mainList;
-        UnsafeList<T> sublist;
-        readonly int sliceStartIndex;
-        readonly int sliceLength;
+        VUnsafeRef<int> lengthMemory;
+        public readonly int sliceStartIndex;
+
+        /// <summary> This can be faster than <see cref="Length"/> when you are using an alloc-free slice. </summary>
+        public readonly int sliceLength;
         
-        public VUnsafeListSlice(VUnsafeList<T> mainList, int start, int length)
+        /// <summary> Usable without length allocation. </summary>
+        public bool IsCreated => mainList.IsCreated;
+
+        /// <summary> A number of functions are unusable without an allocation to track internal slice length reliably. This is a perf tradeoff. </summary>
+        public bool LengthMutable => lengthMemory.IsCreated;
+        
+        /// <summary> Usable without length allocation. </summary>
+        public VUnsafeList<T> MainList => mainList;
+        
+        /// <summary> Usable without length allocation. </summary>
+        public int Length
+        {
+            get => lengthMemory.IsCreated ? lengthMemory.Value : sliceLength;
+            set
+            {
+                CheckLengthModifiable();
+                CheckInsideCapacity(value);
+                lengthMemory.Value = value;
+            }
+        }
+
+        ref int LengthInternalRef => ref lengthMemory.ValueRef;
+
+        /// <summary> Usable without length allocation. </summary>
+        public int Capacity => sliceLength;
+        
+        /// <summary> Get AND Set are usable without length allocation. </summary>
+        public T this[int index]
+        {
+            readonly get
+            {
+                CheckSliceIndex(index);
+                return mainList[sliceStartIndex + index];
+            }
+            set
+            {
+                CheckSliceIndex(index);
+                mainList[sliceStartIndex + index] = value;
+            }
+        }
+
+        /// <summary> Passing None/Invalid write allocator will make this slice read-only. </summary>
+        public VUnsafeListSlice(VUnsafeList<T> mainList, int start, int length, Allocator lengthAllocator)
         {
             this.mainList = mainList;
             sliceStartIndex = start;
             sliceLength = length;
-            sublist = new UnsafeList<T>(mainList.listData->Ptr + start, length);
+            this.lengthMemory = GetLengthMemoryFor(lengthAllocator, length);
             CheckMainList();
             CheckStartLength(start, length);
         }
-        
-        public VUnsafeListSlice(VUnsafeListSlice<T> slice, int startRelative, int length)
+
+        /*/// <summary> Create a slice with manually provided memory for length tracking. Moving the provided memory will cause dangerous behaviour. </summary>
+        public VUnsafeListSlice(VUnsafeList<T> mainList, int start, int length, VUnsafeRef<int> externalLengthMemory)
+        {
+            this.mainList = mainList;
+            sliceStartIndex = start;
+            sliceLength = length;
+            lengthMemory = externalLengthMemory;
+            CheckMainList();
+            CheckStartLength(start, length);
+        }*/
+            
+        /// <summary> Create from another slice. <br/>
+        /// Passing None/Invalid write allocator will make this slice read-only.</summary>
+        public VUnsafeListSlice(VUnsafeListSlice<T> slice, int startRelative, int length, Allocator lengthAllocator)
         {
             mainList = slice.mainList;
             sliceStartIndex = slice.sliceStartIndex + startRelative;
             sliceLength = length;
-            sublist = new UnsafeList<T>(mainList.listData->Ptr + sliceStartIndex, length);
+            lengthMemory = GetLengthMemoryFor(lengthAllocator, length);
             CheckMainList();
             CheckStartLengthSliceOfSlice(startRelative, length);
         }
         
-        public bool IsCreated => mainList.IsCreated;
-        public VUnsafeList<T> MainList => mainList;
-        
-        public int Length => sublist.Length;
-        public int Capacity => sliceLength;
-        
-        public T this[int index]
+        static VUnsafeRef<int> GetLengthMemoryFor(Allocator allocator, int initValue) => allocator is not (Allocator.Invalid or Allocator.None) ? new VUnsafeRef<int>(initValue, allocator) : default;
+
+        public void Dispose()
         {
-            get
-            {
-                CheckIndex(index);
-                return sublist[index];
-            }
-            set
-            {
-                CheckIndex(index);
-                sublist[index] = value;
-            }
+            if (lengthMemory.IsCreated)
+                lengthMemory.Dispose();
         }
-        
+
+        /// <summary> Usable without length allocation. </summary>
         public ref T ElementAt(int index)
         {
-            CheckIndex(index);
-            return ref sublist.ElementAt(index);
+            CheckSliceIndex(index);
+            return ref mainList.ElementAt(sliceStartIndex + index);
         }
 
-        /// <summary> Value at last index will be discarded if capacity is reached. </summary>
+        // Can bring this back if needed...
+        /*/// <summary> Value at last index will be discarded if capacity is reached. </summary>
         public void InsertDiscardLast(int index, T value)
         {
-            CheckIndex(index);
+            CheckLengthModifiable();
+            CheckSliceIndex(index);
             // Decrement length if at capacity, first to avoid pushing last values outside the slice
-            if (Length >= Capacity)
-                --sublist.Length;
+            if (lengthMemory.ValueRef >= Capacity)
+                --lengthMemory.ValueRef;
+            
             // Insert, discarding last value
+            mainList
             sublist.Insert(index, value);
-        }
+        }*/
         
+        /// <summary> Requires length allocation. </summary>
         public bool TryAddNoResize(in T value)
         {
-            if (Length >= Capacity)
+            CheckLengthModifiable();
+            if (LengthInternalRef >= Capacity)
                 return false;
-            sublist.AddNoResize(value);
+            mainList[sliceStartIndex + LengthInternalRef++] = value;
             return true;
         }
 
-        public bool TryAddRangeNoResize(UnsafeList<T> values, int count)
+        /// <summary> Requires length allocation. </summary>
+        public unsafe bool TryAddRangeNoResize(UnsafeList<T> values, int count)
         {
-            if (count > (Capacity - Length))
+            CheckLengthModifiable();
+            ref var lengthRef = ref LengthInternalRef;
+            if (count > (Capacity - lengthRef))
                 return false;
-            sublist.AddRangeNoResize(values.Ptr, count);
+
+            var start = sliceStartIndex + lengthRef;
+            
+            UnsafeUtility.MemCpy(mainList.listData->Ptr + start, values.Ptr, count * sizeof(T));
+            lengthRef += count;
             return true;
         }
 
-        public void ClearFast() => sublist.Clear();
-        
-        public void ClearToDefault(T clearValue = default)
+        /// <summary> Requires length allocation. </summary>
+        public void ClearFast()
+        {
+            CheckLengthModifiable();
+            LengthInternalRef = 0;
+        }
+
+        /// <summary> Requires length allocation. </summary>
+        public void ClearAllToDefault(T clearValue = default)
         {
             CheckMainList();
-            for (int i = 0; i < sublist.Length; i++)
-                sublist[i] = clearValue;
-            sublist.Clear();
+            CheckLengthModifiable();
+            mainList.WriteValueToRange(clearValue, sliceStartIndex, Capacity);
+            LengthInternalRef = 0;
         }
 
+        /// <summary> Requires length allocation. </summary>
         public void WriteToUnusedCapacity(T value)
         {
+            CheckLengthModifiable();
             var unusedStartIndex = sliceStartIndex + Length;
-            var end = sliceStartIndex + Capacity; 
-            for (int i = sliceStartIndex + unusedStartIndex; i < end; i++)
+            var unusedEnd = sliceStartIndex + Capacity; 
+            for (int i = unusedStartIndex; i < unusedEnd; i++)
                 mainList[i] = value;
         }
 
-        /// <summary> Slices this slice, to obtain a slice outside the bounds of this slice, get a new slice from <see cref="mainList"/> </summary>
-        public VUnsafeListSlice<T> Slice(int start, int length) => new(this, sliceStartIndex + start, length);
+        /// <summary> Slices this slice, to obtain a slice outside the bounds of this slice, get a new slice from <see cref="mainList"/> <br/>
+        /// Providing a <see cref="lengthAllocator"/> allows the slice to track it's own internal length and gives it enhanced capabilities at a small perf cost.
+        /// Pass <see cref="Allocator.None"/> for a lightweight slice. </summary>
+        public readonly VUnsafeListSlice<T> Slice(int start, int length, Allocator lengthAllocator) => new(this, sliceStartIndex + start, length, lengthAllocator);
         
-        // Burst compatible, non-boxing enumeration
-        UnsafeList<T>.Enumerator GetEnumerator() => sublist.GetEnumerator();
+        #region IReadOnlyList Support
 
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException("NO BOXING");
-        IEnumerator IEnumerable.GetEnumerator() => throw new NotImplementedException("NO BOXING");
+        public Enumerator GetEnumerator() => new(this);
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+        
+        public int Count => Length;
+        
+        // Enumerator struct
+        public struct Enumerator : IEnumerator<T>
+        {
+            VUnsafeListSlice<T> slice;
+            int index;
+            int endCached;
+
+            public Enumerator(VUnsafeListSlice<T> slice)
+            {
+                this.slice = slice;
+                index = slice.sliceStartIndex - 1;
+                endCached = slice.sliceStartIndex + slice.Length;
+            }
+
+            public bool MoveNext() => ++index < endCached;
+
+            public void Reset() => index = slice.sliceStartIndex - 1;
+            public T Current => slice.mainList[index];
+            object IEnumerator.Current => Current;
+            public void Dispose() => slice = default;
+        }
+
+        #endregion
+
+        #region Checks
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        void CheckMainList()
+        readonly void CheckLengthModifiable()
+        {
+            if (!lengthMemory.IsCreated)
+                throw new InvalidOperationException("Slice is not write capable, it was initialized as readonly, without the ability to store it's own length.");
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        readonly void CheckMainList()
         {
             if (!mainList.IsCreated)
-                throw new System.InvalidOperationException("Main list is not created");
+                throw new InvalidOperationException("Main list is not created");
         }
 
         /// <summary> This method implicitly will throw also if the main list is not created. </summary>
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        void CheckIndex(int index)
+        readonly void CheckSliceIndex(int index)
         {
             index += sliceStartIndex;
             if (!mainList.IsIndexValid(index))
-                throw new System.IndexOutOfRangeException($"Index {index} is out of range for mainlist of length {mainList.Length}");
+                throw new IndexOutOfRangeException($"Index {index} is out of range for mainlist of length {mainList.Length}");
         }
         
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        void CheckStartLength(int start, int length)
+        readonly void CheckStartLength(int start, int length)
         {
             if (start < 0)
-                throw new System.ArgumentOutOfRangeException($"Slice cannot start at negative index {start}");
+                throw new ArgumentOutOfRangeException($"Slice cannot start at negative index {start}");
             if (length < 0)
-                throw new System.ArgumentOutOfRangeException($"Slice cannot have a negative length {length}");
+                throw new ArgumentOutOfRangeException($"Slice cannot have a negative length {length}");
             if (start + length > mainList.Length)
-                throw new System.ArgumentOutOfRangeException($"Slice start {start} and length {length} are out of range for slice of length {Length}");
+                throw new ArgumentOutOfRangeException($"Slice start {start} and length {length} are out of range for slice of length {Length}");
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        void CheckStartLengthSliceOfSlice(int startRelative, int length)
+        readonly void CheckStartLengthSliceOfSlice(int startRelative, int length)
         {
-            if (startRelative < sliceStartIndex)
-                throw new System.ArgumentOutOfRangeException($"Slice of a slice cannot start before the source slice.");
+            if (startRelative < 0)
+                throw new ArgumentOutOfRangeException($"Slice of a slice cannot start before the source slice.");
             if (length < 0)
-                throw new System.ArgumentOutOfRangeException($"Slice cannot have a negative length {length}");
+                throw new ArgumentOutOfRangeException($"Slice cannot have a negative length {length}");
             if (startRelative + length > Length)
-                throw new System.ArgumentOutOfRangeException($"Slice start {startRelative} and length {length} are out of range for slice of length {Length}");
+                throw new ArgumentOutOfRangeException($"Slice start {startRelative} and length {length} are out of range for slice of length {Length}");
         }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        readonly void CheckInsideCapacity(int index)
+        {
+            if (index >= Capacity)
+                throw new ArgumentOutOfRangeException($"Index {index} is out of range for slice of capacity {Capacity}");
+            if (index < 0)
+                throw new ArgumentOutOfRangeException($"Index {index} is negative");
+        }
+
+        #endregion
     }
 
     public static class VUnsafeListSliceExt
     {
-        /// <summary> Could be accelerated with a binary search if needed... </summary>
+        // Bring this back if needed...
+        /*/// <summary> Could be accelerated with a binary search if needed... </summary>
         public static bool InsertSorted<T>(this VUnsafeListSlice<T> slice, T value)
             where T : unmanaged, System.IComparable<T>
         {
@@ -170,6 +287,6 @@ namespace VLib.UnsafeListSlicing
                 }
             }
             return false;
-        }
+        }*/
     }
 }

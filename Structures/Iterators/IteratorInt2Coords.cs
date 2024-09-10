@@ -2,7 +2,7 @@
 
 namespace VLib.Iterators
 {
-    /// <summary> Iterate over a 2D grid of coordinates represented by a min and max. </summary>
+    /// <summary> Iterate over a 2D grid of coordinates represented by a min (inclusive) and max (exclusive). </summary>
     public struct IteratorInt2Coords
     {
         readonly int2x2 minMax;
@@ -16,9 +16,9 @@ namespace VLib.Iterators
 
         public bool MoveNext(ref int2 iteratorValue)
         {
-            if (++iteratorValue.x <= minMax.c1.x)
+            if (++iteratorValue.x < minMax.c1.x)
                 return true;
-            if (++iteratorValue.y <= minMax.c1.y)
+            if (++iteratorValue.y < minMax.c1.y)
             {
                 iteratorValue.x = minMax.c0.x;
                 return true;

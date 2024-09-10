@@ -550,6 +550,7 @@ namespace VLib
         }
 #endif
 
+        /// <summary> Debug draw the rect in 3D space. The third axis is set to the value of 'thirdValue'. </summary>
         public void DebugDraw(Color c, Axis axisX, Axis axisY, Axis axisZ, float thirdValue, CommandBuilder draw, float duration = 0)
         {
             int x = (int)axisX;

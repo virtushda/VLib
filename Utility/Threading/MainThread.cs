@@ -1,9 +1,15 @@
-﻿using System;
+﻿#if UNITY_EDITOR
+#define MAIN_THREAD_CHECKS
+#endif
+
+using System;
+using System.Diagnostics;
 using System.Threading;
 using Unity.Jobs.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Profiling;
 using Application = UnityEngine.Device.Application;
+using Debug = UnityEngine.Debug;
 
 namespace VLib.Threading
 {
@@ -39,6 +45,13 @@ namespace VLib.Threading
             Profiler.EndSample();
 #endif
             return isMainThread;
+        }
+
+        [Conditional("MAIN_THREAD_CHECKS")]
+        public static void AssertMainThreadConditional()
+        {
+            if (!OnMain())
+                throw new InvalidOperationException("This operation must be done on the main thread.");
         }
     }
 }

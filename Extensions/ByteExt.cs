@@ -1,4 +1,5 @@
-﻿using MaxMath;
+﻿using System.Runtime.CompilerServices;
+using MaxMath;
 using Unity.Mathematics;
 
 namespace VLib
@@ -6,6 +7,7 @@ namespace VLib
     public static class ByteExt
     {
         /// <summary> Converts byte range (0 to 255) to float range (0 to 1) </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float ToPercent01(this byte b) => (float)b / byte.MaxValue;
         
         public static bool SbyteIsValidByte(this sbyte value, out byte byteValue)

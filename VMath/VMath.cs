@@ -23,6 +23,30 @@ namespace VLib
         public static readonly float3 Forward3 = Vector3.forward;
 
         #endregion
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEvenB(this sbyte value) => (value & 1) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEvenB(this byte value) => (value & 1) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEvenS(this short value) => (value & 1) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEvenS(this ushort value) => (value & 1) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEven(this int value) => (value & 1) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEven(this uint value) => (value & 1) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEvenL(this long value) => (value & 1) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsEvenL(this ulong value) => (value & 1) == 0;
         
         /// <summary>Gets the sign of a given value, with zero counted as positive.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -289,19 +313,6 @@ namespace VLib
             var yb = lerp(b.c0.y, b.c1.y, bNorm);
             intersection = new float3(intersectionXZ.x, lerp(ya, yb, heightLerp), intersectionXZ.y);
             return true;
-        }
-
-        public static AffineTransform Lerp(in this AffineTransform a, in AffineTransform b, float t)
-        {
-            var pos = lerp(a.t, b.t, t);
-            
-            a.rs.DecomposeRotScaleRaw(out var rotationA, out var scaleA);
-            b.rs.DecomposeRotScaleRaw(out var rotationB, out var scaleB);
-            
-            var rot = slerp(rotationA, rotationB, t);
-            var scale = lerp(scaleA, scaleB, t);
-            
-            return new AffineTransform(pos, rot, scale);
         }
         
         public static class Grid
