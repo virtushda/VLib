@@ -10,7 +10,7 @@ using VLib.Iterators;
 
 namespace VLib.SpatialAcceleration
 {
-    /// <summary> No write operations are thread-safe. This version does not use memory indirection for copy protection. </summary>
+    /// <summary> No write operations are concurrent-safe. This version does not use memory indirection for copy protection. </summary>
     public struct UnsafeSpatialHashGrid<T>
         where T : unmanaged, IEquatable<T>, ISpatialHashElement
     {
@@ -55,6 +55,8 @@ namespace VLib.SpatialAcceleration
         {
             elements.Dispose();
             elementIndexToCellBounds.Dispose();
+            foreach (var cell in cells.values)
+                cell.Dispose();
             cells.Dispose();
         }
 
@@ -249,14 +251,42 @@ namespace VLib.SpatialAcceleration
             return ref cells.values.ElementAt(cellIndex);
         }
 
+        public ElementRefIterator GetElementIterator(int startIndex = 0, int count = 0)
+        {
+            if (count < 1)
+                count = elements.Length - startIndex;
+            return new ElementRefIterator(this, startIndex, count);
+        }
+
         /// <summary> Is not concurrent safe, or safe to use during write operations to the maintaining <see cref="UnsafeSpatialHashGrid{T}"/> instance. </summary>
         public struct ElementRefIterator
+        {
+            UnsafeList<T> elementKeys;
+            int currentIndex;
+            readonly int end;
+
+            public ElementRefIterator(in UnsafeSpatialHashGrid<T> grid, int startIndex, int count)
+            {
+                VCollectionUtils.ConditionalCheckRangeValid(startIndex, count, grid.elements.keys.Length);
+                
+                elementKeys = grid.elements.keys;
+                currentIndex = startIndex - 1;
+                end = math.min(grid.elements.Length, startIndex + count);
+            }
+
+            public bool MoveNext() => ++currentIndex < end;
+
+            public ref T Current => ref elementKeys.ElementAt(currentIndex);
+        }
+
+        /// <summary> Is not concurrent safe, or safe to use during write operations to the maintaining <see cref="UnsafeSpatialHashGrid{T}"/> instance. </summary>
+        public struct MaskedElementRefIterator
         {
             UnsafeList<T> elementKeys;
             UnsafeList<int> indicesToRead;
             int currentIndex;
 
-            public ElementRefIterator(in UnsafeSpatialHashGrid<T> grid, UnsafeList<int> indicesToRead)
+            public MaskedElementRefIterator(in UnsafeSpatialHashGrid<T> grid, UnsafeList<int> indicesToRead)
             {
                 elementKeys = grid.elements.keys;
                 this.indicesToRead = indicesToRead;

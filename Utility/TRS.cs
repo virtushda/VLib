@@ -267,12 +267,41 @@ namespace VLib
             rotation = matrix.rotation;
         }
 
-        public Vector3 Position { get => position; set => position = value; }
-        public Quaternion Rotation { get => rotation; set => rotation = value; }
-        public Vector3 Scale { get => Vector3.one; set { } }
-        public float3 PositionNative { get => UnsafeUtility.As<Vector3, float3>(ref position); set => position = UnsafeUtility.As<float3, Vector3>(ref value); }
-        public quaternion RotationNative { get => UnsafeUtility.As<Quaternion, quaternion>(ref rotation); set => rotation = UnsafeUtility.As<quaternion, Quaternion>(ref value); }
-        public float3 ScaleNative { get => VMath.One3; set { } }
+        public Vector3 Position
+        {
+            readonly get => position;
+            set => position = value;
+        }
+
+        public Quaternion Rotation
+        {
+            readonly get => rotation;
+            set => rotation = value;
+        }
+
+        public Vector3 Scale
+        {
+            readonly get => Vector3.one;
+            set { }
+        }
+
+        public float3 PositionNative
+        {
+            get => UnsafeUtility.As<Vector3, float3>(ref position);
+            set => position = UnsafeUtility.As<float3, Vector3>(ref value);
+        }
+
+        public quaternion RotationNative
+        {
+            get => UnsafeUtility.As<Quaternion, quaternion>(ref rotation);
+            set => rotation = UnsafeUtility.As<quaternion, Quaternion>(ref value);
+        }
+
+        public float3 ScaleNative
+        {
+            get => VMath.One3;
+            set { }
+        }
 
         public bool Equals(TranslationRotation other) => position.Equals(other.position) && rotation.Equals(other.rotation);
         public override bool Equals(object obj) => obj is TranslationRotation other && Equals(other);

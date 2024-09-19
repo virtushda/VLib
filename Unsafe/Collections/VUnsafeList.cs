@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -23,7 +24,7 @@ namespace VLib
     //[DebuggerDisplay("Length = {m_ListData == null ? default : m_ListData->Length}, Capacity = {m_ListData == null ? default : m_ListData->Capacity}")]
     //[DebuggerTypeProxy(typeof(NativeListDebugView<>))]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
-    public unsafe struct VUnsafeList<T> : IDisposable /*INativeDisposable*/, INativeList<T>, IEnumerable<T>, IReadOnlyList<T> // Used by collection initializers.
+    public unsafe struct VUnsafeList<T> : IVLibUnsafeContainer, IDisposable /*INativeDisposable*/, INativeList<T>, IEnumerable<T>, IReadOnlyList<T> // Used by collection initializers.
         where T : unmanaged
     {
         [NativeDisableUnsafePtrRestriction] public UnsafeList<T>* listData;
@@ -51,7 +52,7 @@ namespace VLib
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        public readonly void ConditionalAssertIsCreated()
+        public readonly void ConditionalCheckIsCreated()
         {
             if (!IsCreated)
                 throw new InvalidOperationException("VUnsafeList has not been allocated or has been deallocated.");
@@ -63,9 +64,9 @@ namespace VLib
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        public void AssertIndexValid(int index)
+        public void ConditionalAssertIndexValid(int index)
         {
-            ConditionalAssertIsCreated();
+            ConditionalCheckIsCreated();
             if (!IndexValid(index))
                 throw new IndexOutOfRangeException($"Index {index} is out of range in VUnsafeList of '{Length}' Length.");
         }
@@ -80,7 +81,7 @@ namespace VLib
             readonly get
             {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIndexValid(index);
+                ConditionalAssertIndexValid(index);
 #endif
                 return (*listData)[index];
             }
@@ -89,7 +90,7 @@ namespace VLib
             set
             {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIndexValid(index);
+                ConditionalAssertIndexValid(index);
 #endif
                 (*listData)[index] = value;
             }
@@ -104,7 +105,7 @@ namespace VLib
         public ref T ElementAt(int index)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIndexValid(index);
+            ConditionalAssertIndexValid(index);
 #endif
             return ref listData->ElementAt(index);
         }
@@ -119,22 +120,18 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             readonly get
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                ConditionalAssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 return listData->Length;
             }
 
             set
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                ConditionalAssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 listData->Resize(value, NativeArrayOptions.ClearMemory);
             }
         }
 
-        public int Count => Length;
+        public readonly int Count => Length;
 
         /// <summary>
         /// The number of elements that fit in the current allocation.
@@ -147,21 +144,19 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             readonly get
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                ConditionalAssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 return listData->Capacity;
             }
 
             set
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                ConditionalAssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 listData->Capacity = value;
             }
         }
-        
+
+        public readonly void* GetUnsafePtr() => listData->Ptr;
+
         public readonly bool TryGetValue(int index, out T value)
         {
             if (IndexValid(index))
@@ -190,9 +185,7 @@ namespace VLib
         /// <exception cref="InvalidOperationException">Thrown if incrementing the length would exceed the capacity.</exception>
         public void AddNoResize(T value)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->AddNoResize(value);
         }
 
@@ -203,9 +196,7 @@ namespace VLib
         /// <exception cref="InvalidOperationException">Thrown if the increased length would exceed the capacity.</exception>
         public void AddRangeNoResize(void* ptr, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             ConditionalCheckArgPositive(count);
             listData->AddRangeNoResize(ptr, count);
         }
@@ -220,9 +211,7 @@ namespace VLib
         /// <exception cref="InvalidOperationException">Thrown if the increased length would exceed the capacity.</exception>
         public void AddRangeNoResize(NativeList<T> list)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->AddRangeNoResize(*listData);
         }
 
@@ -235,7 +224,7 @@ namespace VLib
         /// </remarks>
         public void Add(in T value)
         {
-            ConditionalAssertIsCreated();
+            ConditionalCheckIsCreated();
             listData->Add(in value);
         }
 
@@ -249,7 +238,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if the increased length would exceed the capacity.</exception>
         public void AddRange(NativeArray<T> array)
         {
-            ConditionalAssertIsCreated();
+            ConditionalCheckIsCreated();
             AddRange(array.GetUnsafeReadOnlyPtr(), array.Length);
         }
         
@@ -258,8 +247,8 @@ namespace VLib
             if (count <= 0)
                 count = otherList.Length - startIndex;
             
-            ConditionalAssertIsCreated();
-            otherList.ConditionalAssertIsCreated();
+            ConditionalCheckIsCreated();
+            otherList.ConditionalCheckIsCreated();
             otherList.ConditionalCheckRange(startIndex, count);
             
             listData->AddRange(otherList.listData->Ptr + startIndex, count);
@@ -273,7 +262,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if count is negative.</exception>
         public void AddRange(void* ptr, int count)
         {
-            ConditionalAssertIsCreated();
+            ConditionalCheckIsCreated();
             ConditionalCheckArgPositive(count);
             listData->AddRange(ptr, count);
         }
@@ -289,9 +278,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if count is negative.</exception>
         public void AddReplicate(in T value, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             ConditionalCheckArgPositive(count);
             listData->AddReplicate(in value, count);
         }
@@ -316,9 +303,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `begin` or `end` are out of bounds.</exception>
         public void InsertRangeWithBeginEnd(int begin, int end)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->InsertRangeWithBeginEnd(begin, end);
         }
 
@@ -356,9 +341,7 @@ namespace VLib
         /// <exception cref="IndexOutOfRangeException">Thrown if `index` is out of bounds.</exception>
         public void RemoveAtSwapBack(int index)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->RemoveAtSwapBack(index);
         }
 
@@ -374,9 +357,7 @@ namespace VLib
         /// or `index + count` exceeds the length.</exception>
         public void RemoveRangeSwapBack(int index, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->RemoveRangeSwapBack(index, count);
         }
 
@@ -390,9 +371,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `index` is out of bounds.</exception>
         public void RemoveAt(int index)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIndexValid(index);
-#endif
+            ConditionalAssertIndexValid(index);
             listData->RemoveAt(index);
         }
 
@@ -409,9 +388,7 @@ namespace VLib
         /// or `index + count` exceeds the length.</exception>
         public void RemoveRange(int index, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->RemoveRange(index, count);
         }
         
@@ -435,9 +412,7 @@ namespace VLib
         /// <summary> Try to remove and return a value from the end of the list. False if list is empty. Calling on an uncreated list will throw. </summary>
         public bool TryPopLastElement(out T value)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             var lastIndex = Length - 1;
             if (lastIndex < 0)
             {
@@ -514,9 +489,7 @@ namespace VLib
         /// <remarks> Does not change the capacity. </remarks>
         public void Clear()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->Clear();
         }
 
@@ -536,7 +509,7 @@ namespace VLib
         /// The returned native array will not have a safety handle, if that is an issue use <see cref="AsArrayView"/> instead! </returns>
         public NativeArray<T> AsArray()
         {
-            ConditionalAssertIsCreated();
+            ConditionalCheckIsCreated();
             return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(listData->Ptr, listData->Length, Allocator.None);
         }
 
@@ -686,24 +659,9 @@ namespace VLib
         /// </summary>
         /// <param name="allocator">The allocator to use.</param>
         /// <returns>An array containing a copy of this list's content.</returns>
-        public NativeArray<T> ToArray(AllocatorManager.AllocatorHandle allocator)
-        {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
-            NativeArray<T> result = CollectionHelper.CreateNativeArray<T>(Length, allocator, NativeArrayOptions.UninitializedMemory);
-            UnsafeUtility.MemCpy((byte*) result.ForceGetUnsafePtrNOSAFETY(), (byte*) listData->Ptr, Length * UnsafeUtility.SizeOf<T>());
-            return result;
-        }
+        public NativeArray<T> ToArray(AllocatorManager.AllocatorHandle allocator) => VCollectionUtils.ToArray<VUnsafeList<T>, T>(this, allocator);
 
-        public T[] ToManagedArray()
-        {
-            ConditionalAssertIsCreated();
-            CheckIndexInRange(0, Length);
-            var array = new T[Length];
-            array.PinArrayCopyIn(0, listData->Ptr, 0, Length);
-            return array;
-        }
+        public T[] ToManagedArray() => VCollectionUtils.ToManagedArray<VUnsafeList<T>, T>(this);
 
         /// <summary>
         /// Copies all elements of specified container to this container.
@@ -711,10 +669,11 @@ namespace VLib
         /// <param name="other">An container to copy into this container.</param>
         public void CopyFrom(in NativeArray<T> other)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
-            listData->CopyFrom(other);
+            other.ConditionalCheckIsCreated();
+            VCollectionUtils.CopyFromTo(other.AsUnsafeList(NativeSafety.ReadOnly), this);
+            
+            /*ConditionalAssertIsCreated();
+            listData->CopyFrom(other);*/
         }
 
         /// <summary>
@@ -723,10 +682,11 @@ namespace VLib
         /// <param name="other">An container to copy into this container.</param>
         public void CopyFrom(in UnsafeList<T> other)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
-            listData->CopyFrom(other);
+            other.ConditionalCheckIsCreated();
+            VCollectionUtils.CopyFromTo(other, this);
+            
+            /*ConditionalAssertIsCreated();
+            listData->CopyFrom(other);*/
         }
 
         /// <summary>
@@ -739,20 +699,33 @@ namespace VLib
         /// Copies all elements of specified container to this container.
         /// </summary>
         /// <param name="other">An container to copy into this container.</param>
-        public void CopyFrom(ref NativeList<T> other) => CopyFrom(*other.GetUnsafeList());
+        public void CopyFrom(ref NativeList<T> other)
+        {
+            var unsafeList = other.GetUnsafeList();
+            VCollectionUtils.CheckPtrNonNull(unsafeList);
+            CopyFrom(*unsafeList);
+        }
 
         /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
         public void CopyToNoAdd(VUnsafeList<T> dest, int sourceStart = 0, int destStart = 0, int count = 0)
         {
-            if (count <= 0)
-                count = Length - sourceStart;
-            
-            ConditionalAssertIsCreated();
-            ConditionalCheckRange(sourceStart, count);
-            dest.ConditionalAssertIsCreated();
-            dest.ConditionalCheckRange(destStart, count);
-            
-            ((IntPtr)listData->Ptr).CopyToUnsafe(sourceStart, dest.listData->Ptr, destStart, count);
+            dest.ConditionalCheckIsCreated();
+            CopyToNoAdd(*dest.listData, sourceStart, destStart, count);
+        }
+
+        /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
+        public void CopyToNoAdd(UnsafeList<T> dest, int sourceStart = 0, int destStart = 0, int count = 0)
+        {
+            VCollectionUtils.CopyToAsArray(this, dest, sourceStart, destStart, count);
+        }
+        
+        /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
+        public void CopyFromAsArray(VUnsafeList<T> source, int sourceStart = 0, int destStart = 0, int count = 0) => CopyFromAsArray(*source.listData, sourceStart, destStart, count);
+        
+        /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
+        public void CopyFromAsArray(UnsafeList<T> source, int sourceStart = 0, int destStart = 0, int count = 0)
+        {
+            VCollectionUtils.CopyFromAsArray(this, source, sourceStart, destStart, count);
         }
 
         /// <summary>
@@ -762,9 +735,7 @@ namespace VLib
         /// <param name="options">Whether to clear any newly allocated bytes to all zeroes.</param>
         public void Resize(int length, NativeArrayOptions options)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->Resize(length, options);
         }
 
@@ -773,13 +744,7 @@ namespace VLib
         /// </summary>
         /// <remarks>Does not clear newly allocated bytes.</remarks>
         /// <param name="length">The new length of this list.</param>
-        public void ResizeUninitialized(int length)
-        {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
-            Resize(length, NativeArrayOptions.UninitializedMemory);
-        }
+        public void ResizeUninitialized(int length) => Resize(length, NativeArrayOptions.UninitializedMemory);
 
         /// <summary>
         /// Sets the capacity.
@@ -787,9 +752,7 @@ namespace VLib
         /// <param name="capacity">The new capacity.</param>
         public void SetCapacity(int capacity)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->SetCapacity(capacity);
         }
 
@@ -798,9 +761,7 @@ namespace VLib
         /// </summary>
         public void TrimExcess()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->TrimExcess();
         }
 
@@ -1065,9 +1026,7 @@ namespace VLib
         /// <returns>A read only of this list.</returns>
         public ReadOnly AsReadOnly()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            ConditionalAssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
             return new ReadOnly(this);
         }
@@ -1164,6 +1123,9 @@ namespace VLib
             if (start + count > Length)
                 throw new ArgumentOutOfRangeException(nameof(count), $"Start + Count is '{start + count}', must be <= Length '{Length}'.");
         }
+        
+        [BurstDiscard]
+        public override string ToString() => $"Length:{Length} | Capacity:{Capacity} | Type:{typeof(T)}";
     }
 
     internal struct DisposeJob<T> : IJob

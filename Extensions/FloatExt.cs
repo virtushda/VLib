@@ -8,7 +8,7 @@ namespace VLib
     public static class FloatExt
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte ToByteAsPercent(this float value_min0_max1) => (byte) math.round(math.saturate(value_min0_max1) * byte.MaxValue);
+        public static byte ToByteFromFloat01(this float value_min0_max1) => (byte) math.round(math.saturate(value_min0_max1) * byte.MaxValue);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ushort ToUshortAsPercent(this float value_min0_max1) => (ushort) math.round(math.saturate(value_min0_max1) * ushort.MaxValue);

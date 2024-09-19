@@ -73,7 +73,7 @@ namespace VLib
         {
             position = matrix.GetPositionDelta();
             rotation = (byte) math.round(math.degrees(math.EulerXYZ(matrix.RotationDelta()).y) * ByteMaxFloat / 360f);
-            scale = math.remap(0.5f, 1.5f, 0, 1, math.csum(matrix.ScaleDelta()) * .33334f).ToByteAsPercent();
+            scale = math.remap(0.5f, 1.5f, 0, 1, math.csum(matrix.ScaleDelta()) * .33334f).ToByteFromFloat01();
         }
 
         public static class Jobs

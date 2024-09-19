@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
@@ -9,20 +10,20 @@ namespace VLib.UnsafeListSlicing
 {
     /// <summary> Lets you read/write a portion of a list with no copy. This must be used with caution, the main list safety will be checked.
     /// This acts like a list with a limited capacity as it constrains all operations within the slice. </summary>
-    public unsafe struct VUnsafeListSlice<T> : IReadOnlyList<T>, IDisposable
+    public unsafe struct VUnsafeListSlice<T> : IVLibUnsafeContainer, IReadOnlyList<T>, IDisposable
         where T : unmanaged
     {
         VUnsafeList<T> mainList;
         VUnsafeRef<int> lengthMemory;
         public readonly int sliceStartIndex;
-
         /// <summary> This can be faster than <see cref="Length"/> when you are using an alloc-free slice. </summary>
         public readonly int sliceLength;
         
         /// <summary> Usable without length allocation. </summary>
         public bool IsCreated => mainList.IsCreated;
 
-        /// <summary> A number of functions are unusable without an allocation to track internal slice length reliably. This is a perf tradeoff. </summary>
+        /// <summary> A number of functions are unusable without an allocation to track internal slice length reliably. This is a perf tradeoff. <br/>
+        /// If this slice does not use a length allocation, <see cref="Length"/> will be equal to <see cref="Capacity"/>, the latter being faster to call. </summary>
         public bool LengthMutable => lengthMemory.IsCreated;
         
         /// <summary> Usable without length allocation. </summary>
@@ -35,16 +36,30 @@ namespace VLib.UnsafeListSlicing
             set
             {
                 CheckLengthModifiable();
-                CheckInsideCapacity(value);
+                CheckInsideCapacity(value - 1);
                 lengthMemory.Value = value;
             }
         }
 
-        ref int LengthInternalRef => ref lengthMemory.ValueRef;
+        ref int LengthInternalRef
+        {
+            get
+            {
+                CheckLengthModifiable();
+                return ref lengthMemory.ValueRef;
+            }
+        }
 
         /// <summary> Usable without length allocation. </summary>
-        public int Capacity => sliceLength;
-        
+        public int Capacity
+        {
+            readonly get => sliceLength;
+            set => throw new NotImplementedException("It is not safe to change the capacity of a slice. Far safer to simply reslice the original container. " +
+                                                     "If you are using a method which MAY change the capacity, ensure you are staying within capacity.");
+        }
+
+        public readonly void* GetUnsafePtr() => (T*)mainList.GetUnsafePtr() + sliceStartIndex;
+
         /// <summary> Get AND Set are usable without length allocation. </summary>
         public T this[int index]
         {
@@ -91,7 +106,7 @@ namespace VLib.UnsafeListSlicing
             sliceLength = length;
             lengthMemory = GetLengthMemoryFor(lengthAllocator, length);
             CheckMainList();
-            CheckStartLengthSliceOfSlice(startRelative, length);
+            CheckStartLengthSliceOfSlice(slice, startRelative, length);
         }
         
         static VUnsafeRef<int> GetLengthMemoryFor(Allocator allocator, int initValue) => allocator is not (Allocator.Invalid or Allocator.None) ? new VUnsafeRef<int>(initValue, allocator) : default;
@@ -149,6 +164,29 @@ namespace VLib.UnsafeListSlicing
             return true;
         }
 
+        /// <summary> Requires length allocation. <br/>
+        /// Shifts all memory beyond the index, toward zero by one index. Overwrites the value at 'index'. </summary>
+        public unsafe void RemoveAt(int index)
+        {
+            CheckLengthModifiable();
+            CheckSliceIndex(index);
+            var start = sliceStartIndex + index;
+            var end = sliceStartIndex + LengthInternalRef;
+            UnsafeUtility.MemMove(mainList.listData->Ptr + start, mainList.listData->Ptr + start + 1, (end - start - 1) * sizeof(T));
+            LengthInternalRef--;
+        }
+
+        /*/// <summary> Shifts all memory within the slice that is beyond the index, toward zero by one index. Overwrites the value at 'index'. <br/>
+        /// Cannot affect length, length will be invalid. <br/>
+        /// This method is intended to facilitate 'RemoveAt' behaviour when the length is tracked externally. </summary>
+        public unsafe void RemoveAtMemShiftUnsafe(int index)
+        {
+            CheckSliceIndex(index);
+            var start = sliceStartIndex + index;
+            var end = sliceStartIndex + Capacity;
+            UnsafeUtility.MemMove(mainList.listData->Ptr + start, mainList.listData->Ptr + start + 1, (end - start - 1) * sizeof(T));
+        }*/
+
         /// <summary> Requires length allocation. </summary>
         public void ClearFast()
         {
@@ -176,9 +214,68 @@ namespace VLib.UnsafeListSlicing
         }
 
         /// <summary> Slices this slice, to obtain a slice outside the bounds of this slice, get a new slice from <see cref="mainList"/> <br/>
-        /// Providing a <see cref="lengthAllocator"/> allows the slice to track it's own internal length and gives it enhanced capabilities at a small perf cost.
+        /// Providing a <see cref="lengthAllocator"/> allows the slice to track its own internal length and gives it enhanced capabilities at a small perf cost.
         /// Pass <see cref="Allocator.None"/> for a lightweight slice. </summary>
         public readonly VUnsafeListSlice<T> Slice(int start, int length, Allocator lengthAllocator) => new(this, sliceStartIndex + start, length, lengthAllocator);
+        
+        #region Copying
+        
+        public NativeArray<T> ToNativeArray(Allocator allocator) => VCollectionUtils.ToArray<VUnsafeListSlice<T>, T>(this, allocator);
+        public T[] ToManagedArray() => VCollectionUtils.ToManagedArray<VUnsafeListSlice<T>, T>(this);
+        public void CopyFrom(UnsafeList<T> list) => VCollectionUtils.CopyFromTo(list, this);
+        
+        #endregion
+        
+        #region ReadOnly
+
+        public ReadOnly AsReadOnly() => new(this);
+        
+        public readonly struct ReadOnly : IReadOnlyList<T>
+        {
+            readonly VUnsafeListSlice<T> slice;
+            
+            public ReadOnly(VUnsafeListSlice<T> slice) => this.slice = slice;
+
+            /// <summary> <inheritdoc cref="VUnsafeListSlice{T}.LengthMutable"/> </summary>
+            public bool LengthMutable => slice.LengthMutable;
+            public int Length => slice.Length;
+            public int Capacity => slice.Capacity;
+            
+            public T this[int index] => slice[index];
+            
+            #region IReadOnlyList Support
+
+            public int Count => Length;
+            
+            public ReadOnlyEnumerator GetEnumerator() => new(slice);
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+
+            public struct ReadOnlyEnumerator : IEnumerator<T>
+            {
+                VUnsafeListSlice<T> slice;
+                int index;
+                int endCached;
+
+                public ReadOnlyEnumerator(VUnsafeListSlice<T> slice)
+                {
+                    this.slice = slice;
+                    index = slice.sliceStartIndex - 1;
+                    endCached = slice.sliceStartIndex + slice.Length;
+                }
+
+                public bool MoveNext() => ++index < endCached;
+
+                public void Reset() => index = slice.sliceStartIndex - 1;
+                public T Current => slice.mainList[index];
+                object IEnumerator.Current => Current;
+                public void Dispose() => slice = default;
+            }
+
+            #endregion
+        }
+        
+        #endregion
         
         #region IReadOnlyList Support
 
@@ -249,14 +346,14 @@ namespace VLib.UnsafeListSlicing
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        readonly void CheckStartLengthSliceOfSlice(int startRelative, int length)
+        public static void CheckStartLengthSliceOfSlice(VUnsafeListSlice<T> slice, int startRelative, int length)
         {
             if (startRelative < 0)
                 throw new ArgumentOutOfRangeException($"Slice of a slice cannot start before the source slice.");
             if (length < 0)
                 throw new ArgumentOutOfRangeException($"Slice cannot have a negative length {length}");
-            if (startRelative + length > Length)
-                throw new ArgumentOutOfRangeException($"Slice start {startRelative} and length {length} are out of range for slice of length {Length}");
+            if (startRelative + length > slice.Length)
+                throw new ArgumentOutOfRangeException($"Slice start {startRelative} and length {length} are out of range for slice of length {slice.Length}");
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
@@ -269,6 +366,9 @@ namespace VLib.UnsafeListSlicing
         }
 
         #endregion
+
+        [BurstDiscard]
+        public override string ToString() => $"Start:{sliceStartIndex} | Length:{Length} | Capacity:{Capacity} | Type:{typeof(T)}";
     }
 
     public static class VUnsafeListSliceExt

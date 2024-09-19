@@ -1,10 +1,27 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using Unity.Mathematics;
-using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
+    public static class UnsignedExt
+    {
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public static void CheckPositive(this int value)
+        {
+            if (value < 0)
+                throw new InvalidOperationException($"Value '{value}' is not positive!");
+        }
+        
+        /// <summary> Subtracts from a uint without allowing it to fall below zero. </summary>
+        public static uint SubtractClamped(this uint value, uint subtractValue)
+        {
+            return value < subtractValue ? 0 : value - subtractValue;
+        }
+    }
+    
     public static class IntExt
     {
         public static void CheckInRangeAndThrow(this int index, int minInclusive, int maxExclusive)

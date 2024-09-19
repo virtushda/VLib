@@ -6,9 +6,12 @@ namespace VLib
 {
     public static class ByteExt
     {
+        /// <summary> Inverse of 1 / 255 </summary>
+        public const float ByteInvMult = 1f / 255f;
+        
         /// <summary> Converts byte range (0 to 255) to float range (0 to 1) </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float ToPercent01(this byte b) => (float)b / byte.MaxValue;
+        public static float ToPercent01(this byte b) => b * ByteInvMult;
         
         public static bool SbyteIsValidByte(this sbyte value, out byte byteValue)
         {

@@ -100,15 +100,6 @@ namespace VLib
 
             dst.Length = math.max(previousListLength, requiredCap);
         }
-
-        /// <summary> Memcpy wrapper that gives a bit more readable control, sparing you some pointer math. Zero safety. </summary>
-        public static void CopyToUnsafe<T>(this IntPtr srcPtr, int srcIndex, T* dstPtr, int dstIndex, int length)
-            where T : unmanaged
-        {
-            void* srcPtrVoid = ((T*)srcPtr) + srcIndex;
-            void* dstPtrVoid = dstPtr + dstIndex;
-            UnsafeUtility.MemCpy(dstPtrVoid, srcPtrVoid, length * UnsafeUtility.SizeOf<T>());
-        }
         
         /// <summary>
         /// Clears this list and then copies all the elements of an array to this list.
@@ -120,7 +111,7 @@ namespace VLib
         public static void CopyFromNBC<T>(this VUnsafeList<T> list, T[] array)
             where T : unmanaged
         {
-            list.ConditionalAssertIsCreated();
+            list.ConditionalCheckIsCreated();
             list.Clear();
             list.Resize(array.Length, NativeArrayOptions.UninitializedMemory);
             array.PinArrayCopyOut(0, list.listData->Ptr, 0, array.Length);

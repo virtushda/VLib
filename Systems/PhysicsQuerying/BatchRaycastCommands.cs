@@ -1,17 +1,26 @@
-﻿using System.Diagnostics;
+﻿#if UNITY_EDITOR
+#define UNSAFE_SET_TRACKING
+//#define ALWAYS_REPORT_HITBUFFER_SIZE
+#endif
+
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
-using UnityEngine.Assertions;
+using VLib.Safety;
+using Debug = UnityEngine.Debug;
 
 namespace VLib.Physics
 {
     /// <summary> A low level structure to facilitate setting up a batch of raycast commands, potentially from multiple parallel jobs. </summary>
     public unsafe struct BatchRaycastCommands
     {
+        const int MaxHitsPerRayBufferSize = 999999;
+        
         NativeList<RaycastCommand> commands;
         UnsafeList<RaycastCommand>* unsafeCommands;
         int hitsPerRay;
@@ -23,7 +32,7 @@ namespace VLib.Physics
         JobHandle jobHandle;
         
         // Editor safety
-        int unsafeSetterLock;
+        BurstSingleOpEnforcer opEnforcer;
 
         /// <summary> Setting this property is not concurrent-safe </summary>
         public int CommandCapacity
@@ -47,12 +56,13 @@ namespace VLib.Physics
             set
             {
                 CheckJobInactive();
-                MarkUnsafeSetBegin();
-                CheckUnsafeSetSingleOp();
+                opEnforcer.StartOp();
                 hitsPerRay = value;
-                MarkUnsafeSetEnd();
+                opEnforcer.CompleteOp();
             }
         }
+        
+        public int HitCapacity => unsafeHits != null ? unsafeHits->Capacity : 0;
         
         public int Length => commands.Length;
         
@@ -70,27 +80,27 @@ namespace VLib.Physics
             jobActive = false;
             jobHandle = default;
             
-            unsafeSetterLock = 0;
+            opEnforcer = BurstSingleOpEnforcer.Create();
         }
 
         public void Dispose()
         {
             CheckJobInactive();
-            MarkUnsafeSetBegin();
+            opEnforcer.StartOp();
             unsafeCommands = null;
             commands.Dispose();
             hits.Dispose();
-            MarkUnsafeSetEnd();
+            opEnforcer.CompleteOp();
         }
 
         /// <summary> Non-concurrent (faster) add, can resize (slower) </summary>
         public int AddCommand(in RaycastCommand command)
         {
             CheckJobInactive();
-            MarkUnsafeSetBegin();
+            opEnforcer.StartOp();
             var lengthBeforeAdd = commands.Length;
             commands.Add(command);
-            MarkUnsafeSetEnd();
+            opEnforcer.CompleteOp();
             return lengthBeforeAdd;
         }
 
@@ -98,10 +108,10 @@ namespace VLib.Physics
         public int AddCommandNoResize(in RaycastCommand command)
         {
             CheckJobInactive();
-            MarkUnsafeSetBegin();
+            opEnforcer.StartOp();
             var commandIndex = unsafeCommands->Length;
             commands.AddNoResize(command);
-            MarkUnsafeSetEnd();
+            opEnforcer.CompleteOp();
             return commandIndex;
         }
 
@@ -109,12 +119,12 @@ namespace VLib.Physics
         public int AddCommandNoResizeConcurrent(in RaycastCommand command)
         {
             CheckJobInactive();
-            MarkUnsafeSetBegin();
+            opEnforcer.StartOp();
             var commandIndex = Interlocked.Increment(ref unsafeCommands->m_length) - 1;
             // Editor-only check for pushing the length past the capacity. Bumping the length directly is very fast, but it must not exceed the capacity.
             CheckCommandLengthNoResize();
             (*unsafeCommands)[commandIndex] = command;
-            MarkUnsafeSetEnd();
+            opEnforcer.CompleteOp();
             return commandIndex;
         }
 
@@ -122,10 +132,10 @@ namespace VLib.Physics
         public void Clear()
         {
             CheckJobInactive();
-            MarkUnsafeSetBegin();
+            opEnforcer.StartOp();
             commands.Clear();
             hits.Clear();
-            MarkUnsafeSetEnd();
+            opEnforcer.CompleteOp();
         }
 
         /// <summary> Schedules the job, this method may only be called on the main thread. <br/>
@@ -140,8 +150,7 @@ namespace VLib.Physics
             
             EnsureHitBufferLength();
             
-            MarkUnsafeSetBegin();
-            CheckUnsafeSetSingleOp();
+            opEnforcer.StartOp();
             
             jobActive = true;
             outDeps = jobHandle = RaycastCommand.ScheduleBatch(commands.AsArray(), hits.AsArray(), 16, HitsPerRay, inDeps);
@@ -150,7 +159,7 @@ namespace VLib.Physics
             if (commands.Length > 64)
                 JobHandle.ScheduleBatchedJobs();
             
-            MarkUnsafeSetEnd();
+            opEnforcer.CompleteOp();
         }
 
         /// <summary> Work must be completed with this method to satisfy the internal safety system for reuse purposes. </summary>
@@ -159,23 +168,25 @@ namespace VLib.Physics
             if (!jobActive)
                 return;
 
-            MarkUnsafeSetBegin();
-            CheckUnsafeSetSingleOp();
+            opEnforcer.StartOp();
             
             jobHandle.Complete();
             jobHandle = default;
             jobActive = false;
             
-            MarkUnsafeSetEnd();
+            opEnforcer.CompleteOp();
         }
 
         public void EnsureHitBufferLength()
         {
             CheckJobInactive();
-            MarkUnsafeSetBegin();
-            CheckUnsafeSetSingleOp();
-            hits.Length = commands.Length * hitsPerRay; // Use only the amount of memory needed
-            MarkUnsafeSetEnd();
+            opEnforcer.StartOp();
+            
+            ReportHitBufferSize(commands.Length);
+            
+            if (hits.IsCreated)
+                hits.Length = commands.Length * hitsPerRay; // Use only the amount of memory needed
+            opEnforcer.CompleteOp();
         }
         
         public ref RaycastHit GetFirstHit(int commandIndex) => ref hits.ElementAt(commandIndex * hitsPerRay);
@@ -209,19 +220,6 @@ namespace VLib.Physics
         }
         
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        void MarkUnsafeSetBegin() => Interlocked.Increment(ref unsafeSetterLock);
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        void MarkUnsafeSetEnd() => Interlocked.Decrement(ref unsafeSetterLock);
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        void CheckUnsafeSetSingleOp()
-        {
-            if (unsafeSetterLock > 1)
-                throw new System.Exception("Multiple unsafe sets in progress at same time!");
-        }
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         void CheckJobInactive()
         {
             if (jobActive)
@@ -233,6 +231,16 @@ namespace VLib.Physics
         {
             if (!unsafeHits->IsCreated)
                 throw new System.Exception("Hits buffer is not created.");
+        }
+        
+        void ReportHitBufferSize(int commandCount)
+        {
+#if ALWAYS_REPORT_HITBUFFER_SIZE
+            Debug.Log($"Hits buffer size: {commandCount * hitsPerRay}");
+#else
+            if (commandCount * hitsPerRay > MaxHitsPerRayBufferSize)
+                Debug.LogError($"Hits buffer size: {commandCount * hitsPerRay}");
+#endif
         }
 
         public struct HitIterator

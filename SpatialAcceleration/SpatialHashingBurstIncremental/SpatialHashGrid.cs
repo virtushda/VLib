@@ -40,10 +40,10 @@ namespace VLib.SpatialAcceleration
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T ElementAt(int index) => ref NativeRef.ElementAt(index);
         
-        public UnsafeSpatialHashGrid<T>.ElementRefIterator GetAllIndicesIntersecting(in RectNative worldRectXZ, ref UnsafeList<int> resultIndices)
+        public UnsafeSpatialHashGrid<T>.MaskedElementRefIterator GetAllIndicesIntersecting(in RectNative worldRectXZ, ref UnsafeList<int> resultIndices)
         {
             NativeRef.GetAllIndicesIntersecting(worldRectXZ, ref resultIndices);
-            return new UnsafeSpatialHashGrid<T>.ElementRefIterator(NativeRef, resultIndices);
+            return new UnsafeSpatialHashGrid<T>.MaskedElementRefIterator(NativeRef, resultIndices);
         }
     }
 }

@@ -1,8 +1,10 @@
 ﻿using System.Runtime.CompilerServices;
 using Drawing;
 using Unity.Mathematics;
+using UnityEngine;
 using static Unity.Mathematics.math;
 using quaternion = Unity.Mathematics.quaternion;
+using Random = Unity.Mathematics.Random;
 
 namespace VLib
 {
@@ -27,6 +29,7 @@ namespace VLib
         }
 
         public float3 Center => (pointA.xyz + pointB.xyz) * .5f;
+        public float3 AToB => pointB.xyz - pointA.xyz;
 
         public readonly float MaxRadius() => max(pointA.w, pointB.w) + distance(pointB.xyz, pointA.xyz) * 0.5f;
 
@@ -35,8 +38,22 @@ namespace VLib
             pointA.xyz += translation;
             pointB.xyz += translation;
         }
-        
+
+        public void SetWorldPositionRotation(in TranslationRotation capsuleTransform)
+        {
+            var aToB = AToB;
+            pointA.xyz = capsuleTransform.position;
+            
+            // Compute direction change
+            //var aToBNormalized = normalizesafe(aToB);
+            var rotation = (quaternion)Quaternion.FromToRotation(aToB, capsuleTransform.Forward());
+            var aToBNew = math.rotate(rotation, aToB);
+            
+            pointB.xyz = pointA.xyz + aToBNew;
+        }
+
         //Adapted from: https://iquilezles.org/articles/distfunctions/
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public readonly float PointSignedDistance(float3 point)
         {
@@ -48,7 +65,7 @@ namespace VLib
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public readonly bool ContainsPoint(float3 point) => PointSignedDistance(point) < 0;
-        
+
         public readonly float3 GetRandomPointInside(ref Random random)
         {
             CollisionComputeBase(random.NextFloat3(pointA.xyz, pointB.xyz), out _, out var bToA, out _, out var abLerpUnclamped);
@@ -56,7 +73,7 @@ namespace VLib
             var randomInRadius = random.NextFloat3Direction() * radius;
             return pointA.xyz + bToA * abLerpUnclamped + randomInRadius;
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         readonly void CollisionComputeBase(float3 point, out float3 pointToA, out float3 bToA, out float bToASqrDist, out float abLerpUnclamped)
         {
@@ -65,7 +82,7 @@ namespace VLib
             bToASqrDist = dot(bToA, bToA);
             abLerpUnclamped = dot(pointToA, bToA) / bToASqrDist;
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         readonly float ComputeRadius(float abLerp) => lerp(pointA.w, pointB.w, abLerp);
 

@@ -13,19 +13,19 @@ namespace VLib
         public float Redf
         {
             get => rgb.x.ToPercent01();
-            set => rgb.x = value.ToByteAsPercent();
+            set => rgb.x = value.ToByteFromFloat01();
         }
         
         public float Greenf
         {
             get => rgb.y.ToPercent01();
-            set => rgb.y = value.ToByteAsPercent();
+            set => rgb.y = value.ToByteFromFloat01();
         }
 
         public float Bluef
         {
             get => rgb.z.ToPercent01();
-            set => rgb.z = value.ToByteAsPercent();
+            set => rgb.z = value.ToByteFromFloat01();
         }
         
         public float3 RGBf
@@ -45,12 +45,12 @@ namespace VLib
 
         public ColorRGB24(float r, float g, float b)
         {
-            rgb = new byte3(r.ToByteAsPercent(), g.ToByteAsPercent(), b.ToByteAsPercent());
+            rgb = new byte3(r.ToByteFromFloat01(), g.ToByteFromFloat01(), b.ToByteFromFloat01());
         }
 
         public ColorRGB24(Color c)
         {
-            rgb = new byte3(c.r.ToByteAsPercent(), c.g.ToByteAsPercent(), c.b.ToByteAsPercent());
+            rgb = new byte3(c.r.ToByteFromFloat01(), c.g.ToByteFromFloat01(), c.b.ToByteFromFloat01());
         }
 
         public override string ToString() => $"R:{Redf}, G:{Greenf}, B:{Bluef}";

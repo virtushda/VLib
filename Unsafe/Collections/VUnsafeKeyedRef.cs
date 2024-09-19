@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -19,8 +20,8 @@ namespace VLib
         /// <summary> Data ptr </summary>
         [NativeDisableUnsafePtrRestriction] T* ptr;
 
-        /// <summary> A special pointer that should be used to turn off this struct, by setting the pointer to zero. </summary>
-        [NativeDisableUnsafePtrRestriction] uint* keyPtr;
+        /// <summary> A special pointer that should be used to turn off this struct, by setting the pointer to zero. This value MUST be '1' to be considered valid. </summary>
+        [NativeDisableUnsafePtrRestriction] byte* keyPtr;
 
         internal AllocatorManager.AllocatorHandle m_AllocatorLabel;
 
@@ -29,7 +30,7 @@ namespace VLib
         /// </summary>
         /// <param name="allocator">The allocator to use.</param>
         /// <param name="options">Whether newly allocated bytes should be zeroed out.</param>
-        public VUnsafeKeyedRef(AllocatorManager.AllocatorHandle allocator, uint* keyPtr, NativeArrayOptions options = NativeArrayOptions.ClearMemory)
+        public VUnsafeKeyedRef(AllocatorManager.AllocatorHandle allocator, byte* keyPtr, NativeArrayOptions options = NativeArrayOptions.ClearMemory)
         {
             Allocate(allocator, keyPtr, out this);
             if (options == NativeArrayOptions.ClearMemory)
@@ -48,7 +49,7 @@ namespace VLib
         /// </summary>
         /// <param name="allocator">The allocator to use.</param>
         /// <param name="value">The initial value.</param>
-        public VUnsafeKeyedRef(T value, uint* keyPtr, AllocatorManager.AllocatorHandle allocator)
+        public VUnsafeKeyedRef(T value, byte* keyPtr, AllocatorManager.AllocatorHandle allocator)
         {
             Allocate(allocator, keyPtr, out this);
             *ptr = value;
@@ -59,36 +60,68 @@ namespace VLib
         /// </summary>
         /// <param name="valuePtr">The fixed pointer to the value in question</param>
         /// <param name="keyPtr">The fixed pointer to the key</param>
-        public VUnsafeKeyedRef(T* valuePtr, uint* keyPtr)
+        public VUnsafeKeyedRef(T* valuePtr, byte* keyPtr)
         {
             ptr = valuePtr;
             this.keyPtr = keyPtr;
             m_AllocatorLabel = Allocator.None;
         }
 
-        static void Allocate(AllocatorManager.AllocatorHandle allocator, uint* keyPtr, out VUnsafeKeyedRef<T> reference)
+        static void Allocate(AllocatorManager.AllocatorHandle allocator, byte* keyPtr, out VUnsafeKeyedRef<T> reference)
         {
             //CollectionHelper.CheckAllocator(allocator);
             reference = default;
             AllocateMemory(ref reference.ptr, Allocator.Persistent);
             reference.keyPtr = keyPtr;
+            // Set the key to 1 to indicate that this reference is created
+            reference.keyPtr[0] = 1;
             reference.m_AllocatorLabel = allocator;
         }
 
-        public readonly void* Ptr => ptr;
-        public readonly T* TPtr => ptr;
+        public readonly bool IsCreated => keyPtr != null && *keyPtr == 1;
+        public readonly void* Ptr
+        {
+            get
+            {
+                ConditionalCheckIsCreated();
+                return ptr;
+            }
+        }
+
+        public readonly T* TPtr
+        {
+            get
+            {
+                ConditionalCheckIsCreated();
+                return ptr;
+            }
+        }
 
         /// <summary> The value stored in this reference. </summary>
         public T Value
         {
-            readonly get => *ptr;
-            set => *ptr = value;
+            readonly get
+            {
+                ConditionalCheckIsCreated();
+                return *ptr;
+            }
+            set
+            {
+                ConditionalCheckIsCreated();
+                *ptr = value;
+            }
         }
 
-        public readonly ref T ValueRef => ref UnsafeUtility.AsRef<T>(ptr);
+        public readonly ref T ValueRef
+        {
+            get
+            {
+                ConditionalCheckIsCreated();
+                return ref UnsafeUtility.AsRef<T>(ptr);
+            }
+        }
 
         /// <summary> Whether this reference has been allocated (and not yet deallocated). </summary>
-        public readonly bool IsCreated => (IntPtr)keyPtr != IntPtr.Zero && *keyPtr == 1;
 
         public readonly bool TryGetPtr(out T* ptrOut)
         {
@@ -163,11 +196,7 @@ namespace VLib
         /// Returns the hash code of this reference.
         /// </summary>
         /// <returns>The hash code of this reference.</returns>
-        public readonly override int GetHashCode()
-        {
-            return IsCreated ? (int)(IntPtr)ptr : 0;
-        }
-
+        public readonly override int GetHashCode() => IsCreated ? (int)(IntPtr)ptr : 0;
 
         /// <summary>
         /// Returns true if the values stored in two references are equal.
@@ -175,10 +204,7 @@ namespace VLib
         /// <param name="left">A reference.</param>
         /// <param name="right">Another reference.</param>
         /// <returns>True if the two values are equal.</returns>
-        public static bool operator ==(VUnsafeKeyedRef<T> left, VUnsafeKeyedRef<T> right)
-        {
-            return left.Equals(right);
-        }
+        public static bool operator ==(VUnsafeKeyedRef<T> left, VUnsafeKeyedRef<T> right) => left.Equals(right);
 
         /// <summary>
         /// Returns true if the values stored in two references are unequal.
@@ -186,10 +212,7 @@ namespace VLib
         /// <param name="left">A reference.</param>
         /// <param name="right">Another reference.</param>
         /// <returns>True if the two values are unequal.</returns>
-        public static bool operator !=(VUnsafeKeyedRef<T> left, VUnsafeKeyedRef<T> right)
-        {
-            return !left.Equals(right);
-        }
+        public static bool operator !=(VUnsafeKeyedRef<T> left, VUnsafeKeyedRef<T> right) => !left.Equals(right);
 
         public static implicit operator T(VUnsafeKeyedRef<T> reference) => reference.Value;
 
@@ -201,8 +224,18 @@ namespace VLib
         public static void Copy(VUnsafeKeyedRef<T> dst, VUnsafeKeyedRef<T> src)
         {
             if (!dst.IsCreated || !src.IsCreated)
+            {
+                Debug.LogError("Cannot copy from or to a null VUnsafeRef!");
                 return;
+            }
             UnsafeUtility.MemCpy(dst.ptr, src.ptr, UnsafeUtility.SizeOf<T>());
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public readonly void ConditionalCheckIsCreated()
+        {
+            if (!IsCreated)
+                throw new InvalidOperationException($"The VUnsafeKeyedRef is not created! Value at keyPtr: {keyPtr[0]}");
         }
         
         #region Alloc Utils

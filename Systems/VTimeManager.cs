@@ -105,7 +105,19 @@ namespace VLib.Systems
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
         public static int frameCount;
-
+        
+        // Integer time
+        /// <summary> When cast to uint, runs for 4085 years. </summary>
+        public static long Minutes => (long)(timePrecise / 60);
+        /// <summary> When cast to uint, runs for 68 years. </summary>
+        public static long Seconds => (long)timePrecise;
+        /// <summary> When cast to uint, runs for 17 years. </summary>
+        public static long QuarterSeconds => (long)(timePrecise * 4);
+        /// <summary> When cast to uint, runs for 6.8 years. </summary>
+        public static long TenthsOfASecond => (long)(timePrecise * 10);
+        /// <summary> When cast to uint, runs for 24.8 days. </summary>
+        public static long Milliseconds => (long)(timePrecise * 1000);
+        
         public static int TimeSliceIndex(int slices)
         {
             CheckEarlyUpdateCalled();
