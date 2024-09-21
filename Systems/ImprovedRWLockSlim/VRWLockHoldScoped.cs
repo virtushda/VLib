@@ -39,12 +39,20 @@ namespace VLib
             if (!rwLock.activeIDTracking.TryRemove(wrapperID, out _))
                 throw new InvalidOperationException($"{(isWrite ? "Write" : "Read")} scope lock is not active and cannot be invalidated twice! (This is an editor-only safety feature)");
 #endif
-            
-            // Release the lock
-            if (isWrite)
-                rwLock.internalLock.ExitWriteLock();
-            else
-                rwLock.internalLock.ExitReadLock();
+
+            try
+            {
+                // Release the lock
+                if (isWrite)
+                    rwLock.internalLock.ExitWriteLock();
+                else
+                    rwLock.internalLock.ExitReadLock();
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"Failed to release {(isWrite ? "write" : "read")} lock! Logging exception...");
+                UnityEngine.Debug.LogException(e);
+            }
         }
     }
 }

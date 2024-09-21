@@ -7,6 +7,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Unity.Burst.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -234,8 +235,13 @@ namespace VLib
             where T : unmanaged
         {
 #if PKSAFE
-            if (!array.IsCreated)
+            var arrayIsCreated = array.IsCreated;
+            if (Hint.Unlikely(!arrayIsCreated)) //!arrayIsCreated)
                 UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+            
+            var indexIsValid = index >= 0 && index < array.Length;
+            if (Hint.Unlikely(!indexIsValid))
+                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' is not valid within array of length '{array.Length}'");
 #endif
             return UnsafeUtility.ReadArrayElement<T>(array.ForceGetUnsafePtrNOSAFETY(), index);
         }

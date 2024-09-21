@@ -21,6 +21,32 @@ namespace VLib
 
             return array;
         }
+        
+        public static Transform[] GetAncestors(this Transform t)
+        {
+            List<Transform> ancestors = new List<Transform>();
+
+            var parent = t.parent;
+            if (parent != null)
+            {
+                ancestors.Add(parent);
+                ancestors.AddRange(GetAncestors(parent));
+            }
+
+            return ancestors.ToArray();
+        }
+        
+        public static Transform[] GetDescendants(this Transform t)
+        {
+            List<Transform> descendants = new List<Transform>();
+            foreach (Transform child in t)
+            {
+                descendants.Add(child);
+                descendants.AddRange(GetDescendants(child));
+            }
+
+            return descendants.ToArray();
+        }
 
         public static List<Transform> FindChain(this Transform root, string name)
         {

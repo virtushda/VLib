@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace VLib
 {
@@ -37,11 +38,13 @@ namespace VLib
 
         public void DisposeClearAll()
         {
+            Profiler.BeginSample("CommandRenderer.DisposeClearAll");
             for (int i = 0; i < renderLayers.Count; i++)
             {
                 renderLayers[i].Dispose();
             }
             renderLayers.Clear();
+            Profiler.EndSample();
         }
     }
 }

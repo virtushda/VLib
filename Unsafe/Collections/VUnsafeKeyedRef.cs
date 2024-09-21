@@ -8,13 +8,19 @@ using Debug = UnityEngine.Debug;
 namespace VLib
 {
     /// <summary> Essentially an unsafe lower-level version of <see cref="NativeReference{T}"/>
-    /// Do not allow this to be copied, as the ptr could go rogue if only one copy disposes, and another copy tries to write to it. </summary>
+    /// Do not allow this to be copied, as the ptr could go rogue if only one copy disposes, and another copy tries to write to it. <br/>
+    /// A 'key' is required for this version, the key ptr must point to a value of 1 to be valid. <br/>
+    /// This allows a key to be held in a central location, and when it's set to 0, the ref is no longer valid.
+    /// This is a fairly performant and burst-compatible way to retain a strong measure of safety with value type references (wrapped unsafe pointers). </summary>
     /// <typeparam name="T"></typeparam>
     [StructLayout(LayoutKind.Sequential)]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
     public unsafe struct VUnsafeKeyedRef<T> : IEquatable<VUnsafeKeyedRef<T>>, IDisposable
         where T : unmanaged
     {
+        public const byte InvalidKey = 0;
+        public const byte ValidKey = 1;
+        
         public static implicit operator bool(in VUnsafeKeyedRef<T> unsafeRef) => unsafeRef.IsCreated;
         
         /// <summary> Data ptr </summary>
@@ -78,7 +84,7 @@ namespace VLib
             reference.m_AllocatorLabel = allocator;
         }
 
-        public readonly bool IsCreated => keyPtr != null && *keyPtr == 1;
+        public readonly bool IsCreated => keyPtr != null && *keyPtr == ValidKey;
         public readonly void* Ptr
         {
             get

@@ -308,5 +308,43 @@ namespace VLib
             list.RemoveAtSwapBack(index);
             return true;
         }
+
+        /// <summary> Very slow </summary>
+        public static bool AddUnique<T>(this List<T> list, T value)
+        {
+            if (list.Contains(value))
+                return false;
+            list.Add(value);
+            return true;
+        }
+
+        /// <summary> Very stupidly slow, don't use on any hot-path. </summary>
+        public static bool AddRangeUnique<T>(this List<T> list, IEnumerable<T> values)
+        {
+            bool added = false;
+            foreach (var value in values)
+            {
+                if (list.AddUnique(value))
+                    added = true;
+            }
+            return added;
+        }
+
+        /// <summary> Linear search, slow. </summary>
+        public static int IndexOf<T>(this IReadOnlyList<T> list, T value)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i].Equals(value))
+                    return i;
+            }
+            return -1;
+        }
+        
+        public static void EnsureCapacity<T>(this List<T> list, int capacity)
+        {
+            if (list.Capacity < capacity)
+                list.Capacity = capacity;
+        }
     } 
 }

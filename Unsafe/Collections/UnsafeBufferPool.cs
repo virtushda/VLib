@@ -18,6 +18,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Profiling;
 using Debug = UnityEngine.Debug;
 
 namespace VLib
@@ -56,12 +57,14 @@ namespace VLib
         /// <summary> Disposes ALL buffers, claimed buffers merely have exclusive access, they don't "remove" the buffers themselves from the pool. </summary>
         public void Dispose()
         {
+            Profiler.BeginSample("UnsafeBufferPool.Dispose");
             if (Data->processJobLaunched)
                 Data->processHandle.Complete();
 
             Data->Dispose();
             dataBufferPtr.DisposeRefToDefault(); // Should be ok...
             //UnsafeUtility.Free(Data, Allocator.Persistent);
+            Profiler.EndSample();
         }
 
         public void OnUpdate()

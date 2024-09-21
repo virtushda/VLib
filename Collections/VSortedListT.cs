@@ -431,6 +431,8 @@ namespace VLib
             if (index < list.Count - 1)
                 Assert.IsTrue(list[index + 1].CompareTo(list[index]) >= 0);
         }
+
+        public override string ToString() => $"Count: {Count}";
     }
 
     /*public static class VSortedListTExt

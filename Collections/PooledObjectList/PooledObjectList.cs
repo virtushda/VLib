@@ -133,7 +133,7 @@ namespace VLib.Libraries.VLib.Collections
         /// </summary>
         /// <returns>Throws NotImplementedException.</returns>
         /// <exception cref="NotImplementedException">Method is not implemented.</exception>
-        IEnumerator IEnumerable.GetEnumerator() => throw new NotImplementedException();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
@@ -142,7 +142,7 @@ namespace VLib.Libraries.VLib.Collections
         /// <exception cref="NotImplementedException">Method is not implemented.</exception>
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
         
-        public struct Enumerator
+        public struct Enumerator : IEnumerator<T>
         {
             readonly PooledObjectList<T> list;
             int index;
@@ -152,10 +152,16 @@ namespace VLib.Libraries.VLib.Collections
                 this.list = list;
                 index = -1;
             }
+            
+            public void Dispose() { }
 
             public T Current => list[index];
 
+            object IEnumerator.Current => Current;
+
             public bool MoveNext() => ++index < list.Count;
+
+            public void Reset() => index = -1;
         }
 
         /// <summary> Renting or Returning/Disposing is thread-safe. </summary>

@@ -44,6 +44,7 @@ namespace VLib
             this.corners = corners;
         }
 
+        /// <summary> If you need a constructor for 'min' and 'max', use <see cref="FromMinMax"/>. </summary>
         public RectNative(float2 center, float2 size)
         {
             float2 halfSize = size * .5f;
