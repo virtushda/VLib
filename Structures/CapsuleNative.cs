@@ -28,6 +28,13 @@ namespace VLib
             this.pointB = new float4(math.transform(transform, localPointB), radiusB);
         }
 
+        public CapsuleNative(CapsuleCollider capsuleCollider)
+        {
+            Vector3 direction = capsuleCollider.direction == 0 ? Vector3.right : capsuleCollider.direction == 1 ? Vector3.up : Vector3.forward;
+            pointA = new float4(capsuleCollider.transform.TransformPoint(capsuleCollider.center - direction * capsuleCollider.height * 0.5f), capsuleCollider.radius);
+            pointB = new float4(capsuleCollider.transform.TransformPoint(capsuleCollider.center + direction * capsuleCollider.height * 0.5f), capsuleCollider.radius);
+        }
+
         public float3 Center => (pointA.xyz + pointB.xyz) * .5f;
         public float3 AToB => pointB.xyz - pointA.xyz;
 

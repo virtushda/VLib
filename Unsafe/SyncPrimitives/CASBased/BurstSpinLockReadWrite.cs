@@ -226,6 +226,20 @@ namespace VLib
 
             public void Execute() => theLock.ExitRead();
         }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public void ConditionalCheckReadLockHeld()
+        {
+            if (!LockedForRead)
+                throw new InvalidOperationException("Read lock must be held!");
+        }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public void ConditionalCheckWriteLockHeld()
+        {
+            if (!LockedExclusive)
+                throw new InvalidOperationException("Write lock must be held!");
+        }
     }
 
     /// <summary> IDisposable scoped structure that holds <see cref="BurstSpinLockReadWrite"/> in exclusive mode. Should be using with <c>using</c> </summary>

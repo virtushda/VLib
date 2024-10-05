@@ -140,7 +140,7 @@ namespace VLib.Libraries.VLib.Collections
         /// </summary>
         /// <returns>Throws NotImplementedException.</returns>
         /// <exception cref="NotImplementedException">Method is not implemented.</exception>
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         
         public struct Enumerator : IEnumerator<T>
         {

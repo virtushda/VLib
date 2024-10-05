@@ -1,4 +1,4 @@
-﻿using System.Threading;
+﻿/*using System.Threading;
 using Sirenix.OdinInspector;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -45,7 +45,7 @@ namespace VLib.Libraries.VLib.Tests
             watch = ValueStopwatch.StartNew();
             BenchmarkStateLockScoped(readIterations, writeIterations, valueHolder);
             Debug.Log($"VStateLockScoped: {watch.ElapsedMillisecondsF}ms");
-            Debug.Log($"Value: {valueHolder.Value}, {(writeIterations == valueHolder.Value ? "Success" : "Failure")}");*/
+            Debug.Log($"Value: {valueHolder.Value}, {(writeIterations == valueHolder.Value ? "Success" : "Failure")}");#1#
             
             // BENCH LOCKS DIRECTLY
             watch = ValueStopwatch.StartNew();
@@ -76,7 +76,7 @@ namespace VLib.Libraries.VLib.Tests
             {
                 using var lockHolder = stateLock.ChangeInScope(1);
             }
-            Debug.Log($"VStateLock Alone: {watch.ElapsedMillisecondsF}ms");*/
+            Debug.Log($"VStateLock Alone: {watch.ElapsedMillisecondsF}ms");#1#
             
             rwLock.Dispose();
             rwLock = null;
@@ -155,7 +155,7 @@ namespace VLib.Libraries.VLib.Tests
                 }
             }
             handle.Complete();
-        }*/
+        }#1#
 
         struct LocklessReadJob : IJobParallelFor
         {
@@ -290,6 +290,6 @@ namespace VLib.Libraries.VLib.Tests
                 ++valueHolder.Value;
                 //Interlocked.Increment(ref valueHolder.ValueRef);
             }
-        }*/
+        }#1#
     }
-}
+}*/

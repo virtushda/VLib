@@ -7,9 +7,8 @@ using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
-    /// <summary> Essentially an unsafe lower-level version of <see cref="NativeReference{T}"/>
-    /// Do not allow this to be copied, as the ptr could go rogue if only one copy disposes, and another copy tries to write to it. <br/>
-    /// A 'key' is required for this version, the key ptr must point to a value of 1 to be valid. <br/>
+    /// <summary> A copy-safe defensive version of <see cref="VUnsafeRef{T}"/>
+    /// A 'key' is required, the key ptr must point to a value of 1 to be valid. <br/>
     /// This allows a key to be held in a central location, and when it's set to 0, the ref is no longer valid.
     /// This is a fairly performant and burst-compatible way to retain a strong measure of safety with value type references (wrapped unsafe pointers). </summary>
     /// <typeparam name="T"></typeparam>
@@ -174,14 +173,11 @@ namespace VLib
         }
 
         /// <summary>
-        /// Returns true if the value stored in this reference is equal to the value stored in another reference.
+        /// Returns true if the memory and key ptrs of this reference are equal to another reference.
         /// </summary>
         /// <param name="other">A reference to compare with.</param>
         /// <returns>True if the value stored in this reference is equal to the value stored in another reference.</returns>
-        public readonly bool Equals(VUnsafeKeyedRef<T> other)
-        {
-            return ptr == other.ptr;
-        }
+        public readonly bool Equals(VUnsafeKeyedRef<T> other) => ptr == other.ptr && keyPtr == other.keyPtr;
 
         /// <summary>
         /// Returns true if the value stored in this reference is equal to an object.
@@ -197,6 +193,9 @@ namespace VLib
             }
             return obj is VUnsafeRef<T> && Equals((VUnsafeRef<T>)obj);
         }
+
+        /// <summary> Returns true when two keyed references point to the same location in memory, regardless of their key ptrs. </summary>
+        public readonly bool HasSameValuePtr(VUnsafeKeyedRef<T> other) => ptr == other.ptr;
 
         /// <summary>
         /// Returns the hash code of this reference.

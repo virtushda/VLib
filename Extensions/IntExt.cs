@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Unity.Mathematics;
 using Debug = UnityEngine.Debug;
@@ -59,15 +60,50 @@ namespace VLib
 
         public static string AsTimeToPrint(this int seconds) => ((double) seconds).AsTimeToPrint();
 
-        /// <summary> For fast thread-safe ops, the lock must be release properly or the application can hang! (Use try-catch, etc)
+        public struct IntRefScopeLock : IDisposable
+        {
+            VUnsafeRef<int> refValue;
+            
+            public IntRefScopeLock(VUnsafeRef<int> refValue)
+            {
+                this.refValue = refValue;
+                refValue.ValueRef.AtomicLockUnsafe();
+            }
+
+            public void Dispose() => refValue.ValueRef.AtomicUnlockChecked();
+        }
+        
+        public static IntRefScopeLock ScopedAtomicLock(this VUnsafeRef<int> refValue) => new(refValue);
+
+        /// <summary> Recommend <see cref="ScopedAtomicLock"/> over this.
+        /// <br/> For fast thread-safe ops, the lock must be release properly or the application can hang! (Use try-catch, etc)
         /// This method will block indefinitely until the lock is acquired. USE CAUTION</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AtomicLockUnsafe(ref this int lockValue)
         {
             // If threadlock isn't 0, the lock is taken
             while (Interlocked.CompareExchange(ref lockValue, 1, 0) != 0) {}
         }
 
-        /// <summary>Forcibly exits the atomic lock.</summary> 
+        /// <summary>Recommend <see cref="ScopedAtomicLock"/> over this.
+        /// <br/>Forcibly exits the atomic lock.</summary> 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void AtomicUnlockChecked(ref this int lockValue)
+        {
+            ConditionalErrorIfNonZero(lockValue);
+            Interlocked.Exchange(ref lockValue, 0);
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public static void ConditionalErrorIfNonZero(this int value)
+        {
+            if (value == 0)
+                Debug.LogError($"Value '{value}' is zero!");
+        }
+
+        /// <summary>Recommend <see cref="ScopedAtomicLock"/> over this.
+        /// <br/>Forcibly exits the atomic lock.</summary> 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AtomicUnlockUnsafe(ref this int lockValue) => Interlocked.Exchange(ref lockValue, 0);
 
         public static ushort ToUshortSafe(this int value, bool logIfBelow0 = true, bool logIfAboveMax = true)
@@ -75,13 +111,13 @@ namespace VLib
             if (value < 0)
             {
                 if (logIfBelow0)
-                    UnityEngine.Debug.LogError($"Value '{value}' is below 0, clamping to 0...");
+                    Debug.LogError($"Value '{value}' is below 0, clamping to 0...");
                 return 0;
             }
             if (value > ushort.MaxValue)
             {
                 if (logIfAboveMax)
-                    UnityEngine.Debug.LogError($"Value '{value}' is above ushort.MaxValue, clamping to {ushort.MaxValue}...");
+                    Debug.LogError($"Value '{value}' is above ushort.MaxValue, clamping to {ushort.MaxValue}...");
                 return ushort.MaxValue;
             }
             return (ushort) value;
@@ -108,13 +144,13 @@ namespace VLib
             if (value < short.MinValue)
             {
                 if (logIfBelow0)
-                    UnityEngine.Debug.LogError($"Value '{value}' is below short.MinValue, clamping to {short.MinValue}...");
+                    Debug.LogError($"Value '{value}' is below short.MinValue, clamping to {short.MinValue}...");
                 return short.MinValue;
             }
             if (value > short.MaxValue)
             {
                 if (logIfAboveMax)
-                    UnityEngine.Debug.LogError($"Value '{value}' is above short.MaxValue, clamping to {short.MaxValue}...");
+                    Debug.LogError($"Value '{value}' is above short.MaxValue, clamping to {short.MaxValue}...");
                 return short.MaxValue;
             }
             return (short) value;

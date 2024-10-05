@@ -134,11 +134,16 @@ namespace VLib
                         Debug.LogError("PKMoveDir: Path is invalid!");
                     return false;
                 }
-                
                 if (newPath.IsNullOrWhitespace())
                 {
                     if (logOnFail)
                         Debug.LogError("PKMoveDir: New Path is invalid!");
+                    return false;
+                }
+                if (path.Equals(newPath))
+                {
+                    if (logOnFail)
+                        Debug.LogError("PKMoveDir: Paths are the same!");
                     return false;
                 }
 

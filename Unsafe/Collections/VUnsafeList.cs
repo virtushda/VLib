@@ -391,7 +391,8 @@ namespace VLib
             ConditionalCheckIsCreated();
             listData->RemoveRange(index, count);
         }
-        
+
+        /// <summary> Linear search removal. Not efficient with large collections. </summary>
         public bool Remove<U>(U valueToRemove)
             where U : unmanaged, IEquatable<T>, IEquatable<U>
         {

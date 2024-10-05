@@ -52,7 +52,7 @@ namespace VLib.EventHandling
 
             // Determine target chunk of work
             int endIndex = ExecutionIndex + 1;
-            endIndex += TimePeriod < .01f ? endIndex = Actions.Count : (int) math.ceil(VTimeManager.unscaledDeltaTime / TimePeriod);
+            endIndex += TimePeriod < .01f ? endIndex = Actions.Count : (int) math.ceil(Systems.VTime.unscaledDeltaTime / TimePeriod);
             endIndex = math.min(endIndex, Actions.Count);
 
             var stopwatch = ValueStopwatch.StartNew();
