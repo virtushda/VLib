@@ -1,4 +1,6 @@
-﻿namespace VLib
+﻿using VLib.Systems;
+
+namespace VLib
 {
     public static class DoubleExt
     {

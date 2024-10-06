@@ -1,5 +1,6 @@
 ﻿#if UNITY_EDITOR
 #define CHECK_EARLY_UPDATE_CALLED
+#define TIME_PTR_AS_PROPERTY
 #endif
 
 using System;
@@ -12,13 +13,17 @@ using VLib.Threading;
 
 namespace VLib.Systems
 {
-    public unsafe class VTime
+    public unsafe class VTime //
     {
         public static readonly int GTimeUnscaledSin = Shader.PropertyToID("GTimeUnscaledSin");
         
         readonly static SharedStatic<TimeData> timeNative = SharedStatic<TimeData>.GetOrCreate<VTime, TimeData>();
-        /// <summary> This cached pointer speeds up access to the time data by a factor of 2-3x </summary>
+#if TIME_PTR_AS_PROPERTY
+        static TimeData* rawTimeDataPtr => (TimeData*) timeNative.UnsafeDataPointer;
+#else
+        /// <summary> This cached pointer speeds up access to the time data by a factor of 2-3x by removing a property call. </summary>
         static TimeData* rawTimeDataPtr;
+#endif
         
         internal struct TimeData
         {
@@ -34,8 +39,6 @@ namespace VLib.Systems
 
             public void SetFromMain()
             {
-                MainThread.AssertMainThreadConditional();
-                
                 time = Time.time;
                 timePrecise = Time.timeAsDouble;
                 timeUnscaled = Time.unscaledTime;
@@ -53,7 +56,9 @@ namespace VLib.Systems
         static void Init()
         {
             onEarlyUpdateInvoked = false;
+#if !TIME_PTR_AS_PROPERTY
             rawTimeDataPtr = (TimeData*) timeNative.UnsafeDataPointer; // This should never move in memory during the lifetime of the application.
+#endif
         }
 
         static bool onEarlyUpdateInvoked;
@@ -106,7 +111,7 @@ namespace VLib.Systems
         public static float TemporalMultiplier120FPS => smoothDeltaTime / DeltaTime120FPS;
         public static float TemporalMultiplier144FPS => smoothDeltaTime / DeltaTime144FPS;
 
-        public static ulong SecondsToNanoSeconds(float seconds) => VLib.VTime.SecondsToNanoSeconds(seconds);
+        public static ulong SecondsToNanoSeconds(float seconds) => SecondsToNanoSeconds(seconds);
         
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
@@ -149,6 +154,20 @@ namespace VLib.Systems
         public static long TenthsOfASecond => (long)(timePrecise * 10);
         /// <summary> When cast to uint, runs for 24.8 days. </summary>
         public static long Milliseconds => (long)(timePrecise * 1000);
+        
+        public static ulong SecondsToNanoSeconds(double seconds) => (ulong)(seconds * 1000000000);
+
+        public static long SecondsToTicks(double seconds) => (long)(seconds * 10000000);
+
+        public static long MillisecondsToTicks(double ms) => (long)(ms * 10000);
+
+        public static double SecondsToMSFrac(double seconds) => seconds * 1000;
+
+        public static double SecondsToMinutesFrac(double seconds) => seconds / 60f;
+
+        public static double SecondsToHoursFrac(double seconds) => seconds / 3600f;
+
+        public static double TicksToSeconds(long ticks) => ticks / 10000000f;
         
         public static int TimeSliceIndex(int slices)
         {

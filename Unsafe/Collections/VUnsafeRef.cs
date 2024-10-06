@@ -55,6 +55,7 @@ namespace VLib
 
         public readonly void* Ptr => ptr;
         public readonly T* TPtr => ptr;
+        
         /// <summary>
         /// The value stored in this reference.
         /// </summary>

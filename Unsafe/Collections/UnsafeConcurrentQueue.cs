@@ -1,153 +1,150 @@
-﻿/*// TODO: MODIFY THE REGULAR CONCURRENT QUEUE TO BE BURST-COMPATIBLE
-
-namespace VLib.Libraries.VLib.Unsafe.Collections
-{
-    #pragma warning disable 0420
-
-// ==++==
-//
-//   Copyright (c) Microsoft Corporation.  All rights reserved.
-// 
-// ==--==
-// =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
-//
-// ConcurrentQueue.cs
-//
-// <OWNER>Microsoft</OWNER>
-//
-// A lock-free, concurrent queue primitive, and its associated debugger view type.
-//
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+﻿/*// TODO: FIX THIS USING THE DISABLED TEST IN THE TESTS FOLDER (TryDequeue seems not to work???) (Make the test multi-pass to await the job and allow timeout to stop test from freezing editor)
 
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.Runtime.ConstrainedExecution;
-using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
-using System.Security;
-using System.Security.Permissions;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using VLib.Libraries.VLib.Unsafe.Utility;
 
-namespace System.Collections.Concurrent
+namespace VLib.Libraries.VLib.Unsafe.Collections
 {
-
     /// <summary>
-    /// Represents a thread-safe first-in, first-out collection of objects.
+    /// Represents a thread-safe first-in, first-out collection of objects. <br/>
+    /// This is NOT copy-safe!
     /// </summary>
     /// <typeparam name="T">Specifies the type of elements in the queue.</typeparam>
     /// <remarks>
-    /// All public  and protected members of <see cref="ConcurrentQueue{T}"/> are thread-safe and may be used
+    /// All public and protected members of <see cref="UnsafeConcurrentQueue{T}"/> are thread-safe and may be used
     /// concurrently from multiple threads.
     /// </remarks>
-    [ComVisible(false)]
     [DebuggerDisplay("Count = {Count}")]
-    [DebuggerTypeProxy(typeof(SystemCollectionsConcurrent_ProducerConsumerCollectionDebugView<>))]
-    [HostProtection(Synchronization = true, ExternalThreading = true)]
-    [Serializable]
-    public class ConcurrentQueue<T> : IProducerConsumerCollection<T>, IReadOnlyCollection<T>
+    public unsafe struct UnsafeConcurrentQueue<T>// : IProducerConsumerCollection<T>, IReadOnlyCollection<T>
+        where T : unmanaged
     {
-        //fields of ConcurrentQueue
-        [NonSerialized]
-        private volatile Segment m_head;
+        // This implementation provides an unbounded, multi-producer multi-consumer queue
+        // that supports the standard Enqueue/TryDequeue operations, as well as support for
+        // snapshot enumeration (GetEnumerator, ToArray, CopyTo), peeking, and Count/IsEmpty.
+        // It is composed of a linked list of bounded ring buffers, each of which has a head
+        // and a tail index, isolated from each other to minimize false sharing.  As long as
+        // the number of elements in the queue remains less than the size of the current
+        // buffer (Segment), no additional allocations are required for enqueued items.  When
+        // the number of items exceeds the size of the current segment, the current segment is
+        // "frozen" to prevent further enqueues, and a new segment is linked from it and set
+        // as the new tail segment for subsequent enqueues.  As old segments are consumed by
+        // dequeues, the head reference is updated to point to the segment that dequeuers should
+        // try next.  To support snapshot enumeration, segments also support the notion of
+        // preserving for observation, whereby they avoid overwriting state as part of dequeues.
+        // Any operation that requires a snapshot results in all current segments being
+        // both frozen for enqueues and preserved for observation: any new enqueues will go
+        // to new segments, and dequeuers will consume from the existing segments but without
+        // overwriting the existing data.
 
-        [NonSerialized]
-        private volatile Segment m_tail;
+        /// <summary>Initial length of the segments used in the queue.</summary>
+        const int InitialSegmentLength = 32;
+        /// <summary>
+        /// Maximum length of the segments used in the queue.  This is a somewhat arbitrary limit:
+        /// larger means that as long as we don't exceed the size, we avoid allocating more segments,
+        /// but if we do exceed it, then the segment becomes garbage.
+        /// </summary>
+        const int MaxSegmentLength = 1024 * 1024;
 
-        private T[] m_serializationArray; // Used for custom serialization.
+        Allocator allocator;
+        
+        /// <summary>
+        /// Lock used to protect cross-segment operations, including any updates to <see cref="_tail"/> or <see cref="_head"/>
+        /// and any operations that need to get a consistent view of them.
+        /// </summary>
+        internal VUnsafeRef<int> _crossSegmentLock;
+        /// <summary>The current tail segment.</summary>
+        [NativeDisableUnsafePtrRestriction]
+        volatile IntPtr _tail; // IS UnsafeConcurrentQueueSegment<T>*
+        [NativeDisableUnsafePtrRestriction]
+        /// <summary>The current head segment.</summary>
+        volatile IntPtr _head; // IS UnsafeConcurrentQueueSegment<T>* // SOS's ThreadPool command depends on this name
 
-        private const int SEGMENT_SIZE = 32;
-
-        //number of snapshot takers, GetEnumerator(), ToList() and ToArray() operations take snapshot.
-        [NonSerialized]
-        internal volatile int m_numSnapshotTakers = 0;
+        internal UnsafeConcurrentQueueSegment<T>* Head => (UnsafeConcurrentQueueSegment<T>*)_head;
+        UnsafeConcurrentQueueSegment<T>* Tail => (UnsafeConcurrentQueueSegment<T>*)_tail;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ConcurrentQueue{T}"/> class.
+        /// Initializes a new instance of the <see cref="UnsafeConcurrentQueue{T}"/> class.
         /// </summary>
-        public ConcurrentQueue()
+        public UnsafeConcurrentQueue(Allocator allocator)
         {
-            m_head = m_tail = new Segment(0, this);
+            this.allocator = allocator;
+            _crossSegmentLock = new VUnsafeRef<int>(0, allocator);
+            //_tail = _head = new UnsafeConcurrentQueueSegment<T>(InitialSegmentLength);
+            _tail = _head = (IntPtr)UnsafeConcurrentQueueSegment<T>.Create(InitialSegmentLength, allocator);
         }
 
-        /// <summary>
-        /// Initializes the contents of the queue from an existing collection.
+        /#1#// <summary>
+        /// Initializes a new instance of the <see cref="ConcurrentQueue{T}"/> class that contains elements copied
+        /// from the specified collection.
         /// </summary>
-        /// <param name="collection">A collection from which to copy elements.</param>
-        private void InitializeFromCollection(IEnumerable<T> collection)
-        {
-            Segment localTail = new Segment(0, this);//use this local variable to avoid the extra volatile read/write. this is safe because it is only called from ctor
-            m_head = localTail; 
-
-            int index = 0;
-            foreach (T element in collection)
-            {
-                Contract.Assert(index >= 0 && index < SEGMENT_SIZE);
-                localTail.UnsafeAdd(element);
-                index++;
-
-                if (index >= SEGMENT_SIZE)
-                {
-                    localTail = localTail.UnsafeGrow();
-                    index = 0;
-                }
-            }
-
-            m_tail = localTail;
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ConcurrentQueue{T}"/>
-        /// class that contains elements copied from the specified collection
-        /// </summary>
-        /// <param name="collection">The collection whose elements are copied to the new <see
-        /// cref="ConcurrentQueue{T}"/>.</param>
-        /// <exception cref="T:System.ArgumentNullException">The <paramref name="collection"/> argument is
-        /// null.</exception>
+        /// <param name="collection">
+        /// The collection whose elements are copied to the new <see cref="ConcurrentQueue{T}"/>.
+        /// </param>
+        /// <exception cref="ArgumentNullException">The <paramref name="collection"/> argument is null.</exception>
         public ConcurrentQueue(IEnumerable<T> collection)
         {
             if (collection == null)
             {
-                throw new ArgumentNullException("collection");
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.collection);
             }
 
-            InitializeFromCollection(collection);
-        }
+            _crossSegmentLock = new object();
 
-        /// <summary>
-        /// Get the data array to be serialized
-        /// </summary>
-        [OnSerializing]
-        private void OnSerializing(StreamingContext context)
+            // Determine the initial segment size.  We'll use the default,
+            // unless the collection is known to be larger than that, in which
+            // case we round its length up to a power of 2, as all segments must
+            // be a power of 2 in length.
+            int length = InitialSegmentLength;
+            if (collection is ICollection<T> c)
+            {
+                int count = c.Count;
+                if (count > length)
+                {
+                    length = (int)Math.Min(BitOperations.RoundUpToPowerOf2((uint)count), MaxSegmentLength);
+                }
+            }
+
+            // Initialize the segment and add all of the data to it.
+            _tail = _head = new UnsafeConcurrentQueueSegment<T>(length);
+            foreach (T item in collection)
+            {
+                Enqueue(item);
+            }
+        }#1#
+
+        public void Dispose()
         {
-            // save the data into the serialization array to be saved
-            m_serializationArray = ToArray();
+            if (Head != null)
+            {
+                Head->DisposeRecursive();
+                _head = IntPtr.Zero;
+            }
+            if (Tail != null)
+            {
+                Tail->DisposeRecursive();
+                _tail = IntPtr.Zero;
+            }
+            _crossSegmentLock.Dispose();
         }
-
-        /// <summary>
-        /// Construct the queue from a previously seiralized one
+        
+        /#1#// <summary>
+        /// Copies the elements of the <see cref="ICollection"/> to an <see
+        /// cref="Array"/>, starting at a particular <see cref="Array"/> index.
         /// </summary>
-        [OnDeserialized]
-        private void OnDeserialized(StreamingContext context)
-        {
-            Contract.Assert(m_serializationArray != null);
-            InitializeFromCollection(m_serializationArray);
-            m_serializationArray = null;
-        }
-
-        /// <summary>
-        /// Copies the elements of the <see cref="T:System.Collections.ICollection"/> to an <see
-        /// cref="T:System.Array"/>, starting at a particular
-        /// <see cref="T:System.Array"/> index.
-        /// </summary>
-        /// <param name="array">The one-dimensional <see cref="T:System.Array">Array</see> that is the
-        /// destination of the elements copied from the
-        /// <see cref="T:System.Collections.Concurrent.ConcurrentBag"/>. The <see
-        /// cref="T:System.Array">Array</see> must have zero-based indexing.</param>
-        /// <param name="index">The zero-based index in <paramref name="array"/> at which copying
-        /// begins.</param>
+        /// <param name="array">
+        /// The one-dimensional <see cref="Array">Array</see> that is the destination of the
+        /// elements copied from the <see cref="UnsafeConcurrentQueue{T}"/>. <paramref name="array"/> must have
+        /// zero-based indexing.
+        /// </param>
+        /// <param name="index">The zero-based index in <paramref name="array"/> at which copying begins.</param>
         /// <exception cref="ArgumentNullException"><paramref name="array"/> is a null reference (Nothing in
         /// Visual Basic).</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is less than
@@ -156,105 +153,86 @@ namespace System.Collections.Concurrent
         /// <paramref name="array"/> is multidimensional. -or-
         /// <paramref name="array"/> does not have zero-based indexing. -or-
         /// <paramref name="index"/> is equal to or greater than the length of the <paramref name="array"/>
-        /// -or- The number of elements in the source <see cref="T:System.Collections.ICollection"/> is
+        /// -or- The number of elements in the source <see cref="ICollection"/> is
         /// greater than the available space from <paramref name="index"/> to the end of the destination
         /// <paramref name="array"/>. -or- The type of the source <see
-        /// cref="T:System.Collections.ICollection"/> cannot be cast automatically to the type of the
+        /// cref="ICollection"/> cannot be cast automatically to the type of the
         /// destination <paramref name="array"/>.
         /// </exception>
         void ICollection.CopyTo(Array array, int index)
         {
+            // Special-case when the Array is actually a T[], taking a faster path
+            if (array is T[] szArray)
+            {
+                CopyTo(szArray, index);
+                return;
+            }
+
             // Validate arguments.
             if (array == null)
             {
-                throw new ArgumentNullException("array");
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.array);
             }
 
-            // We must be careful not to corrupt the array, so we will first accumulate an
-            // internal list of elements that we will then copy to the array. This requires
-            // some extra allocation, but is necessary since we don't know up front whether
-            // the array is sufficiently large to hold the stack's contents.
-            ((ICollection)ToList()).CopyTo(array, index);
-        }
+            // Otherwise, fall back to the slower path that first copies the contents
+            // to an array, and then uses that array's non-generic CopyTo to do the copy.
+            ToArray().CopyTo(array, index);
+        }#1#
 
-        /// <summary>
-        /// Gets a value indicating whether access to the <see cref="T:System.Collections.ICollection"/> is
+        /#1#// <summary>
+        /// Gets a value indicating whether access to the <see cref="ICollection"/> is
         /// synchronized with the SyncRoot.
         /// </summary>
-        /// <value>true if access to the <see cref="T:System.Collections.ICollection"/> is synchronized
-        /// with the SyncRoot; otherwise, false. For <see cref="ConcurrentQueue{T}"/>, this property always
+        /// <value>true if access to the <see cref="ICollection"/> is synchronized
+        /// with the SyncRoot; otherwise, false. For <see cref="UnsafeConcurrentQueue{T}"/>, this property always
         /// returns false.</value>
-        bool ICollection.IsSynchronized
-        {
-            // Gets a value indicating whether access to this collection is synchronized. Always returns
-            // false. The reason is subtle. While access is in face thread safe, it's not the case that
-            // locking on the SyncRoot would have prevented concurrent pushes and pops, as this property
-            // would typically indicate; that's because we internally use CAS operations vs. true locks.
-            get { return false; }
-        }
+        bool ICollection.IsSynchronized => false; // always false, as true implies synchronization via SyncRoot#1#
 
-
-        /// <summary>
+        /#1#// <summary>
         /// Gets an object that can be used to synchronize access to the <see
-        /// cref="T:System.Collections.ICollection"/>. This property is not supported.
+        /// cref="ICollection"/>. This property is not supported.
         /// </summary>
-        /// <exception cref="T:System.NotSupportedException">The SyncRoot property is not supported.</exception>
-        object ICollection.SyncRoot
-        {
-            get
-            {
-                throw new NotSupportedException(Environment.GetResourceString("ConcurrentCollection_SyncRoot_NotSupported"));
-            }
-        }
+        /// <exception cref="NotSupportedException">The SyncRoot property is not supported.</exception>
+        object ICollection.SyncRoot { get { ThrowHelper.ThrowNotSupportedException(ExceptionResource.ConcurrentCollection_SyncRoot_NotSupported); return default; } }#1#
 
-        /// <summary>
-        /// Returns an enumerator that iterates through a collection.
-        /// </summary>
-        /// <returns>An <see cref="T:System.Collections.IEnumerator"/> that can be used to iterate through the collection.</returns>
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return ((IEnumerable<T>)this).GetEnumerator();
-        }
+        /#1#// <summary>Returns an enumerator that iterates through a collection.</summary>
+        /// <returns>An <see cref="IEnumerator"/> that can be used to iterate through the collection.</returns>
+        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable<T>)this).GetEnumerator();#1#
 
-        /// <summary>
-        /// Attempts to add an object to the <see
-        /// cref="T:System.Collections.Concurrent.IProducerConsumerCollection{T}"/>.
+        /#1#// <summary>
+        /// Attempts to add an object to the <see cref="IProducerConsumerCollection{T}"/>.
         /// </summary>
         /// <param name="item">The object to add to the <see
-        /// cref="T:System.Collections.Concurrent.IProducerConsumerCollection{T}"/>. The value can be a null
-        /// reference (Nothing in Visual Basic) for reference types.
+        /// cref="IProducerConsumerCollection{T}"/>. The value can be a null
+        /// reference (<see langword="Nothing" /> in Visual Basic) for reference types.
         /// </param>
         /// <returns>true if the object was added successfully; otherwise, false.</returns>
-        /// <remarks>For <see cref="ConcurrentQueue{T}"/>, this operation will always add the object to the
-        /// end of the <see cref="ConcurrentQueue{T}"/>
+        /// <remarks>For <see cref="UnsafeConcurrentQueue{T}"/>, this operation will always add the object to the
+        /// end of the <see cref="UnsafeConcurrentQueue{T}"/>
         /// and return true.</remarks>
         bool IProducerConsumerCollection<T>.TryAdd(T item)
         {
             Enqueue(item);
             return true;
-        }
+        }#1#
 
-        /// <summary>
-        /// Attempts to remove and return an object from the <see
-        /// cref="T:System.Collections.Concurrent.IProducerConsumerCollection{T}"/>.
+        /#1#// <summary>
+        /// Attempts to remove and return an object from the <see cref="IProducerConsumerCollection{T}"/>.
         /// </summary>
         /// <param name="item">
         /// When this method returns, if the operation was successful, <paramref name="item"/> contains the
         /// object removed. If no object was available to be removed, the value is unspecified.
         /// </param>
-        /// <returns>true if an element was removed and returned succesfully; otherwise, false.</returns>
-        /// <remarks>For <see cref="ConcurrentQueue{T}"/>, this operation will attempt to remove the object
-        /// from the beginning of the <see cref="ConcurrentQueue{T}"/>.
+        /// <returns>true if an element was removed and returned successfully; otherwise, false.</returns>
+        /// <remarks>For <see cref="UnsafeConcurrentQueue{T}"/>, this operation will attempt to remove the object
+        /// from the beginning of the <see cref="UnsafeConcurrentQueue{T}"/>.
         /// </remarks>
-        bool IProducerConsumerCollection<T>.TryTake(out T item)
-        {
-            return TryDequeue(out item);
-        }
+        bool IProducerConsumerCollection<T>.TryTake([MaybeNullWhen(false)] out T item) => TryDequeue(out item);#1#
 
         /// <summary>
-        /// Gets a value that indicates whether the <see cref="ConcurrentQueue{T}"/> is empty.
+        /// Gets a value that indicates whether the <see cref="UnsafeConcurrentQueue{T}"/> is empty.
         /// </summary>
-        /// <value>true if the <see cref="ConcurrentQueue{T}"/> is empty; otherwise, false.</value>
+        /// <value>true if the <see cref="UnsafeConcurrentQueue{T}"/> is empty; otherwise, false.</value>
         /// <remarks>
         /// For determining whether the collection contains any items, use of this property is recommended
         /// rather than retrieving the number of items from the <see cref="Count"/> property and comparing it
@@ -262,134 +240,43 @@ namespace System.Collections.Concurrent
         /// that another thread will modify the collection after <see cref="IsEmpty"/> returns, thus invalidating
         /// the result.
         /// </remarks>
-        public bool IsEmpty
-        {
-            get
-            {
-                Segment head = m_head;
-                if (!head.IsEmpty)
-                    //fast route 1:
-                    //if current head is not empty, then queue is not empty
-                    return false;
-                else if (head.Next == null)
-                    //fast route 2:
-                    //if current head is empty and it's the last segment
-                    //then queue is empty
-                    return true;
-                else
-                //slow route:
-                //current head is empty and it is NOT the last segment,
-                //it means another thread is growing new segment 
-                {
-                    SpinWait spin = new SpinWait();
-                    while (head.IsEmpty)
-                    {
-                        if (head.Next == null)
-                            return true;
+        public bool IsEmpty =>
+            // IsEmpty == !TryPeek. We use a "resultUsed:false" peek in order to avoid marking
+            // segments as preserved for observation, making IsEmpty a cheaper way than either
+            // TryPeek(out T) or Count == 0 to check whether any elements are in the queue.
+            !TryPeek(out _, resultUsed: false);
 
-                        spin.SpinOnce();
-                        head = m_head;
-                    }
-                    return false;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Copies the elements stored in the <see cref="ConcurrentQueue{T}"/> to a new array.
-        /// </summary>
-        /// <returns>A new array containing a snapshot of elements copied from the <see
-        /// cref="ConcurrentQueue{T}"/>.</returns>
+        /#1#// <summary>Copies the elements stored in the <see cref="UnsafeConcurrentQueue{T}"/> to a new array.</summary>
+        /// <returns>A new array containing a snapshot of elements copied from the <see cref="UnsafeConcurrentQueue{T}"/>.</returns>
         public T[] ToArray()
         {
-            return ToList().ToArray();
-        }
+            // Snap the current contents for enumeration.
+            SnapForObservation(out UnsafeConcurrentQueueSegment<T> head, out int headHead, out UnsafeConcurrentQueueSegment<T> tail, out int tailTail);
 
-        /// <summary>
-        /// Copies the <see cref="ConcurrentQueue{T}"/> elements to a new <see
-        /// cref="T:System.Collections.Generic.List{T}"/>.
-        /// </summary>
-        /// <returns>A new <see cref="T:System.Collections.Generic.List{T}"/> containing a snapshot of
-        /// elements copied from the <see cref="ConcurrentQueue{T}"/>.</returns>
-        private List<T> ToList()
-        {
-            // Increments the number of active snapshot takers. This increment must happen before the snapshot is 
-            // taken. At the same time, Decrement must happen after list copying is over. Only in this way, can it
-            // eliminate race condition when Segment.TryRemove() checks whether m_numSnapshotTakers == 0. 
-            Interlocked.Increment(ref m_numSnapshotTakers);
+            // Count the number of items in that snapped set, and use it to allocate an
+            // array of the right size.
+            long count = GetCount(head, headHead, tail, tailTail);
+            T[] arr = new T[count];
 
-            List<T> list = new List<T>();
-            try
+            // Now enumerate the contents, copying each element into the array.
+            using (IEnumerator<T> e = Enumerate(head, headHead, tail, tailTail))
             {
-                //store head and tail positions in buffer, 
-                Segment head, tail;
-                int headLow, tailHigh;
-                GetHeadTailPositions(out head, out tail, out headLow, out tailHigh);
-
-                if (head == tail)
+                int i = 0;
+                while (e.MoveNext())
                 {
-                    head.AddToList(list, headLow, tailHigh);
+                    arr[i++] = e.Current;
                 }
-                else
-                {
-                    head.AddToList(list, headLow, SEGMENT_SIZE - 1);
-                    Segment curr = head.Next;
-                    while (curr != tail)
-                    {
-                        curr.AddToList(list, 0, SEGMENT_SIZE - 1);
-                        curr = curr.Next;
-                    }
-                    //Add tail segment
-                    tail.AddToList(list, 0, tailHigh);
-                }
+                Debug.Assert(count == i);
             }
-            finally
-            {
-                // This Decrement must happen after copying is over. 
-                Interlocked.Decrement(ref m_numSnapshotTakers);
-            }
-            return list;
-        }
+
+            // And return it.
+            return arr;
+        }#1#
 
         /// <summary>
-        /// Store the position of the current head and tail positions.
+        /// Gets the number of elements contained in the <see cref="UnsafeConcurrentQueue{T}"/>.
         /// </summary>
-        /// <param name="head">return the head segment</param>
-        /// <param name="tail">return the tail segment</param>
-        /// <param name="headLow">return the head offset, value range [0, SEGMENT_SIZE]</param>
-        /// <param name="tailHigh">return the tail offset, value range [-1, SEGMENT_SIZE-1]</param>
-        private void GetHeadTailPositions(out Segment head, out Segment tail,
-            out int headLow, out int tailHigh)
-        {
-            head = m_head;
-            tail = m_tail;
-            headLow = head.Low;
-            tailHigh = tail.High;
-            SpinWait spin = new SpinWait();
-
-            //we loop until the observed values are stable and sensible.  
-            //This ensures that any update order by other methods can be tolerated.
-            while (
-                //if head and tail changed, retry
-                head != m_head || tail != m_tail
-                //if low and high pointers, retry
-                || headLow != head.Low || tailHigh != tail.High
-                //if head jumps ahead of tail because of concurrent grow and dequeue, retry
-                || head.m_index > tail.m_index)
-            {
-                spin.SpinOnce();
-                head = m_head;
-                tail = m_tail;
-                headLow = head.Low;
-                tailHigh = tail.High;
-            }
-        }
-
-
-        /// <summary>
-        /// Gets the number of elements contained in the <see cref="ConcurrentQueue{T}"/>.
-        /// </summary>
-        /// <value>The number of elements contained in the <see cref="ConcurrentQueue{T}"/>.</value>
+        /// <value>The number of elements contained in the <see cref="UnsafeConcurrentQueue{T}"/>.</value>
         /// <remarks>
         /// For determining whether the collection contains any items, use of the <see cref="IsEmpty"/>
         /// property is recommended rather than retrieving the number of items from the <see cref="Count"/>
@@ -399,38 +286,174 @@ namespace System.Collections.Concurrent
         {
             get
             {
-                //store head and tail positions in buffer, 
-                Segment head, tail;
-                int headLow, tailHigh;
-                GetHeadTailPositions(out head, out tail, out headLow, out tailHigh);
-
-                if (head == tail)
+                BurstSpinWait spinner = default;
+                while (true)
                 {
-                    return tailHigh - headLow + 1;
+                    // Capture the head and tail, as well as the head's head and tail.
+                    var head = Head;
+                    var tail = Tail;
+                    int headHead = Volatile.Read(ref head->_headAndTail.Head);
+                    int headTail = Volatile.Read(ref head->_headAndTail.Tail);
+
+                    if (head == tail)
+                    {
+                        // There was a single segment in the queue.  If the captured segments still
+                        // match, then we can trust the values to compute the segment's count. (It's
+                        // theoretically possible the values could have looped around and still exactly match,
+                        // but that would required at least ~4 billion elements to have been enqueued and
+                        // dequeued between the reads.)
+                        if (head == Head &&
+                            tail == Tail &&
+                            headHead == Volatile.Read(ref Head->_headAndTail.Head) &&
+                            headTail == Volatile.Read(ref Head->_headAndTail.Tail))
+                        {
+                            return GetCount(Head, headHead, headTail);
+                        }
+                    }
+                    else if (Head->NextSegment == tail)
+                    {
+                        // There were two segments in the queue.  Get the positions from the tail, and as above,
+                        // if the captured values match the previous reads, return the sum of the counts from both segments.
+                        int tailHead = Volatile.Read(ref Tail->_headAndTail.Head);
+                        int tailTail = Volatile.Read(ref Tail->_headAndTail.Tail);
+                        if (head == Head &&
+                            tail == Tail &&
+                            headHead == Volatile.Read(ref Head->_headAndTail.Head) &&
+                            headTail == Volatile.Read(ref Head->_headAndTail.Tail) &&
+                            tailHead == Volatile.Read(ref Tail->_headAndTail.Head) &&
+                            tailTail == Volatile.Read(ref Tail->_headAndTail.Tail))
+                        {
+                            return GetCount(Head, headHead, headTail) + GetCount(Tail, tailHead, tailTail);
+                        }
+                    }
+                    else
+                    {
+                        // There were more than two segments in the queue.  Fall back to taking the cross-segment lock,
+                        // which will ensure that the head and tail segments we read are stable (since the lock is needed to change them);
+                        // for the two-segment case above, we can simply rely on subsequent comparisons, but for the two+ case, we need
+                        // to be able to trust the internal segments between the head and tail.
+                        //lock (_crossSegmentLock)
+                        using var scopeLock = _crossSegmentLock.ScopedAtomicLock();
+                        // Now that we hold the lock, re-read the previously captured head and tail segments and head positions.
+                        // If either has changed, start over.
+                        if (head == Head && tail == Tail)
+                        {
+                            // Get the positions from the tail, and as above, if the captured values match the previous reads,
+                            // we can use the values to compute the count of the head and tail segments.
+                            int tailHead = Volatile.Read(ref Tail->_headAndTail.Head);
+                            int tailTail = Volatile.Read(ref Tail->_headAndTail.Tail);
+                            if (headHead == Volatile.Read(ref Head->_headAndTail.Head) &&
+                                headTail == Volatile.Read(ref Head->_headAndTail.Tail) &&
+                                tailHead == Volatile.Read(ref Tail->_headAndTail.Head) &&
+                                tailTail == Volatile.Read(ref Tail->_headAndTail.Tail))
+                            {
+                                // We got stable values for the head and tail segments, so we can just compute the sizes
+                                // based on those and add them. Note that this and the below additions to count may overflow: previous
+                                // implementations allowed that, so we don't check, either, and it is theoretically possible for the
+                                // queue to store more than int.MaxValue items.
+                                int count = GetCount(Head, headHead, headTail) + GetCount(Tail, tailHead, tailTail);
+                                //UnityEngine.Debug.Log($"UnsafeConcurrentQueue::Count - Head count: {GetCount(Head, headHead, headTail)} + Tail count: {GetCount(Head, tailHead, tailTail)} = {count}");
+
+                                // Now add the counts for each internal segment. Since there were segments before these,
+                                // for counting purposes we consider them to start at the 0th element, and since there is at
+                                // least one segment after each, each was frozen, so we can count until each's frozen tail.
+                                // With the cross-segment lock held, we're guaranteed that all of these internal segments are
+                                // consistent, as the head and tail segment can't be changed while we're holding the lock, and
+                                // dequeueing and enqueueing can only be done from the head and tail segments, which these aren't.
+                                for (var s = Head->NextSegment; s != Tail; s = s->NextSegment)
+                                {
+                                    //Debug.Assert(s._frozenForEnqueues, "Internal segment must be frozen as there's a following segment.");
+                                    CheckFrozenForEnqueues(s);
+                                    count += s->_headAndTail.Tail - s->FreezeOffset;
+                                    //UnityEngine.Debug.Log($"UnsafeConcurrentQueue::Count - Added: {s->_headAndTail.Tail - s->FreezeOffset}");
+                                }
+
+                                return count;
+                            }
+                        }
+                    }
+
+                    // We raced with enqueues/dequeues and captured an inconsistent picture of the queue.
+                    // Spin and try again.
+                    spinner.SpinOnce();
                 }
-
-                //head segment
-                int count = SEGMENT_SIZE - headLow;
-
-                //middle segment(s), if any, are full.
-                //We don't deal with overflow to be consistent with the behavior of generic types in CLR.
-                count += SEGMENT_SIZE * ((int)(tail.m_index - head.m_index - 1));
-
-                //tail segment
-                count += tailHigh + 1;
-
-                return count;
             }
         }
 
+        /// <summary>Computes the number of items in a segment based on a fixed head and tail in that segment.</summary>
+        static int GetCount(UnsafeConcurrentQueueSegment<T>* s, int head, int tail)
+        {
+            if (head != tail && head != tail - s->FreezeOffset)
+            {
+                head &= s->_slotsMask;
+                tail &= s->_slotsMask;
+                return head < tail ? tail - head : s->_slots.Length - head + tail;
+            }
+            return 0;
+        }
 
-        /// <summary>
-        /// Copies the <see cref="ConcurrentQueue{T}"/> elements to an existing one-dimensional <see
-        /// cref="T:System.Array">Array</see>, starting at the specified array index.
+        /// <summary>Gets the number of items in snapped region.</summary>
+        /*static long GetCount(UnsafeConcurrentQueueSegment<T>* head, int headHead, UnsafeConcurrentQueueSegment<T>* tail, int tailTail)
+        {
+            // All of the segments should have been both frozen for enqueues and preserved for observation.
+            // Validate that here for head and tail; we'll validate it for intermediate segments later.
+            Debug.Assert(head._preservedForObservation);
+            Debug.Assert(head._frozenForEnqueues);
+            Debug.Assert(tail._preservedForObservation);
+            Debug.Assert(tail._frozenForEnqueues);
+
+            long count = 0;
+
+            // Head segment.  We've already marked it as frozen for enqueues, so its tail position is fixed,
+            // and we've already marked it as preserved for observation (before we grabbed the head), so we
+            // can safely enumerate from its head to its tail and access its elements.
+            int headTail = (head == tail ? tailTail : Volatile.Read(ref head._headAndTail.Tail)) - head.FreezeOffset;
+            if (headHead < headTail)
+            {
+                // Mask the head and tail for the head segment
+                headHead &= head._slotsMask;
+                headTail &= head._slotsMask;
+
+                // Increase the count by either the one or two regions, based on whether tail
+                // has wrapped to be less than head.
+                count += headHead < headTail ?
+                    headTail - headHead :
+                    head._slots.Length - headHead + headTail;
+            }
+
+            // We've enumerated the head.  If the tail is different from the head, we need to
+            // enumerate the remaining segments.
+            if (head != tail)
+            {
+                // Count the contents of each segment between head and tail, not including head and tail.
+                // Since there were segments before these, for our purposes we consider them to start at
+                // the 0th element, and since there is at least one segment after each, each was frozen
+                // by the time we snapped it, so we can iterate until each's frozen tail.
+                for (UnsafeConcurrentQueueSegment<T> s = head->_nextSegment!; s != tail; s = s._nextSegment!)
+                {
+                    Debug.Assert(s._preservedForObservation);
+                    Debug.Assert(s._frozenForEnqueues);
+                    count += s._headAndTail.Tail - s.FreezeOffset;
+                }
+
+                // Finally, enumerate the tail.  As with the intermediate segments, there were segments
+                // before this in the snapped region, so we can start counting from the beginning. Unlike
+                // the intermediate segments, we can't just go until the Tail, as that could still be changing;
+                // instead we need to go until the tail we snapped for observation.
+                count += tailTail - tail.FreezeOffset;
+            }
+
+            // Return the computed count.
+            return count;
+        }#1#
+
+        /#1#// <summary>
+        /// Copies the <see cref="UnsafeConcurrentQueue{T}"/> elements to an existing one-dimensional <see
+        /// cref="Array">Array</see>, starting at the specified array index.
         /// </summary>
-        /// <param name="array">The one-dimensional <see cref="T:System.Array">Array</see> that is the
+        /// <param name="array">The one-dimensional <see cref="Array">Array</see> that is the
         /// destination of the elements copied from the
-        /// <see cref="ConcurrentQueue{T}"/>. The <see cref="T:System.Array">Array</see> must have zero-based
+        /// <see cref="UnsafeConcurrentQueue{T}"/>. The <see cref="Array">Array</see> must have zero-based
         /// indexing.</param>
         /// <param name="index">The zero-based index in <paramref name="array"/> at which copying
         /// begins.</param>
@@ -440,7 +463,7 @@ namespace System.Collections.Concurrent
         /// zero.</exception>
         /// <exception cref="ArgumentException"><paramref name="index"/> is equal to or greater than the
         /// length of the <paramref name="array"/>
-        /// -or- The number of elements in the source <see cref="ConcurrentQueue{T}"/> is greater than the
+        /// -or- The number of elements in the source <see cref="UnsafeConcurrentQueue{T}"/> is greater than the
         /// available space from <paramref name="index"/> to the end of the destination <paramref
         /// name="array"/>.
         /// </exception>
@@ -448,521 +471,413 @@ namespace System.Collections.Concurrent
         {
             if (array == null)
             {
-                throw new ArgumentNullException("array");
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.array);
+            }
+            if (index < 0)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
             }
 
-            // We must be careful not to corrupt the array, so we will first accumulate an
-            // internal list of elements that we will then copy to the array. This requires
-            // some extra allocation, but is necessary since we don't know up front whether
-            // the array is sufficiently large to hold the stack's contents.
-            ToList().CopyTo(array, index);
-        }
+            // Snap for enumeration
+            SnapForObservation(out UnsafeConcurrentQueueSegment<T> head, out int headHead, out UnsafeConcurrentQueueSegment<T> tail, out int tailTail);
 
+            // Get the number of items to be enumerated
+            long count = GetCount(head, headHead, tail, tailTail);
+            if (index > array.Length - count)
+            {
+                ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_ArrayPlusOffTooSmall);
+            }
 
-        /// <summary>
-        /// Returns an enumerator that iterates through the <see
-        /// cref="ConcurrentQueue{T}"/>.
-        /// </summary>
+            // Copy the items to the target array
+            int i = index;
+            using (IEnumerator<T> e = Enumerate(head, headHead, tail, tailTail))
+            {
+                while (e.MoveNext())
+                {
+                    array[i++] = e.Current;
+                }
+            }
+            Debug.Assert(count == i - index);
+        }#1#
+
+        /#1#// <summary>Returns an enumerator that iterates through the <see cref="UnsafeConcurrentQueue{T}"/>.</summary>
         /// <returns>An enumerator for the contents of the <see
-        /// cref="ConcurrentQueue{T}"/>.</returns>
+        /// cref="UnsafeConcurrentQueue{T}"/>.</returns>
         /// <remarks>
         /// The enumeration represents a moment-in-time snapshot of the contents
-        /// of the queue.  It does not reflect any updates to the collection after 
+        /// of the queue.  It does not reflect any updates to the collection after
         /// <see cref="GetEnumerator"/> was called.  The enumerator is safe to use
         /// concurrently with reads from and writes to the queue.
         /// </remarks>
         public IEnumerator<T> GetEnumerator()
         {
-            // Increments the number of active snapshot takers. This increment must happen before the snapshot is 
-            // taken. At the same time, Decrement must happen after the enumeration is over. Only in this way, can it
-            // eliminate race condition when Segment.TryRemove() checks whether m_numSnapshotTakers == 0. 
-            Interlocked.Increment(ref m_numSnapshotTakers);
+            SnapForObservation(out UnsafeConcurrentQueueSegment<T> head, out int headHead, out UnsafeConcurrentQueueSegment<T> tail, out int tailTail);
+            return Enumerate(head, headHead, tail, tailTail);
+        }#1#
 
-            // Takes a snapshot of the queue. 
-            // A design flaw here: if a Thread.Abort() happens, we cannot decrement m_numSnapshotTakers. But we cannot 
-            // wrap the following with a try/finally block, otherwise the decrement will happen before the yield return 
-            // statements in the GetEnumerator (head, tail, headLow, tailHigh) method.           
-            Segment head, tail;
-            int headLow, tailHigh;
-            GetHeadTailPositions(out head, out tail, out headLow, out tailHigh);
+        /#1#// <summary>
+        /// Gets the head and tail information of the current contents of the queue.
+        /// After this call returns, the specified region can be enumerated any number
+        /// of times and will not change.
+        /// </summary>
+        void SnapForObservation(out UnsafeConcurrentQueueSegment<T> head, out int headHead, out UnsafeConcurrentQueueSegment<T> tail, out int tailTail)
+        {
+            lock (_crossSegmentLock) // _head and _tail may only change while the lock is held.
+            {
+                // Snap the head and tail
+                head = _head;
+                tail = _tail;
+                Debug.Assert(head != null);
+                Debug.Assert(tail != null);
+                Debug.Assert(tail._nextSegment == null);
 
-            //If we put yield-return here, the iterator will be lazily evaluated. As a result a snapshot of
-            // the queue is not taken when GetEnumerator is initialized but when MoveNext() is first called.
-            // This is inconsistent with existing generic collections. In order to prevent it, we capture the 
-            // value of m_head in a buffer and call out to a helper method.
-            //The old way of doing this was to return the ToList().GetEnumerator(), but ToList() was an 
-            // unnecessary perfomance hit.
-            return GetEnumerator(head, tail, headLow, tailHigh);
+                // Mark them and all segments in between as preserving, and ensure no additional items
+                // can be added to the tail.
+                for (UnsafeConcurrentQueueSegment<T> s = head; ; s = s._nextSegment!)
+                {
+                    s._preservedForObservation = true;
+                    if (s == tail) break;
+                    Debug.Assert(s._frozenForEnqueues); // any non-tail should already be marked
+                }
+                tail.EnsureFrozenForEnqueues(); // we want to prevent the tailTail from moving
+
+                // At this point, any dequeues from any segment won't overwrite the value, and
+                // none of the existing segments can have new items enqueued.
+
+                headHead = Volatile.Read(ref head._headAndTail.Head);
+                tailTail = Volatile.Read(ref tail._headAndTail.Tail);
+            }
+        }#1#
+
+        /// <summary>Gets the item stored in the <paramref name="i"/>th entry in <paramref name="segment"/>.</summary>
+        static T GetItemWhenAvailable(UnsafeConcurrentQueueSegment<T> segment, int i)
+        {
+            Debug.Assert(segment._preservedForObservation);
+
+            // Get the expected value for the sequence number
+            int expectedSequenceNumberAndMask = (i + 1) & segment._slotsMask;
+
+            // If the expected sequence number is not yet written, we're still waiting for
+            // an enqueuer to finish storing it.  Spin until it's there.
+            SpinWait spinner = default;
+            // Must read SequenceNumber before reading Item, thus Volatile.Read
+            while ((Volatile.Read(ref segment._slots.ElementAt(i).SequenceNumber) & segment._slotsMask) != expectedSequenceNumberAndMask)
+            {
+                spinner.SpinOnce();
+            }
+
+            // Return the value from the slot.
+            return segment._slots.ElementAt(i).Item.Value;
         }
 
-        /// <summary>
-        /// Helper method of GetEnumerator to seperate out yield return statement, and prevent lazy evaluation. 
-        /// </summary>
-        private IEnumerator<T> GetEnumerator(Segment head, Segment tail, int headLow, int tailHigh)
+        /*private static IEnumerator<T> Enumerate(UnsafeConcurrentQueueSegment<T> head, int headHead, UnsafeConcurrentQueueSegment<T> tail, int tailTail)
         {
-            try
-            {
-                SpinWait spin = new SpinWait();
+            Debug.Assert(head._preservedForObservation);
+            Debug.Assert(head._frozenForEnqueues);
+            Debug.Assert(tail._preservedForObservation);
+            Debug.Assert(tail._frozenForEnqueues);
 
-                if (head == tail)
+            // Head segment.  We've already marked it as not accepting any more enqueues,
+            // so its tail position is fixed, and we've already marked it as preserved for
+            // enumeration (before we grabbed its head), so we can safely enumerate from
+            // its head to its tail.
+            int headTail = (head == tail ? tailTail : Volatile.Read(ref head._headAndTail.Tail)) - head.FreezeOffset;
+            if (headHead < headTail)
+            {
+                headHead &= head._slotsMask;
+                headTail &= head._slotsMask;
+
+                if (headHead < headTail)
                 {
-                    for (int i = headLow; i <= tailHigh; i++)
-                    {
-                        // If the position is reserved by an Enqueue operation, but the value is not written into,
-                        // spin until the value is available.
-                        spin.Reset();
-                        while (!head.m_state[i].m_value)
-                        {
-                            spin.SpinOnce();
-                        }
-                        yield return head.m_array[i];
-                    }
+                    for (int i = headHead; i < headTail; i++) yield return GetItemWhenAvailable(head, i);
                 }
                 else
                 {
-                    //iterate on head segment
-                    for (int i = headLow; i < SEGMENT_SIZE; i++)
-                    {
-                        // If the position is reserved by an Enqueue operation, but the value is not written into,
-                        // spin until the value is available.
-                        spin.Reset();
-                        while (!head.m_state[i].m_value)
-                        {
-                            spin.SpinOnce();
-                        }
-                        yield return head.m_array[i];
-                    }
-                    //iterate on middle segments
-                    Segment curr = head.Next;
-                    while (curr != tail)
-                    {
-                        for (int i = 0; i < SEGMENT_SIZE; i++)
-                        {
-                            // If the position is reserved by an Enqueue operation, but the value is not written into,
-                            // spin until the value is available.
-                            spin.Reset();
-                            while (!curr.m_state[i].m_value)
-                            {
-                                spin.SpinOnce();
-                            }
-                            yield return curr.m_array[i];
-                        }
-                        curr = curr.Next;
-                    }
-
-                    //iterate on tail segment
-                    for (int i = 0; i <= tailHigh; i++)
-                    {
-                        // If the position is reserved by an Enqueue operation, but the value is not written into,
-                        // spin until the value is available.
-                        spin.Reset();
-                        while (!tail.m_state[i].m_value)
-                        {
-                            spin.SpinOnce();
-                        }
-                        yield return tail.m_array[i];
-                    }
+                    for (int i = headHead; i < head._slots.Length; i++) yield return GetItemWhenAvailable(head, i);
+                    for (int i = 0; i < headTail; i++) yield return GetItemWhenAvailable(head, i);
                 }
             }
-            finally
-            {
-                // This Decrement must happen after the enumeration is over. 
-                Interlocked.Decrement(ref m_numSnapshotTakers);
-            }
-        }
 
-        /// <summary>
-        /// Adds an object to the end of the <see cref="ConcurrentQueue{T}"/>.
-        /// </summary>
-        /// <param name="item">The object to add to the end of the <see
-        /// cref="ConcurrentQueue{T}"/>. The value can be a null reference
-        /// (Nothing in Visual Basic) for reference types.
+            // We've enumerated the head.  If the tail is the same, we're done.
+            if (head != tail)
+            {
+                // Each segment between head and tail, not including head and tail.  Since there were
+                // segments before these, for our purposes we consider it to start at the 0th element.
+                for (UnsafeConcurrentQueueSegment<T> s = head->_nextSegment!; s != tail; s = s._nextSegment!)
+                {
+                    Debug.Assert(s._preservedForObservation, "Would have had to been preserved as a segment part of enumeration");
+                    Debug.Assert(s._frozenForEnqueues, "Would have had to be frozen for enqueues as it's intermediate");
+
+                    int sTail = s._headAndTail.Tail - s.FreezeOffset;
+                    for (int i = 0; i < sTail; i++)
+                    {
+                        yield return GetItemWhenAvailable(s, i);
+                    }
+                }
+
+                // Enumerate the tail.  Since there were segments before this, we can just start at
+                // its beginning, and iterate until the tail we already grabbed.
+                tailTail -= tail.FreezeOffset;
+                for (int i = 0; i < tailTail; i++)
+                {
+                    yield return GetItemWhenAvailable(tail, i);
+                }
+            }
+        }#1#
+
+        /// <summary>Adds an object to the end of the <see cref="UnsafeConcurrentQueue{T}"/>.</summary>
+        /// <param name="item">
+        /// The object to add to the end of the <see cref="UnsafeConcurrentQueue{T}"/>.
+        /// The value can be a null reference (<see langword="Nothing" /> in Visual Basic) for reference types.
         /// </param>
         public void Enqueue(T item)
         {
-            SpinWait spin = new SpinWait();
-            while (true)
+            // Try to enqueue to the current tail.
+            if (!Tail->TryEnqueue(item))
             {
-                Segment tail = m_tail;
-                if (tail.TryAppend(item))
-                    return;
-                spin.SpinOnce();
+                // If we're unable to, we need to take a slow path that will
+                // try to add a new tail segment.
+                EnqueueSlow(item);
             }
         }
 
+        /// <summary>Adds to the end of the queue, adding a new segment if necessary.</summary>
+        void EnqueueSlow(T item)
+        {
+            while (true)
+            {
+                var tail = Tail;
+
+                // Try to append to the existing tail.
+                if (tail->TryEnqueue(item))
+                    return;
+
+                // If we were unsuccessful, take the lock so that we can compare and manipulate
+                // the tail.  Assuming another enqueuer hasn't already added a new segment,
+                // do so, then loop around to try enqueueing again.
+                //lock (_crossSegmentLock)
+                using var scopeLock = _crossSegmentLock.ScopedAtomicLock();
+                if (tail == Tail)
+                {
+                    // Make sure no one else can enqueue to this segment.
+                    tail->EnsureFrozenForEnqueues();
+
+                    // We determine the new segment's length based on the old length.
+                    // In general, we double the size of the segment, to make it less likely
+                    // that we'll need to grow again.  However, if the tail segment is marked
+                    // as preserved for observation, something caused us to avoid reusing this
+                    // segment, and if that happens a lot and we grow, we'll end up allocating
+                    // lots of wasted space.  As such, in such situations we reset back to the
+                    // initial segment length; if these observations are happening frequently,
+                    // this will help to avoid wasted memory, and if they're not, we'll
+                    // relatively quickly grow again to a larger size.
+                    int nextSize = tail->_preservedForObservation ? InitialSegmentLength : Math.Min(tail->Capacity * 2, MaxSegmentLength);
+                    //var newTail = new UnsafeConcurrentQueueSegment<T>(nextSize);
+                    var newTail = UnsafeConcurrentQueueSegment<T>.Create(nextSize, allocator);
+                    var newTailIntPtr = (IntPtr)newTail;
+
+                    // Hook up the new tail.
+                    tail->_nextSegment = newTailIntPtr;
+                    _tail = newTailIntPtr;
+                }
+            }
+        }
 
         /// <summary>
         /// Attempts to remove and return the object at the beginning of the <see
-        /// cref="ConcurrentQueue{T}"/>.
+        /// cref="UnsafeConcurrentQueue{T}"/>.
         /// </summary>
         /// <param name="result">
         /// When this method returns, if the operation was successful, <paramref name="result"/> contains the
         /// object removed. If no object was available to be removed, the value is unspecified.
         /// </param>
-        /// <returns>true if an element was removed and returned from the beggining of the <see
-        /// cref="ConcurrentQueue{T}"/>
-        /// succesfully; otherwise, false.</returns>
-        public bool TryDequeue(out T result)
+        /// <returns>
+        /// true if an element was removed and returned from the beginning of the
+        /// <see cref="UnsafeConcurrentQueue{T}"/> successfully; otherwise, false.
+        /// </returns>
+        public bool TryDequeue([MaybeNullWhen(false)] out T result)
         {
-            while (!IsEmpty)
+            // Get the current head
+            var head = Head;
+
+            // Try to take.  If we're successful, we're done.
+            if (head->TryDequeue(out result))
+                return true;
+
+            // Check to see whether this segment is the last. If it is, we can consider
+            // this to be a moment-in-time empty condition (even though between the TryDequeue
+            // check and this check, another item could have arrived).
+            if (head->_nextSegment == IntPtr.Zero)
             {
-                Segment head = m_head;
-                if (head.TryRemove(out result))
-                    return true;
-                //since method IsEmpty spins, we don't need to spin in the while loop
-            }
-            result = default(T);
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to return an object from the beginning of the <see cref="ConcurrentQueue{T}"/>
-        /// without removing it.
-        /// </summary>
-        /// <param name="result">When this method returns, <paramref name="result"/> contains an object from
-        /// the beginning of the <see cref="T:System.Collections.Concurrent.ConccurrentQueue{T}"/> or an
-        /// unspecified value if the operation failed.</param>
-        /// <returns>true if and object was returned successfully; otherwise, false.</returns>
-        public bool TryPeek(out T result)
-        {
-            Interlocked.Increment(ref m_numSnapshotTakers);
-
-            while (!IsEmpty)
-            {
-                Segment head = m_head;
-                if (head.TryPeek(out result))
-                {
-                    Interlocked.Decrement(ref m_numSnapshotTakers);
-                    return true;
-                }
-                //since method IsEmpty spins, we don't need to spin in the while loop
-            }
-            result = default(T);
-            Interlocked.Decrement(ref m_numSnapshotTakers);
-            return false;
-        }
-
-
-        /// <summary>
-        /// private class for ConcurrentQueue. 
-        /// a queue is a linked list of small arrays, each node is called a segment.
-        /// A segment contains an array, a pointer to the next segment, and m_low, m_high indices recording
-        /// the first and last valid elements of the array.
-        /// </summary>
-        private class Segment
-        {
-            //we define two volatile arrays: m_array and m_state. Note that the accesses to the array items 
-            //do not get volatile treatment. But we don't need to worry about loading adjacent elements or 
-            //store/load on adjacent elements would suffer reordering. 
-            // - Two stores:  these are at risk, but CLRv2 memory model guarantees store-release hence we are safe.
-            // - Two loads: because one item from two volatile arrays are accessed, the loads of the array references
-            //          are sufficient to prevent reordering of the loads of the elements.
-            internal volatile T[] m_array;
-
-            // For each entry in m_array, the corresponding entry in m_state indicates whether this position contains 
-            // a valid value. m_state is initially all false. 
-            internal volatile VolatileBool[] m_state;
-
-            //pointer to the next segment. null if the current segment is the last segment
-            private volatile Segment m_next;
-
-            //We use this zero based index to track how many segments have been created for the queue, and
-            //to compute how many active segments are there currently. 
-            // * The number of currently active segments is : m_tail.m_index - m_head.m_index + 1;
-            // * m_index is incremented with every Segment.Grow operation. We use Int64 type, and we can safely 
-            //   assume that it never overflows. To overflow, we need to do 2^63 increments, even at a rate of 4 
-            //   billion (2^32) increments per second, it takes 2^31 seconds, which is about 64 years.
-            internal readonly long m_index;
-
-            //indices of where the first and last valid values
-            // - m_low points to the position of the next element to pop from this segment, range [0, infinity)
-            //      m_low >= SEGMENT_SIZE implies the segment is disposable
-            // - m_high points to the position of the latest pushed element, range [-1, infinity)
-            //      m_high == -1 implies the segment is new and empty
-            //      m_high >= SEGMENT_SIZE-1 means this segment is ready to grow. 
-            //        and the thread who sets m_high to SEGMENT_SIZE-1 is responsible to grow the segment
-            // - Math.Min(m_low, SEGMENT_SIZE) > Math.Min(m_high, SEGMENT_SIZE-1) implies segment is empty
-            // - initially m_low =0 and m_high=-1;
-            private volatile int m_low;
-            private volatile int m_high;
-
-            private volatile ConcurrentQueue<T> m_source;
-
-            /// <summary>
-            /// Create and initialize a segment with the specified index.
-            /// </summary>
-            internal Segment(long index, ConcurrentQueue<T> source)
-            {
-                m_array = new T[SEGMENT_SIZE];
-                m_state = new VolatileBool[SEGMENT_SIZE]; //all initialized to false
-                m_high = -1;
-                Contract.Assert(index >= 0);
-                m_index = index;
-                m_source = source;
-            }
-
-            /// <summary>
-            /// return the next segment
-            /// </summary>
-            internal Segment Next
-            {
-                get { return m_next; }
-            }
-
-
-            /// <summary>
-            /// return true if the current segment is empty (doesn't have any element available to dequeue, 
-            /// false otherwise
-            /// </summary>
-            internal bool IsEmpty
-            {
-                get { return (Low > High); }
-            }
-
-            /// <summary>
-            /// Add an element to the tail of the current segment
-            /// exclusively called by ConcurrentQueue.InitializedFromCollection
-            /// InitializeFromCollection is responsible to guaratee that there is no index overflow,
-            /// and there is no contention
-            /// </summary>
-            /// <param name="value"></param>
-            internal void UnsafeAdd(T value)
-            {
-                Contract.Assert(m_high < SEGMENT_SIZE - 1);
-                m_high++;
-                m_array[m_high] = value;
-                m_state[m_high].m_value = true;
-            }
-
-            /// <summary>
-            /// Create a new segment and append to the current one
-            /// Does not update the m_tail pointer
-            /// exclusively called by ConcurrentQueue.InitializedFromCollection
-            /// InitializeFromCollection is responsible to guaratee that there is no index overflow,
-            /// and there is no contention
-            /// </summary>
-            /// <returns>the reference to the new Segment</returns>
-            internal Segment UnsafeGrow()
-            {
-                Contract.Assert(m_high >= SEGMENT_SIZE - 1);
-                Segment newSegment = new Segment(m_index + 1, m_source); //m_index is Int64, we don't need to worry about overflow
-                m_next = newSegment;
-                return newSegment;
-            }
-
-            /// <summary>
-            /// Create a new segment and append to the current one
-            /// Update the m_tail pointer
-            /// This method is called when there is no contention
-            /// </summary>
-            internal void Grow()
-            {
-                //no CAS is needed, since there is no contention (other threads are blocked, busy waiting)
-                Segment newSegment = new Segment(m_index + 1, m_source);  //m_index is Int64, we don't need to worry about overflow
-                m_next = newSegment;
-                Contract.Assert(m_source.m_tail == this);
-                m_source.m_tail = m_next;
-            }
-
-
-            /// <summary>
-            /// Try to append an element at the end of this segment.
-            /// </summary>
-            /// <param name="value">the element to append</param>
-            /// <param name="tail">The tail.</param>
-            /// <returns>true if the element is appended, false if the current segment is full</returns>
-            /// <remarks>if appending the specified element succeeds, and after which the segment is full, 
-            /// then grow the segment</remarks>
-            internal bool TryAppend(T value)
-            {
-                //quickly check if m_high is already over the boundary, if so, bail out
-                if (m_high >= SEGMENT_SIZE - 1)
-                {
-                    return false;
-                }
-
-                //Now we will use a CAS to increment m_high, and store the result in newhigh.
-                //Depending on how many free spots left in this segment and how many threads are doing this Increment
-                //at this time, the returning "newhigh" can be 
-                // 1) < SEGMENT_SIZE - 1 : we took a spot in this segment, and not the last one, just insert the value
-                // 2) == SEGMENT_SIZE - 1 : we took the last spot, insert the value AND grow the segment
-                // 3) > SEGMENT_SIZE - 1 : we failed to reserve a spot in this segment, we return false to 
-                //    Queue.Enqueue method, telling it to try again in the next segment.
-
-                int newhigh = SEGMENT_SIZE; //initial value set to be over the boundary
-
-                //We need do Interlocked.Increment and value/state update in a finally block to ensure that they run
-                //without interuption. This is to prevent anything from happening between them, and another dequeue
-                //thread maybe spinning forever to wait for m_state[] to be true;
-                try
-                { }
-                finally
-                {
-                    newhigh = Interlocked.Increment(ref m_high);
-                    if (newhigh <= SEGMENT_SIZE - 1)
-                    {
-                        m_array[newhigh] = value;
-                        m_state[newhigh].m_value = true;
-                    }
-
-                    //if this thread takes up the last slot in the segment, then this thread is responsible
-                    //to grow a new segment. Calling Grow must be in the finally block too for reliability reason:
-                    //if thread abort during Grow, other threads will be left busy spinning forever.
-                    if (newhigh == SEGMENT_SIZE - 1)
-                    {
-                        Grow();
-                    }
-                }
-
-                //if newhigh <= SEGMENT_SIZE-1, it means the current thread successfully takes up a spot
-                return newhigh <= SEGMENT_SIZE - 1;
-            }
-
-
-            /// <summary>
-            /// try to remove an element from the head of current segment
-            /// </summary>
-            /// <param name="result">The result.</param>
-            /// <param name="head">The head.</param>
-            /// <returns>return false only if the current segment is empty</returns>
-            internal bool TryRemove(out T result)
-            {
-                SpinWait spin = new SpinWait();
-                int lowLocal = Low, highLocal = High;
-                while (lowLocal <= highLocal)
-                {
-                    //try to update m_low
-                    if (Interlocked.CompareExchange(ref m_low, lowLocal + 1, lowLocal) == lowLocal)
-                    {
-                        //if the specified value is not available (this spot is taken by a push operation,
-                        // but the value is not written into yet), then spin
-                        SpinWait spinLocal = new SpinWait();
-                        while (!m_state[lowLocal].m_value)
-                        {
-                            spinLocal.SpinOnce();
-                        }
-                        result = m_array[lowLocal];
-
-                        // If there is no other thread taking snapshot (GetEnumerator(), ToList(), etc), reset the deleted entry to null.
-                        // It is ok if after this conditional check m_numSnapshotTakers becomes > 0, because new snapshots won't include 
-                        // the deleted entry at m_array[lowLocal]. 
-                        if (m_source.m_numSnapshotTakers <= 0)
-                        {
-                            m_array[lowLocal] = default(T); //release the reference to the object. 
-                        }
-
-                        //if the current thread sets m_low to SEGMENT_SIZE, which means the current segment becomes
-                        //disposable, then this thread is responsible to dispose this segment, and reset m_head 
-                        if (lowLocal + 1 >= SEGMENT_SIZE)
-                        {
-                            //  Invariant: we only dispose the current m_head, not any other segment
-                            //  In usual situation, disposing a segment is simply seting m_head to m_head.m_next
-                            //  But there is one special case, where m_head and m_tail points to the same and ONLY
-                            //segment of the queue: Another thread A is doing Enqueue and finds that it needs to grow,
-                            //while the *current* thread is doing *this* Dequeue operation, and finds that it needs to 
-                            //dispose the current (and ONLY) segment. Then we need to wait till thread A finishes its 
-                            //Grow operation, this is the reason of having the following while loop
-                            spinLocal = new SpinWait();
-                            while (m_next == null)
-                            {
-                                spinLocal.SpinOnce();
-                            }
-                            Contract.Assert(m_source.m_head == this);
-                            m_source.m_head = m_next;
-                        }
-                        return true;
-                    }
-                    else
-                    {
-                        //CAS failed due to contention: spin briefly and retry
-                        spin.SpinOnce();
-                        lowLocal = Low; highLocal = High;
-                    }
-                }//end of while
-                result = default(T);
+                result = default;
                 return false;
             }
 
-            /// <summary>
-            /// try to peek the current segment
-            /// </summary>
-            /// <param name="result">holds the return value of the element at the head position, 
-            /// value set to default(T) if there is no such an element</param>
-            /// <returns>true if there are elements in the current segment, false otherwise</returns>
-            internal bool TryPeek(out T result)
-            {
-                result = default(T);
-                int lowLocal = Low;
-                if (lowLocal > High)
-                    return false;
-                SpinWait spin = new SpinWait();
-                while (!m_state[lowLocal].m_value)
-                {
-                    spin.SpinOnce();
-                }
-                result = m_array[lowLocal];
-                return true;
-            }
-
-            /// <summary>
-            /// Adds part or all of the current segment into a List.
-            /// </summary>
-            /// <param name="list">the list to which to add</param>
-            /// <param name="start">the start position</param>
-            /// <param name="end">the end position</param>
-            internal void AddToList(List<T> list, int start, int end)
-            {
-                for (int i = start; i <= end; i++)
-                {
-                    SpinWait spin = new SpinWait();
-                    while (!m_state[i].m_value)
-                    {
-                        spin.SpinOnce();
-                    }
-                    list.Add(m_array[i]);
-                }
-            }
-
-            /// <summary>
-            /// return the position of the head of the current segment
-            /// Value range [0, SEGMENT_SIZE], if it's SEGMENT_SIZE, it means this segment is exhausted and thus empty
-            /// </summary>
-            internal int Low
-            {
-                get
-                {
-                    return Math.Min(m_low, SEGMENT_SIZE);
-                }
-            }
-
-            /// <summary>
-            /// return the logical position of the tail of the current segment      
-            /// Value range [-1, SEGMENT_SIZE-1]. When it's -1, it means this is a new segment and has no elemnet yet
-            /// </summary>
-            internal int High
-            {
-                get
-                {
-                    //if m_high > SEGMENT_SIZE, it means it's out of range, we should return
-                    //SEGMENT_SIZE-1 as the logical position
-                    return Math.Min(m_high, SEGMENT_SIZE - 1);
-                }
-            }
-
+            return TryDequeueSlow(out result); // slow path that needs to fix up segments
         }
-    }//end of class Segment
 
-    /// <summary>
-    /// A wrapper struct for volatile bool, please note the copy of the struct it self will not be volatile
-    /// for example this statement will not include in volatilness operation volatileBool1 = volatileBool2 the jit will copy the struct and will ignore the volatile
-    /// </summary>
-    struct VolatileBool
-    {
-        public VolatileBool(bool value)
+        /// <summary>Tries to dequeue an item, removing empty segments as needed.</summary>
+        bool TryDequeueSlow([MaybeNullWhen(false)] out T item)
         {
-            m_value = value;
+            while (true)
+            {
+                // Get the current head
+                var head = Head;
+
+                // Try to take.  If we're successful, we're done.
+                if (head->TryDequeue(out item))
+                {
+                    return true;
+                }
+
+                // Check to see whether this segment is the last. If it is, we can consider
+                // this to be a moment-in-time empty condition (even though between the TryDequeue
+                // check and this check, another item could have arrived).
+                if (head->_nextSegment == null)
+                {
+                    item = default;
+                    return false;
+                }
+
+                // At this point we know that head.Next != null, which means
+                // this segment has been frozen for additional enqueues. But between
+                // the time that we ran TryDequeue and checked for a next segment,
+                // another item could have been added.  Try to dequeue one more time
+                // to confirm that the segment is indeed empty.
+                //Debug.Assert(head._frozenForEnqueues);
+                CheckFrozenForEnqueues(head);
+                if (head->TryDequeue(out item))
+                    return true;
+
+                // This segment is frozen (nothing more can be added) and empty (nothing is in it).
+                // Update head to point to the next segment in the list, assuming no one's beat us to it.
+                //lock (_crossSegmentLock)
+                using var scopeLock = _crossSegmentLock.ScopedAtomicLock();
+                var headToDispose = Head;
+                if (head == headToDispose)
+                {
+                    _head = head->_nextSegment;
+                    UnsafeConcurrentQueueSegment<T>.Destroy(headToDispose, false);
+                }
+            }
         }
-        public volatile bool m_value;
+
+        /// <summary>
+        /// Attempts to return an object from the beginning of the <see cref="UnsafeConcurrentQueue{T}"/>
+        /// without removing it.
+        /// </summary>
+        /// <param name="result">
+        /// When this method returns, <paramref name="result"/> contains an object from
+        /// the beginning of the <see cref="UnsafeConcurrentQueue{T}"/> or default(T)
+        /// if the operation failed.
+        /// </param>
+        /// <returns>true if and object was returned successfully; otherwise, false.</returns>
+        /// <remarks>
+        /// For determining whether the collection contains any items, use of the <see cref="IsEmpty"/>
+        /// property is recommended rather than peeking.
+        /// </remarks>
+        public bool TryPeek([MaybeNullWhen(false)] out T result) => TryPeek(out result, resultUsed: true);
+
+        /// <summary>Attempts to retrieve the value for the first element in the queue.</summary>
+        /// <param name="result">The value of the first element, if found.</param>
+        /// <param name="resultUsed">true if the result is needed; otherwise false if only the true/false outcome is needed.</param>
+        /// <returns>true if an element was found; otherwise, false.</returns>
+        bool TryPeek([MaybeNullWhen(false)] out T result, bool resultUsed)
+        {
+            // Starting with the head segment, look through all of the segments
+            // for the first one we can find that's not empty.
+            var s = Head;
+            while (true)
+            {
+                // Grab the next segment from this one, before we peek.
+                // This is to be able to see whether the value has changed
+                // during the peek operation.
+                //var next = Volatile.Read(ref s->_nextSegment);
+                var next = s->NextSegmentVolatile;
+
+                // Peek at the segment.  If we find an element, we're done.
+                if (s->TryPeek(out result, resultUsed))
+                    return true;
+
+                // The current segment was empty at the moment we checked.
+
+                if (next != null)
+                {
+                    // If prior to the peek there was already a next segment, then
+                    // during the peek no additional items could have been enqueued
+                    // to it and we can just move on to check the next segment.
+                    Debug.Assert(next == s->NextSegmentVolatile);
+                    s = next;
+                }
+                else if (s->NextSegmentVolatile == null)
+                //else if (Volatile.Read(ref s->_nextSegment) == null)
+                {
+                    // The next segment is null.  Nothing more to peek at.
+                    break;
+                }
+
+                // The next segment was null before we peeked but non-null after.
+                // That means either when we peeked the first segment had
+                // already been frozen but the new segment not yet added,
+                // or that the first segment was empty and between the time
+                // that we peeked and then checked _nextSegment, so many items
+                // were enqueued that we filled the first segment and went
+                // into the next.  Since we need to peek in order, we simply
+                // loop around again to peek on the same segment.  The next
+                // time around on this segment we'll then either successfully
+                // peek or we'll find that next was non-null before peeking,
+                // and we'll traverse to that segment.
+            }
+
+            result = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Removes all objects from the <see cref="UnsafeConcurrentQueue{T}"/>.
+        /// </summary>
+        public void Clear()
+        {
+            using var scopeLock = _crossSegmentLock.ScopedAtomicLock();
+            
+            // Simply substitute a new segment for the existing head/tail,
+            // as is done in the constructor.  Operations currently in flight
+            // may still read from or write to an existing segment that's
+            // getting dropped, meaning that in flight operations may not be
+            // linear with regards to this clear operation.  To help mitigate
+            // in-flight operations enqueuing onto the tail that's about to
+            // be dropped, we first freeze it; that'll force enqueuers to take
+            // this lock to synchronize and see the new tail.
+            Tail->EnsureFrozenForEnqueues();
+            Tail->Dispose();
+            Head->Dispose();
+            *Tail = *Head =  new UnsafeConcurrentQueueSegment<T>(InitialSegmentLength, allocator);
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        void CheckFrozenForEnqueues(UnsafeConcurrentQueueSegment<T>* segment)
+        {
+            if (!segment->_frozenForEnqueues)
+                throw new InvalidOperationException("Segment must be frozen for enqueues.");
+        }
     }
-}
+
+    public static class UnsafeConcurrentQueueExtensions
+    {
+        public static unsafe int BruteForceCount<T>(this UnsafeConcurrentQueue<T> queue)
+            where T : unmanaged, IEquatable<T>
+        {
+            int count = 0;
+            using var scopeLock = queue._crossSegmentLock.ScopedAtomicLock();
+            for (var s = queue.Head; s != null; s = s->NextSegment)
+            {
+                for (int i = 0; i < s->_slots.Length; i++)
+                {
+                    if (s->_slots[i].Item.HasValue)
+                        ++count;
+                }
+            }
+            return count;
+        }
+    }
 }*/
