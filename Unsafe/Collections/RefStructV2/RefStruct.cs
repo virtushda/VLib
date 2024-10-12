@@ -1,5 +1,5 @@
 ﻿#if UNITY_EDITOR
-#define CLAIM_TRACKING
+#define CLAIM_TRACKING // Burst-compatible, lightweight linenumber hints about leaking refstructs
 #endif
 
 using System;
@@ -14,8 +14,8 @@ using UnityEngine.Assertions;
 namespace VLib
 {
     /// <summary> This structure allocates a <see cref="VUnsafeRef"/> and uses the <see cref="VSafetyHandle"/> to ensure that disposal is recognized by all copies. <br/>
-    /// This can only be used in play mode! </summary>
-    public unsafe struct RefStructV2<T> : IDisposable, IEquatable<RefStructV2<T>>, IComparable<RefStructV2<T>>
+    /// This can only be used in play mode, but is able to act like a "native class object". </summary>
+    public unsafe struct RefStruct<T> : IDisposable, IEquatable<RefStruct<T>>, IComparable<RefStruct<T>>
         where T : unmanaged
     {
         // Data
@@ -23,7 +23,8 @@ namespace VLib
         // Security
         readonly VSafetyHandle safetyHandle;
 
-        public bool IsCreated => safetyHandle.IsValid && refData.IsCreated;
+        public ulong SafetyID => safetyHandle.safetyIDCopy;
+        public bool IsCreated => safetyHandle.IsValid;
         
         public T ValueCopy
         {
@@ -62,19 +63,25 @@ namespace VLib
         dataPtrCopy != null && // Data ptr copy is pointing at something
         refData->TPtr == dataPtrCopy && // Actual data ptr is the same as when this struct was created
         refData->ValueRef.uniqueID == uniqueID; // IDs match in both locations*/
+        
+        RefStruct(T value, Allocator allocator = Allocator.Persistent)
+        {
+            refData = new VUnsafeRef<T>(value, allocator);
+            safetyHandle = VSafetyHandle.Create();
+        }
 
-        public RefStructV2(Allocator allocator, T value = default
+        /// <summary> Dispose with the instance's <see cref="Dispose"/> method. </summary>
+        public static RefStruct<T> Create(T value, Allocator allocator = Allocator.Persistent
 #if CLAIM_TRACKING
             , [CallerLineNumber] int callerLine = -1
 #endif
             )
         {
-            refData = new VUnsafeRef<T>(value, allocator);
-            safetyHandle = VSafetyHandle.Create();
-            
+            RefStruct<T> refStruct = new RefStruct<T>(value, allocator);
 #if CLAIM_TRACKING
-            RefStructV2Tracker.Track(safetyHandle.safetyIDCopy, callerLine);
+            RefStructTracker.Track(refStruct.safetyHandle.safetyIDCopy, callerLine);
 #endif
+            return refStruct;
         }
 
         public void Dispose()
@@ -83,7 +90,7 @@ namespace VLib
             {
                 refData.Dispose();
 #if CLAIM_TRACKING
-                RefStructV2Tracker.Untrack(safetyHandle.safetyIDCopy);
+                RefStructTracker.Untrack(safetyHandle.safetyIDCopy);
 #endif
             }
         }
@@ -124,14 +131,17 @@ namespace VLib
             return true;
         }
 
-        public override string ToString() => $"RefStructV2: {refData} - {safetyHandle}";
+        public override string ToString() => $"RefStruct|{safetyHandle} of type {typeof(T)}";
 
-        public bool Equals(RefStructV2<T> other) => refData.Equals(other.refData) && safetyHandle.Equals(other.safetyHandle);
-        public override bool Equals(object obj) => obj is RefStructV2<T> other && Equals(other);
+        public bool Equals(RefStruct<T> other) => /*refData.Equals(other.refData) && */safetyHandle.Equals(other.safetyHandle);
+        public override bool Equals(object obj) => obj is RefStruct<T> other && Equals(other);
+        
+        public static bool operator ==(RefStruct<T> left, RefStruct<T> right) => left.Equals(right);
+        public static bool operator !=(RefStruct<T> left, RefStruct<T> right) => !left.Equals(right);
 
         public override int GetHashCode() => safetyHandle.GetHashCode();
 
-        public int CompareTo(RefStructV2<T> other)
+        public int CompareTo(RefStruct<T> other)
         {
             bool isCreated = IsCreated;
             bool otherIsCreated = other.IsCreated;
@@ -147,10 +157,49 @@ namespace VLib
         }
     }
 
-#if CLAIM_TRACKING
-    public class RefStructV2Tracker
+    public static class RefStructExt
     {
-        internal static readonly SharedStatic<Internal> InternalStatic = SharedStatic<Internal>.GetOrCreate<RefStructV2Tracker, Internal>();
+        /// <summary> Disposes internal IDisposable, sets internal value reference to 'default', disposes the refstruct. Does not set the refstruct reference itself to default, no access on a copy. </summary>
+        public static void DisposeSelfAndDefaultInternalRef<T>(this RefStruct<T> refStruct) 
+            where T : unmanaged, IDisposable
+        {
+            if (refStruct.IsCreated)
+            {
+                // INTERNAL VALUE
+                ref var internalValueRef = ref refStruct.TryGetRef(out var success);
+                if (success)
+                {
+                    try
+                    {
+                        internalValueRef.Dispose();
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"Failed to dispose internal value! {e}");
+                    }
+                    internalValueRef = default;
+                }
+                else
+                    Debug.LogError("Failed to get value from ref struct!");
+                
+                // REFSTRUCT ITSELF
+                refStruct.Dispose();
+            }
+        }
+
+        /// <summary> Disposes internal IDisposable, sets internal value reference to 'default', disposes the refstruct, sets the reference to the refstruct itself to 'default'. </summary>
+        public static void DisposeFullToDefault<T>(ref this RefStruct<T> refStruct) 
+            where T : unmanaged, IDisposable
+        {
+            refStruct.DisposeSelfAndDefaultInternalRef();
+            refStruct = default;
+        }
+    }
+
+#if CLAIM_TRACKING
+    public class RefStructTracker
+    {
+        internal static readonly SharedStatic<Internal> InternalStatic = SharedStatic<Internal>.GetOrCreate<RefStructTracker, Internal>();
 
         internal struct Internal
         {
@@ -208,7 +257,7 @@ namespace VLib
                     return;
                 
                 foreach (var kvp in handleIDToLineNumber)
-                    Debug.LogError($"RefStructV2 with handle ID {kvp.Key} was not disposed! Created at line {kvp.Value}");
+                    Debug.LogError($"RefStruct with handle ID {kvp.Key} was not disposed! Created at line {kvp.Value}. Enable 'STACKTRACE_CLAIM_TRACKING' in VSafetyHandleManager.cs for a deeper trace.");
             }
         }
             

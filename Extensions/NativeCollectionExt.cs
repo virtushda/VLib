@@ -2,16 +2,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Profiling.LowLevel.Unsafe;
-using UnityEngine;
 using UnityEngine.Jobs;
 using Debug = UnityEngine.Debug;
 

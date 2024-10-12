@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Globalization;
-using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using static Unity.Mathematics.math;
-using static System.Math;
 
 namespace VLib
 {

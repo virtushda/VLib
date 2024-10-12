@@ -1,24 +1,9 @@
 ﻿#if UNITY_EDITOR
-//#define SAFETY_TRACKING
+//#define SAFETY_TRACKING // Enable this for each lock scope to be tracked, catching any double-disposal issues.
 #endif
 
 using System;
-using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using System.Threading;
-
-// NOTE: Deprecated but powerful thread-safe safety tracking pattern:
-// Use an infinite ID system Interlocked + long value
-// Back the IDs against an array
-// Store unused array indices in a concurrent queue
-// When you need an ID, dequeue an index, increment the ID, store the ID in the array
-// When you want to invalid an ID, simply zero the array slot and reenqueue the index
-        
-// Overly advanced safety system, too much memory overhead, but otherwise a very strong system
-/*long[] validKeyArray;
-// ID array cycling
-ushort[] unusedIDIndices;
-int unusedIDIndicesCount;*/
 
 namespace VLib
 {
@@ -30,14 +15,16 @@ namespace VLib
 
         public ReaderWriterLockSlim internalLock;
         
-        long wrapperIDSource;
 #if SAFETY_TRACKING
+        long wrapperIDSource;
         internal ConcurrentDictionary<long, bool> activeIDTracking = new();
 #endif
 
         public VReaderWriterLockSlim(LockRecursionPolicy supportsRecursion = LockRecursionPolicy.SupportsRecursion)
         {
+#if SAFETY_TRACKING
             wrapperIDSource = 0;
+#endif
             
             // Create Objects
             internalLock = new(supportsRecursion);

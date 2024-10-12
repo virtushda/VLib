@@ -2,6 +2,8 @@
 using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace VLib
 {
@@ -9,12 +11,12 @@ namespace VLib
     /// The allocations internally are done in chunks to stop elements from moving in memory. <br/>
     /// Elements are recycled when returned to retain memory compactness. <br/>
     /// This struct is NOT copy-safe. </summary>
-    public struct VUnsafeParallelPinnedMemory<T>
+    public struct VUnsafeParallelPinnedMemory<T> : IAllocating
         where T : unmanaged
     {
-        readonly int subListSize;
-        readonly int maximumElementCount;
-        readonly int maximumIndex;
+        public readonly int subListSize;
+        public readonly int maximumElementCount;
+        public readonly int maximumIndex;
 
         int nextIndex;
         
@@ -26,7 +28,7 @@ namespace VLib
         UnsafeList<int> unusedIndices;
         VUnsafeRef<int> unusedIndicesLock;
         
-        public bool IsCreated => lists.IsCreated && unusedIndices.IsCreated && listsLock.IsCreated && unusedIndicesLock.IsCreated;
+        public bool IsCreated => /*lists.IsCreated && unusedIndices.IsCreated && */listsLock.IsCreated/* && unusedIndicesLock.IsCreated*/;
         
         public VUnsafeParallelPinnedMemory(int maximumListCount, int subListSize)
         {
@@ -49,6 +51,11 @@ namespace VLib
 
         public void Dispose()
         {
+            const string profilerMessage = "VUnsafeParallelPinnedMemory.Dispose";
+            Profiler.BeginSample(profilerMessage);
+            
+            if (!listsLock.IsCreated)
+                return;
             using (listsLock.ScopedAtomicLock())
             {
                 if (lists.IsCreated)
@@ -64,19 +71,28 @@ namespace VLib
                 }
             }
             using (unusedIndicesLock.ScopedAtomicLock())
+            {
+                var takenIndices = nextIndex + 1 - unusedIndices.Length;
+                if (takenIndices > 0)
+                    Debug.LogError($"VUnsafeParallelPinnedMemory.Dispose: {takenIndices} taken indices were not returned! \n" +
+                                   $" Taken: {takenIndices}, Unused: {unusedIndices.Length}, NextIndex: {nextIndex}");
                 unusedIndices.DisposeRefToDefault();
-            
+            }
+
             if (listsLock.IsCreated)
                 listsLock.Dispose();
             listsLock = default;
             if (unusedIndicesLock.IsCreated)
                 unusedIndicesLock.Dispose();
             unusedIndicesLock = default;
+            
+            Profiler.EndSample();
         }
 
         /// <summary> Fully concurrent safe. </summary>
         public PinnedMemoryElement<T> GetPinnedAddress()
         {
+            this.ConditionalCheckIsCreated();
             int index = FetchIndex();
             return GetPinnedMemoryAtIndex(index);
         }
@@ -84,6 +100,7 @@ namespace VLib
         /// <summary> Fully concurrent safe. </summary>
         public void ReturnAddress(PinnedMemoryElement<T> address)
         {
+            this.ConditionalCheckIsCreated();
             if (!address.IsCreated)
                 return;
             address.Value = default;

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using MaxMath;
 using Unity.Mathematics;
 using UnityEngine;
 

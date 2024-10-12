@@ -5,7 +5,6 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using VLib;
-using Object = System.Object;
 
 [assembly: RegisterGenericJobType(typeof(Texture2DExt.Tex2DColorFillParallel<byte>))]
 [assembly: RegisterGenericJobType(typeof(Texture2DExt.Tex2DColorFillParallel<Color32>))]

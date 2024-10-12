@@ -155,9 +155,9 @@ namespace VLib
             BurstSpinLockReadWriteFunctions.ExitRead(ref m_LockedUnsafe->ElementAt(ReadersLocation));
         }
         
-        public ScopedExclusiveLock ScopedExclusiveLock(float timeoutSeconds = 1) => new(this, timeoutSeconds);
+        public BurstScopedExclusiveLock ScopedExclusiveLock(float timeoutSeconds = 1) => new(this, timeoutSeconds);
         
-        public ScopedReadLock ScopedReadLock(float timeoutSeconds = 1) => new(this, timeoutSeconds);
+        public BurstScopedReadLock ScopedReadLock(float timeoutSeconds = 1) => new(this, timeoutSeconds);
 
         public JobHandle StartLockExclusiveJob(float timeoutSeconds = 1, JobHandle inDeps = default) => new LockExclusiveJob(this, timeoutSeconds).Schedule(inDeps);
         
@@ -246,17 +246,17 @@ namespace VLib
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
-    public struct ScopedExclusiveLock : IDisposable
+    public struct BurstScopedExclusiveLock : IDisposable
     {
         private BurstSpinLockReadWrite m_parentLock;
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
         public bool Succeeded { get; }
-        public static implicit operator bool(ScopedExclusiveLock d) => d.Succeeded;
+        public static implicit operator bool(BurstScopedExclusiveLock d) => d.Succeeded;
 
         /// <summary> Creates ScopedReadLock and locks SpinLockReadWrite in exclusive mode </summary>
         /// <param name="sl">SpinLock to lock</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ScopedExclusiveLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = 1)
+        public BurstScopedExclusiveLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = 1)
         {
             m_parentLock = sl;
             if (!(Succeeded = m_parentLock.EnterExclusive(timeoutSeconds)))
@@ -276,18 +276,18 @@ namespace VLib
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
-    public struct ScopedReadLock : IDisposable
+    public struct BurstScopedReadLock : IDisposable
     {
         private BurstSpinLockReadWrite m_parentLock;
 
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
         public bool Succeeded { get; }
-        public static implicit operator bool(ScopedReadLock d) => d.Succeeded;
+        public static implicit operator bool(BurstScopedReadLock d) => d.Succeeded;
 
         /// <summary> Creates ScopedReadLock and locks SpinLockReadWrite in read mode </summary>
         /// <param name="sl">SpinLock to lock</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ScopedReadLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = 1)
+        public BurstScopedReadLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = 1)
         {
             m_parentLock = sl;
             if (!(Succeeded = m_parentLock.EnterRead(timeoutSeconds)))

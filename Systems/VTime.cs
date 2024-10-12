@@ -9,7 +9,6 @@ using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
-using VLib.Threading;
 
 namespace VLib.Systems
 {
@@ -68,7 +67,7 @@ namespace VLib.Systems
         public static void CheckEarlyUpdateCalled()
         {
             if (!onEarlyUpdateInvoked)
-                throw new InvalidOperationException("VTimeManager.OnEarlyUpdate() was not called at the start of the frame.");
+                throw new InvalidOperationException("VTime.OnEarlyUpdate() was not called at the start of the frame.");
         }
 
         /// <summary> This must be called as early as possible in the frame. Much functionality in this class will NOT work without this method being reliably invoked at the start of the frame. </summary>
@@ -110,8 +109,6 @@ namespace VLib.Systems
         public static float TemporalMultiplier60FPS  => smoothDeltaTime / DeltaTime60FPS;
         public static float TemporalMultiplier120FPS => smoothDeltaTime / DeltaTime120FPS;
         public static float TemporalMultiplier144FPS => smoothDeltaTime / DeltaTime144FPS;
-
-        public static ulong SecondsToNanoSeconds(float seconds) => SecondsToNanoSeconds(seconds);
         
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
@@ -156,17 +153,11 @@ namespace VLib.Systems
         public static long Milliseconds => (long)(timePrecise * 1000);
         
         public static ulong SecondsToNanoSeconds(double seconds) => (ulong)(seconds * 1000000000);
-
         public static long SecondsToTicks(double seconds) => (long)(seconds * 10000000);
-
         public static long MillisecondsToTicks(double ms) => (long)(ms * 10000);
-
         public static double SecondsToMSFrac(double seconds) => seconds * 1000;
-
         public static double SecondsToMinutesFrac(double seconds) => seconds / 60f;
-
         public static double SecondsToHoursFrac(double seconds) => seconds / 3600f;
-
         public static double TicksToSeconds(long ticks) => ticks / 10000000f;
         
         public static int TimeSliceIndex(int slices)

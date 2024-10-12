@@ -15,7 +15,7 @@ namespace VLib
     /// <typeparam name="T"></typeparam>
     [StructLayout(LayoutKind.Sequential)]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new [] { typeof(int) })]
-    public unsafe struct VUnsafeRef<T> : IEquatable<VUnsafeRef<T>>, IDisposable
+    public unsafe struct VUnsafeRef<T> : IEquatable<VUnsafeRef<T>>, IAllocating
         where T : unmanaged
     {
         [NativeDisableUnsafePtrRestriction]
@@ -53,9 +53,24 @@ namespace VLib
             reference.m_AllocatorLabel = allocator;
         }
 
-        public readonly void* Ptr => ptr;
-        public readonly T* TPtr => ptr;
-        
+        public readonly void* Ptr
+        {
+            get
+            {
+                this.ConditionalCheckIsCreated();
+                return ptr;
+            }
+        }
+
+        public readonly T* TPtr
+        {
+            get
+            {
+                this.ConditionalCheckIsCreated();
+                return ptr;
+            }
+        }
+
         /// <summary>
         /// The value stored in this reference.
         /// </summary>
@@ -65,18 +80,12 @@ namespace VLib
         {
             readonly get
             {
-#if SAFETY
-                if (!IsCreated)
-                    throw new InvalidOperationException("VUnsafeRef has not been allocated!");
-#endif
+                this.ConditionalCheckIsCreated();
                 return *ptr;
             }
             set
             {
-#if SAFETY
-                if (!IsCreated)
-                    throw new InvalidOperationException("VUnsafeRef has not been allocated!");
-#endif
+                this.ConditionalCheckIsCreated();
                 *ptr = value;
             }
         }
@@ -85,10 +94,7 @@ namespace VLib
         {
             get
             {
-#if SAFETY
-                if (!IsCreated)
-                    throw new InvalidOperationException("VUnsafeRef has not been allocated!");
-#endif
+                this.ConditionalCheckIsCreated();
                 return ref UnsafeUtility.AsRef<T>(ptr);
             }
         }
@@ -103,7 +109,7 @@ namespace VLib
         /// <summary>Releases all resources (memory and safety handles). Inherently safe, will not throw exception if already disposed.</summary>
         public void Dispose()
         {
-            if (ptr != null)
+            if (IsCreated)
             {
                 DisposeMemory(ref ptr, m_AllocatorLabel);
                 m_AllocatorLabel = default;
@@ -258,5 +264,24 @@ namespace VLib
         }
         
         #endregion
+    }
+    
+    public static class VUnsafeRefExtensions
+    {
+        public static void DisposeRefAndInternal<T>(this VUnsafeRef<T> reference)
+            where T : unmanaged, IDisposable
+        {
+            if (!reference.IsCreated)
+                return;
+            reference.ValueRef.DisposeRefToDefault();
+            reference.Dispose();
+        }
+
+        public static void DisposeRefAndInternalToDefault<T>(this ref VUnsafeRef<T> reference)
+            where T : unmanaged, IDisposable
+        {
+            reference.DisposeRefAndInternal();
+            reference = default;
+        }
     }
 }

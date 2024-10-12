@@ -33,7 +33,7 @@ namespace VLib
                 throw new InvalidOperationException("VSafetyHandle is not created!");
         }
 
-        public override string ToString() => $"VSafetyHandle: MemoryIndex:{truthLocation.ListIndex}|IDCopy:{safetyIDCopy}";
+        public override string ToString() => $"VSafetyHandle: ID:{safetyIDCopy}|Index:{truthLocation.ListIndex}";
 
         public bool Equals(VSafetyHandle other) => safetyIDCopy == other.safetyIDCopy && truthLocation == other.truthLocation;
         public override bool Equals(object obj) => obj is VSafetyHandle other && Equals(other);
