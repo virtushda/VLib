@@ -16,6 +16,11 @@ namespace VLib
         public quaternion RotationNative { get; set; }
         public float3 ScaleNative { get; set; }
     }
+
+    public interface ITRSProvider
+    {
+        public TRS GetTRS();
+    }
     
     public struct TRS : ITRS, IEquatable<TRS>
     {

@@ -28,6 +28,24 @@ namespace VLib
             }
         }
         
+        public ref T Ref
+        {
+            get
+            {
+                CheckCreated();
+                return ref *tPtr;
+            }
+        }
+        
+        public T* Ptr
+        {
+            get
+            {
+                CheckCreated();
+                return tPtr;
+            }
+        }
+        
         internal PinnedMemoryElement(int listIndex, T* tPtr)
         {
             this.listIndex = listIndex;
