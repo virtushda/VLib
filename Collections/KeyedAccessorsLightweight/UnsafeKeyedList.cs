@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Xml;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
-using VLib;
 
 namespace Libraries.KeyedAccessors.Lightweight
 {
     ///<summary> Generates a compact list of keys, where keys are also indexed.  <br/>
     /// Adds, removes, iterations, and contains checks are all very fast. Removes are the least fast, but still use a quick swapback pattern. </summary>
-    public struct UnsafeKeyedList<TKey>
+    public struct UnsafeKeyedList<TKey> : IDisposable
         where TKey : unmanaged, IEquatable<TKey>
     {
         // Key and value lists are aligned
@@ -81,6 +78,24 @@ namespace Libraries.KeyedAccessors.Lightweight
         {
             keys.Clear();
             keyIndexMap.Clear();
+        }
+        
+        public ReadOnly AsReadOnly() => new ReadOnly(this);
+        
+        public struct ReadOnly
+        {
+            UnsafeKeyedList<TKey> list;
+            
+            public readonly bool IsCreated => list.IsCreated;
+            public readonly int Length => list.Length;
+            
+            public ReadOnly(UnsafeKeyedList<TKey> list) => this.list = list;
+            
+            public bool ContainsKey(TKey key) => list.ContainsKey(key);
+            
+            public TKey Read(int index) => list.keys[index];
+            
+            public ref TKey ElementAt(int index) => ref list.keys.ElementAt(index);
         }
     }
 }

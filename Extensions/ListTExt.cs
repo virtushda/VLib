@@ -69,6 +69,13 @@ namespace VLib
             return true;
         }
         
+        public static T GetOrDefault<T>(this IReadOnlyList<T> list, int index, T defaultValue = default)
+        {
+            if (list == default || index < 0 || index >= list.Count)
+                return defaultValue;
+            return list[index];
+        }
+        
         public static bool Contains<T>(this IReadOnlyList<T> list, T value)
         {
             for (int i = 0; i < list.Count; i++)

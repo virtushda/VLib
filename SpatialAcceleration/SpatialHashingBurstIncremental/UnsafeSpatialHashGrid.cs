@@ -17,7 +17,7 @@ namespace VLib.SpatialAcceleration
         internal float cellSize;
         internal UnsafeKeyedList<T> elements;
         internal UnsafeHashMap<int, int2x2> elementIndexToCellBounds;
-        internal UnsafeKeyedListPair<int2, Cell> cells;
+        internal UnsafeKeyedMap<int2, Cell> cells;
 
         public int Count => elements.Length;
 
@@ -48,7 +48,7 @@ namespace VLib.SpatialAcceleration
             this.cellSize = cellSize;
             elements = new UnsafeKeyedList<T>(Allocator.Persistent, initCapacity);
             elementIndexToCellBounds = new UnsafeHashMap<int, int2x2>(initCapacity, Allocator.Persistent);
-            cells = new UnsafeKeyedListPair<int2, Cell>(Allocator.Persistent);
+            cells = new UnsafeKeyedMap<int2, Cell>(Allocator.Persistent);
         }
 
         public void Dispose()

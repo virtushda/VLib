@@ -23,9 +23,11 @@ namespace VLib.Threading
             mainThreadId = Thread.CurrentThread.ManagedThreadId;
         }
 
-        public static bool OnMain()
+        /// <summary> Checks the thread ID against the known main thread ID. </summary>
+        /// <param name="allowExecutingInJob"> By default, false is returned if this is called from within a job. Pass true to allow a job running on the main thread to return true. </param>
+        public static bool OnMain(bool allowExecutingInJob = false)
         {
-            bool isMainThread = mainThreadId == Thread.CurrentThread.ManagedThreadId && !JobsUtility.IsExecutingJob;
+            bool isMainThread = mainThreadId == Thread.CurrentThread.ManagedThreadId && (!JobsUtility.IsExecutingJob || allowExecutingInJob);
 #if UNITY_EDITOR
             // Prove it in editor by doing something cheap on the main thread.
             Profiler.BeginSample("Main thread proof");

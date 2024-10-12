@@ -1,4 +1,9 @@
-﻿using System.Diagnostics;
+﻿#if UNITY_EDITOR
+//#define STACKTRACE_CLAIM_TRACKING // REQUIRES BURST OFF
+#endif
+
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using Unity.Burst;
 using UnityEditor;
@@ -43,6 +48,11 @@ namespace VLib
                 if (safetyMemory.IsCreated)
                     safetyMemory.Dispose();
                 takenHandles = 0;
+                
+#if STACKTRACE_CLAIM_TRACKING
+                LogAllTraces();
+                ClearAllTraces();
+#endif
             }
 
             internal VSafetyHandle Create()
@@ -51,6 +61,10 @@ namespace VLib
                 var pinnedMemory = safetyMemory.GetPinnedAddress();
                 pinnedMemory.Value = GetUniqueID();
                 Interlocked.Increment(ref takenHandles);
+                
+#if STACKTRACE_CLAIM_TRACKING
+                TrackStackTrace(pinnedMemory.Value);
+#endif
                 return new VSafetyHandle(pinnedMemory);
             }
             
@@ -58,8 +72,12 @@ namespace VLib
             {
                 if (!handle.IsValid)
                     return false;
-                safetyMemory.ReturnAddress(handle.truthLocation);
+                
+#if STACKTRACE_CLAIM_TRACKING
+                UntrackStackTrace(handle.safetyIDCopy);
+#endif
                 Interlocked.Decrement(ref takenHandles);
+                safetyMemory.ReturnAddress(handle.truthLocation);
                 return true;
             }
 
@@ -77,6 +95,7 @@ namespace VLib
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         static void Init()
         {
+            StackTraceClaimTrackingInit();
             InternalMemoryField.Data.Initialize();
             
 #if UNITY_EDITOR
@@ -91,6 +110,59 @@ namespace VLib
         {
             if (playModeStateChange is PlayModeStateChange.EnteredEditMode)
                 InternalMemoryField.Data.Dispose();
+        }
+#endif
+        
+
+        static void StackTraceClaimTrackingInit()
+        {
+#if STACKTRACE_CLAIM_TRACKING
+            traceDict = new();
+#endif
+        }
+        
+#if STACKTRACE_CLAIM_TRACKING
+
+        static readonly object tracerLock = new();
+        static Dictionary<ulong, StackTrace> traceDict = new();
+
+        [BurstDiscard]
+        static void TrackStackTrace(ulong handleID)
+        {
+            var trace = new StackTrace(1, true);
+            lock (tracerLock)
+            {
+                if (!traceDict.TryAdd(handleID, trace))
+                    throw new UnityException($"Handle ID {handleID} already has a trace!");
+            }
+        }
+
+        [BurstDiscard]
+        static void UntrackStackTrace(ulong handleID)
+        {
+            lock (tracerLock)
+            {
+                if (!traceDict.Remove(handleID))
+                    throw new UnityException($"Handle ID {handleID} does not have a trace!");
+            }
+        }
+        
+        static void LogAllTraces()
+        {
+            lock (tracerLock)
+            {
+                foreach (var kvp in traceDict)
+                { 
+                    Debug.LogError($"VSafetyHandle-{kvp.Key} still active...");
+                    Debug.LogError($"VSafetyHandle (ID logged separately) still active, stack trace: \n {kvp.Value}");
+                }
+            }
+        }
+
+        static void ClearAllTraces()
+        {
+            lock (tracerLock)
+                traceDict.Clear();
         }
 #endif
     }

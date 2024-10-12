@@ -49,6 +49,6 @@ namespace VLib
         public static bool operator ==(PinnedMemoryElement<T> left, PinnedMemoryElement<T> right) => left.Equals(right);
         public static bool operator !=(PinnedMemoryElement<T> left, PinnedMemoryElement<T> right) => !left.Equals(right);
         
-        public override int GetHashCode() => tPtr->GetHashCode();
+        public override int GetHashCode() => (int) tPtr;
     }
 }

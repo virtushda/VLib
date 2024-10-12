@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Drawing;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
@@ -367,5 +368,21 @@ namespace VLib
             any(isnan(matrix.c1)), 
             any(isnan(matrix.c2)), 
             any(isnan(matrix.c3))));
+
+        /// <summary> Returns true if was able to draw. False if matrix contains NANs. </summary>
+        public static bool DrawAline(in this float4x4 matrix, CommandBuilder aline, bool normalized = true, float scale = 1)
+        {
+            if (matrix.IsNan())
+                return false;
+           
+            var vectorX = normalized ? math.normalize(matrix.c0.xyz) : matrix.c0.xyz;
+            var vectorY = normalized ? math.normalize(matrix.c1.xyz) : matrix.c1.xyz;
+            var vectorZ = normalized ? math.normalize(matrix.c2.xyz) : matrix.c2.xyz;
+            
+            aline.Line(matrix.c3.xyz, matrix.c3.xyz + vectorX * scale, Color.red);
+            aline.Line(matrix.c3.xyz, matrix.c3.xyz + vectorY * scale, Color.green);
+            aline.Line(matrix.c3.xyz, matrix.c3.xyz + vectorZ * scale, Color.blue);
+            return true;
+        }
     }
 }

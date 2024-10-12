@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Unity.Collections;
 
 namespace Libraries.KeyedAccessors.Lightweight
 {
-    ///<summary> A managed version of <see cref="UnsafeKeyedListPair{TKey,TValue}"/> </summary>
+    ///<summary> A managed version of <see cref="UnsafeKeyedMap{TKey,TValue}"/> </summary>
     public class KeyedListPair<TKey, TValue>
     {
         // Key and value lists are aligned

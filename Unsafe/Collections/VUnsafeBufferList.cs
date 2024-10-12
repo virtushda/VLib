@@ -48,7 +48,7 @@ namespace VLib
             unusedIndices = UnsafeList<int>.Create(initialCapacity, allocator, options);
         }
 
-        public readonly void AssertIsCreated()
+        public readonly void ConditionalCheckIsCreated()
         {
             if (!IsCreated)
                 throw new InvalidOperationException("VUnsafeList has not been allocated or has been deallocated.");
@@ -56,9 +56,10 @@ namespace VLib
 
         public readonly bool IndexValid(int index) => index < Length && index >= 0;
 
-        public void AssertIndexValid(int index)
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public readonly void ConditionalCheckIndexValid(int index)
         {
-            AssertIsCreated();
+            ConditionalCheckIsCreated();
             if (!IndexValid(index))
                 throw new IndexOutOfRangeException($"Index {index} is out of range in VUnsafeList of '{Length}' Length.");
         }
@@ -72,18 +73,14 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             readonly get
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIndexValid(index);
-#endif
+                ConditionalCheckIndexValid(index);
                 return (*listData)[index];
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             set
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIndexValid(index);
-#endif
+                ConditionalCheckIndexValid(index);
                 (*listData)[index] = value;
             }
         }
@@ -96,9 +93,7 @@ namespace VLib
         /// <exception cref="IndexOutOfRangeException">Thrown if index is out of bounds.</exception>
         public ref T ElementAt(int index)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIndexValid(index);
-#endif
+            ConditionalCheckIndexValid(index);
             return ref listData->ElementAt(index);
         }
 
@@ -112,17 +107,13 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             readonly get
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 return listData->Length;
             }
 
             set
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 listData->Resize(value, NativeArrayOptions.ClearMemory);
             }
         }
@@ -138,17 +129,13 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             readonly get
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 return listData->Capacity;
             }
 
             set
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AssertIsCreated();
-#endif
+                ConditionalCheckIsCreated();
                 listData->Capacity = value;
             }
         }
@@ -168,6 +155,8 @@ namespace VLib
         public readonly bool TryGetElementPtr(int index, out T* valuePtr)
         {
             valuePtr = null;
+            if (!IsCreated)
+                return false;
             if (!IndexValid(index))
                 return false;
             
@@ -175,11 +164,16 @@ namespace VLib
             return true;
         }
 
-        public int PeekUnusedIndex() => unusedIndices->IsEmpty ? Length : unusedIndices->Peek();
+        public int PeekUnusedIndex()
+        {
+            ConditionalCheckIsCreated();
+            return unusedIndices->IsEmpty ? Length : unusedIndices->Peek();
+        }
 
         /// <summary> Add a value, using a free index inside the list's range, if possible, otherwise expanding the list </summary>
         public int AddCompact(T value)
         {
+            ConditionalCheckIsCreated();
             int index = default;
             if (unusedIndices->IsEmpty)
             {
@@ -197,6 +191,7 @@ namespace VLib
         /// <summary> Will expand list to fit incoming index. </summary>
         public bool TryAddAtIndex(int index, T value, bool allowWriteInsideCurrentListRange = true)
         {
+            ConditionalCheckIsCreated();
             if (!allowWriteInsideCurrentListRange && IndexValid(index))
                 return false;
             
@@ -214,6 +209,7 @@ namespace VLib
         /// <summary>Explicitly command the list to recycle this index for future additions</summary>
         public void MarkIndexUnused(int index)
         {
+            ConditionalCheckIsCreated();
             if (IndexValid(index))
                 unusedIndices->AddSortedExclusive(index, out _);
         }
@@ -224,9 +220,7 @@ namespace VLib
         /// <exception cref="InvalidOperationException">Thrown if incrementing the length would exceed the capacity.</exception>
         void AddNoResize(T value)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->AddNoResize(value);
         }
 
@@ -237,9 +231,7 @@ namespace VLib
         /// <exception cref="InvalidOperationException">Thrown if the increased length would exceed the capacity.</exception>
         void AddRangeNoResize(void* ptr, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             CheckArgPositive(count);
             listData->AddRangeNoResize(ptr, count);
         }
@@ -254,9 +246,7 @@ namespace VLib
         /// <exception cref="InvalidOperationException">Thrown if the increased length would exceed the capacity.</exception>
         void AddRangeNoResize(NativeList<T> list)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->AddRangeNoResize(*listData);
         }
 
@@ -269,9 +259,7 @@ namespace VLib
         /// </remarks>
         void Add(in T value)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->Add(in value);
         }
 
@@ -285,9 +273,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if the increased length would exceed the capacity.</exception>
         void AddRange(NativeArray<T> array)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             AddRange(array.GetUnsafeReadOnlyPtr(), array.Length);
         }
 
@@ -299,9 +285,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if count is negative.</exception>
         void AddRange(void* ptr, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             CheckArgPositive(count);
             listData->AddRange(ptr, count);
         }
@@ -317,9 +301,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if count is negative.</exception>
         void AddReplicate(in T value, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             CheckArgPositive(count);
             listData->AddReplicate(in value, count);
         }
@@ -344,9 +326,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `begin` or `end` are out of bounds.</exception>
         void InsertRangeWithBeginEnd(int begin, int end)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->InsertRangeWithBeginEnd(begin, end);
         }
 
@@ -482,7 +462,11 @@ namespace VLib
         public readonly bool IsEmpty
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => listData == null || listData->Length == 0;
+            get
+            {
+                ConditionalCheckIsCreated();
+                return listData == null || listData->Length == 0;
+            }
         }
 
         /// <summary>
@@ -534,26 +518,20 @@ namespace VLib
         /// <remarks> Does not change the capacity. </remarks>
         public void Clear()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->Clear();
             unusedIndices->Clear();
         }
 
         public void ClearListOnly()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->Clear();
         }
         
         public void ClearUnusedIndicesOnly()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             unusedIndices->Clear();
         }
         
@@ -583,9 +561,7 @@ namespace VLib
         /// <returns> A native array that aliases the content of this list. </returns>
         public NativeArray<T> AsArray()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(listData->Ptr, listData->Length, Allocator.None);
         }
 
@@ -693,9 +669,7 @@ namespace VLib
         /// <returns>An array containing a copy of this list's content.</returns>
         public NativeArray<T> ToArray(AllocatorManager.AllocatorHandle allocator)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             NativeArray<T> result = CollectionHelper.CreateNativeArray<T>(Length, allocator, NativeArrayOptions.UninitializedMemory);
             UnsafeUtility.MemCpy((byte*) result.ForceGetUnsafePtrNOSAFETY(), (byte*) listData->Ptr, Length * UnsafeUtility.SizeOf<T>());
             return result;
@@ -707,9 +681,7 @@ namespace VLib
         /// <param name="other">An container to copy into this container.</param>
         public void CopyFrom(in NativeArray<T> other)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            ConditionalCheckIsCreated();
             listData->CopyFrom(other);
         }
 
@@ -720,7 +692,7 @@ namespace VLib
         public void CopyFrom(in UnsafeList<T> other)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+            ConditionalCheckIsCreated();
 #endif
             listData->CopyFrom(other);
         }
@@ -745,7 +717,7 @@ namespace VLib
         public void Resize(int length, NativeArrayOptions options)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+            ConditionalCheckIsCreated();
 #endif
             listData->Resize(length, options);
         }
@@ -758,7 +730,7 @@ namespace VLib
         public void ResizeUninitialized(int length)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+            ConditionalCheckIsCreated();
 #endif
             Resize(length, NativeArrayOptions.UninitializedMemory);
         }
@@ -770,7 +742,7 @@ namespace VLib
         public void SetCapacity(int capacity)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+            ConditionalCheckIsCreated();
 #endif
             listData->SetCapacity(capacity);
         }
@@ -781,7 +753,7 @@ namespace VLib
         public void TrimExcess()
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+            ConditionalCheckIsCreated();
 #endif
             listData->TrimExcess();
         }
@@ -1048,7 +1020,7 @@ namespace VLib
         public ReadOnly AsReadOnly()
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+            ConditionalCheckIsCreated();
 #endif
             // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
             return new ReadOnly(this);

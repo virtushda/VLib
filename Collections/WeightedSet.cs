@@ -2,7 +2,6 @@
 using UnityEngine;
 #if ODIN_INSPECTOR
 using Sirenix.OdinInspector;
-using Sirenix.Serialization;
 #endif
 
 namespace VLib

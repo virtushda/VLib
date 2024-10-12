@@ -1,5 +1,4 @@
-﻿using MaxMath;
-using Unity.Mathematics;
+﻿using Unity.Mathematics;
 
 namespace VLib
 {

@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 using System.Threading;
-using Unity.Burst;
 using Unity.Collections;
 using UnityEngine.Profiling;
-using VLib;
 
 namespace VLib
 {
+    // TODO: Shift this approach to SharedStatic<T>, will be simpler and faster.
+    
     /// <summary> Designed to be created once and updated at a high frequency. </summary>
     [GenerateTestsForBurstCompatibility]
     public struct GlobalBurstTimer : IDisposable

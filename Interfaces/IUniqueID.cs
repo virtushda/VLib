@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace VLib
+﻿namespace VLib
 {
     public interface IUniqueID8U// : IComparable<byte>
     {

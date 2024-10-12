@@ -1,5 +1,4 @@
-﻿using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace VLib
 {
@@ -28,8 +27,7 @@ namespace VLib
             }
         }
 
-        /// <summary> Don't hang onto this for long, will be unsafe! </summary>
-        public T* ValuePtr
+        public ref T ValueRef
         {
             get
             {
@@ -42,7 +40,7 @@ namespace VLib
                         throw new UnityException($"VUnsafeListElementRef: Index {index} is out of range in VUnsafeList of '{list.Length}' Length.");
                     throw new UnityException("VUnsafeListElementRef: Failed to get value ref!");
                 }
-                return valuePtr;
+                return ref *valuePtr;
             }
         }
 
@@ -59,8 +57,8 @@ namespace VLib
             value = default;
             return list.IsCreated && list.TryGetValue(index, out value);
         }
-        
-        public bool TryGetValuePtr(out T* value)
+
+        bool TryGetValuePtr(out T* value)
         {
             value = default;
             return list.TryGetElementPtr(index, out value);

@@ -1,7 +1,5 @@
 ﻿//using System.Runtime.Remoting.Messaging;
 
-using UnityEngine;
-
 namespace VLib
 {
     /// <summary> Automatic implementation for anything that can be created with a parameter-less constructor </summary>

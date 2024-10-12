@@ -12,9 +12,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
-using Debug = System.Diagnostics.Debug;
-using HashSetExtensions = Unity.Collections.LowLevel.Unsafe.HashSetExtensions;
 
 namespace VLib
 {

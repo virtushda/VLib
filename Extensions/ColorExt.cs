@@ -1,5 +1,4 @@
-﻿using Sirenix.Utilities;
-using Unity.Mathematics;
+﻿using Unity.Mathematics;
 using UnityEngine;
 
 namespace VLib

@@ -1,6 +1,5 @@
 ﻿using Unity.Collections;
 using Unity.Mathematics;
-using UnityEditor;
 
 namespace VLib
 {

@@ -1,16 +1,14 @@
 ﻿using System;
-using System.Xml;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
-using VLib;
 
 namespace Libraries.KeyedAccessors.Lightweight
 {
     ///<summary> Generates a compact list of values, where values can be added or removed based on a given key. <br/>
     /// Has key->value mapping behaviour as well. <br/>
     /// Adds, removes, iterations, and contains checks are all very fast. Removes are the least fast, but still use a quick swapback pattern. </summary>
-    public struct UnsafeKeyedListPair<TKey, TValue>
+    public struct UnsafeKeyedMap<TKey, TValue> : IDisposable
         where TKey : unmanaged, IEquatable<TKey>
         where TValue : unmanaged
     {
@@ -22,7 +20,7 @@ namespace Libraries.KeyedAccessors.Lightweight
         public readonly bool IsCreated => keys.IsCreated;
         public readonly int Length => keys.Length;
 
-        public UnsafeKeyedListPair(Allocator allocator, int initCapacity = 16)
+        public UnsafeKeyedMap(Allocator allocator, int initCapacity = 16)
         {
             keys = new UnsafeList<TKey>(initCapacity, allocator);
             values = new UnsafeList<TValue>(initCapacity, allocator);
@@ -145,6 +143,40 @@ namespace Libraries.KeyedAccessors.Lightweight
             keys.Clear();
             values.Clear();
             keyIndexMap.Clear();
+        }
+
+        public ReadOnly AsReadOnly() => new ReadOnly(this);
+        
+        public struct ReadOnly
+        {
+            UnsafeKeyedMap<TKey, TValue> map;
+            
+            public readonly bool IsCreated => map.IsCreated;
+            public readonly int Length => map.Length;
+            
+            public ReadOnly(UnsafeKeyedMap<TKey, TValue> map) => this.map = map;
+            
+            public TKey ReadKey(int index) => map.keys[index];
+            
+            public TValue ReadValue(int index) => map.values[index];
+            
+            /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
+            public ref TKey KeyElementAt(int index) => ref map.keys.ElementAt(index);
+            
+            /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
+            public ref TValue ValueElementAt(int index) => ref map.values.ElementAt(index);
+            
+            public bool ContainsKey(TKey key) => map.ContainsKey(key);
+            
+            public bool TryGetValueCopy(TKey key, out TValue value) => map.TryGetValueCopy(key, out value);
+            
+            public bool TryGetIndex(TKey key, out int keyIndex) => map.TryGetIndex(key, out keyIndex);
+            
+            /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
+            public ref TValue GetValueRef(TKey key) => ref map.GetValueRef(key);
+            
+            /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
+            public ref TValue TryGetValueRef(TKey key, out bool success) => ref map.TryGetValueRef(key, out success);
         }
     }
 }
