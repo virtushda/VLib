@@ -339,7 +339,7 @@ namespace VLib.SpatialAcceleration
                 for (int i = 0; i < elements.Length; i++)
                 {
                     ref var element = ref elements.keys.ElementAt(i);
-                    var pos = element.SpatialHashPosition.ToFloat3_SupplyY(0);
+                    var pos = element.SpatialHashPosition.ToFloat3_Y(0);
                     draw.Circle(pos + upOffset, math.up(), element.SpatialHashHalfSize);
                 }
                 draw.PopColor();
@@ -358,7 +358,7 @@ namespace VLib.SpatialAcceleration
                     var center = (min + max) * .5f;
                     var size = max - min;
                     
-                    draw.WirePlane(center.ToFloat3_SupplyY(0) + upOffset, math.up(), size);
+                    draw.WirePlane(center.ToFloat3_Y(0) + upOffset, math.up(), size);
                 }
                 draw.PopColor();
             }
@@ -374,12 +374,12 @@ namespace VLib.SpatialAcceleration
                     draw.PushColor(color);
                     var cell = cells.values[i];
                     var center = (float2) cell.CellCoord * cellSize + cellSize * .5f;
-                    var center3 = center.ToFloat3_SupplyY(0);
+                    var center3 = center.ToFloat3_Y(0);
 
                     foreach (var elementIndex in cell.elementIndices.keys)
                     {
                         ref var element = ref elements.keys.ElementAt(elementIndex);
-                        var elementPos = element.SpatialHashPosition.ToFloat3_SupplyY(0);
+                        var elementPos = element.SpatialHashPosition.ToFloat3_Y(0);
                         draw.Line(center3 + upOffset, elementPos + upOffset);
                     }
                     draw.PopColor();

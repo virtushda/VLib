@@ -34,13 +34,13 @@ namespace VLib
         }
 
         /// <summary> Turn a float2 into a float3, where the float2 becomes float3.yz and you supply 'x' </summary>
-        public static float3 ToFloat3_SupplyX(this float2 vec, float newXValue = 0) => new(newXValue, vec);
+        public static float3 ToFloat3_X(this float2 vec, float newXValue = 0) => new(newXValue, vec);
         
         /// <summary> Turn a float2 into a float3, where the float2 becomes float3.xz and you supply 'y' </summary>
-        public static float3 ToFloat3_SupplyY(this float2 vec, float newYValue = 0) => new(vec.x, newYValue, vec.y);
+        public static float3 ToFloat3_Y(this float2 vec, float newYValue = 0) => new(vec.x, newYValue, vec.y);
         
         /// <summary> Turn a float2 into a float3, where the float2 becomes float3.xy and you supply 'z' </summary>
-        public static float3 ToFloat3_SupplyZ(this float2 vec, float newZValue = 0) => new(vec, newZValue);
+        public static float3 ToFloat3_Z(this float2 vec, float newZValue = 0) => new(vec, newZValue);
 
         [GenerateTestsForBurstCompatibility]
         public static float Average(this float2 vec) => math.csum(vec * .5f);
