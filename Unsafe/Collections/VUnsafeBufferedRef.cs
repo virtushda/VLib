@@ -20,6 +20,7 @@ namespace VLib
         
         [NativeDisableUnsafePtrRestriction]
         T* ptr;
+        [NativeDisableUnsafePtrRestriction]
         IntPtr ptrBuffered; // (IntPtr)Ptr + 534231
 
         public T* TPtr

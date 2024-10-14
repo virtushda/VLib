@@ -28,20 +28,22 @@ public struct JobValueContainer<T>
 #endif
     }
 
-    public void Complete()
-    {
-#if SAFETY
-        safetyHandle.ConditionalCheckValid();
-#endif
-        handle.Complete();
-        element.OnComplete();
-    }
-
     public void CombineHandleIntoContainer(in JobHandle jobHandle)
     {
 #if SAFETY
         safetyHandle.ConditionalCheckValid();
 #endif
         handle = JobHandle.CombineDependencies(handle, jobHandle);
+    }
+
+    public void Complete()
+    {
+#if SAFETY
+        // Check and consume safety handle
+        safetyHandle.ConditionalCheckValid();
+        safetyHandle.Dispose();
+#endif
+        handle.Complete();
+        element.OnComplete();
     }
 }

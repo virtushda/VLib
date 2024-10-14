@@ -182,7 +182,6 @@ namespace VLib
             where T : struct =>
             array.IsCreated ? NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(array) : throw new NullReferenceException("Array is not created!");
 
-        /// <summary>Dodgy with certain structs!</summary>
         public static ref T GetRef<T>(this NativeArray<T> array, int index)
             where T : struct
         {
