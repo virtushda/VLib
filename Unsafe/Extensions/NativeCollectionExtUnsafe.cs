@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD || PKSAFE
+﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
 #define SAFETY
 //#define CORRUPTION_CHECKS
 #endif
@@ -67,7 +67,7 @@ namespace VLib
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (!dstHandlePinnedType.IsAllocated)
             {
-                UnityEngine.Debug.LogError("PKSAFE Exception: GCHandle is not allocated!");
+                UnityEngine.Debug.LogError("Safety Exception: GCHandle is not allocated!");
                 return;
             }
 #endif
@@ -221,7 +221,7 @@ namespace VLib
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= array.Length)
-                throw new ArgumentOutOfRangeException("PKSAFE Exception: " + nameof(index));
+                throw new ArgumentOutOfRangeException("Safety Exception: " + nameof(index));
 #endif
             return ref UnsafeUtility.ArrayElementAsRef<T>(array.ForceGetUnsafePtrNOSAFETY(), index);
         }
@@ -230,14 +230,14 @@ namespace VLib
         public static T ReadUnsafe<T>(in this NativeArray<T> array, int index)
             where T : unmanaged
         {
-#if PKSAFE
+#if SAFETY
             var arrayIsCreated = array.IsCreated;
             if (Hint.Unlikely(!arrayIsCreated)) //!arrayIsCreated)
-                UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+                UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
             
             var indexIsValid = index >= 0 && index < array.Length;
             if (Hint.Unlikely(!indexIsValid))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' is not valid within array of length '{array.Length}'");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' is not valid within array of length '{array.Length}'");
 #endif
             return UnsafeUtility.ReadArrayElement<T>(array.ForceGetUnsafePtrNOSAFETY(), index);
         }
@@ -250,7 +250,7 @@ namespace VLib
         {
 #if SAFETY
             if (index >= array.Length)
-                throw new IndexOutOfRangeException($"PKSAFE Exception: Index '{index}' is >= Length '{array.Length}'");
+                throw new IndexOutOfRangeException($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
             return array.ReadUnsafe(index);
 #else
             return array[index]; //Safety only exists in editor... great feature... but so annoying sometimes!
@@ -264,11 +264,35 @@ namespace VLib
         {
 #if SAFETY
             if (index >= array.Length)
-                throw new IndexOutOfRangeException($"PKSAFE Exception: Index '{index}' is >= Length '{array.Length}'");
+                throw new IndexOutOfRangeException($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
             ((T*)array.ForceGetUnsafePtrNOSAFETY())[index] = value;
 #else
             array[index] = value; //Safety only exists in editor... great feature... but so annoying sometimes!
 #endif
+        }
+
+        public static ref T TryGetRef<T>(this NativeArray<T> nativeArray, int index, out bool success)
+            where T : unmanaged
+        {
+            var isValidIndex = nativeArray.IsValidIndex(index);
+            success = isValidIndex;
+            return ref isValidIndex ? ref nativeArray.GetRef(index) : ref UnsafeUtility.AsRef<T>(null);
+        }
+        
+        public static ref T TryGetRefReadOnly<T>(this NativeArray<T> nativeArray, int index, out bool success)
+            where T : unmanaged
+        {
+            var isValidIndex = nativeArray.IsValidIndex(index);
+            success = isValidIndex;
+            return ref isValidIndex ? ref nativeArray.GetRefReadOnly(index) : ref UnsafeUtility.AsRef<T>(null);
+        }
+        
+        public static ref T TryGetRefNoSafety<T>(this NativeArray<T> nativeArray, int index, out bool success)
+            where T : unmanaged
+        {
+            var isValidIndex = nativeArray.IsValidIndex(index);
+            success = isValidIndex;
+            return ref isValidIndex ? ref nativeArray.GetRefNoChecksUNSAFE(index) : ref UnsafeUtility.AsRef<T>(null);
         }
         
         public static bool TryGetElementPtr<T>(this NativeArray<T> nativeArray, int index, out T* valuePtr)
@@ -301,9 +325,9 @@ namespace VLib
             // Detect this stuff in editor mode
 #if SAFETY
             if (!array.IsCreated)
-                UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+                UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
             if (!array.IsValidIndex(index))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' is >= Length '{array.Length}'");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
 #endif
             return ((T*) array.GetUnsafePtr()) + index;
         }
@@ -314,9 +338,9 @@ namespace VLib
             // Detect this stuff in editor mode
 #if SAFETY
             if (!array.IsCreated)
-                UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+                UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
             if (!array.IsValidIndex(index))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' is >= Length '{array.Length}'");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
 #endif
             return ((T*) array.GetUnsafePtr()) + index;
         }
@@ -327,9 +351,9 @@ namespace VLib
             // Detect this stuff in editor mode
 #if SAFETY
             if (!array.IsCreated)
-                UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+                UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
             if (!array.IsValidIndex(index))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' is >= Length '{array.Length}'");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
 #endif
             return ((T*) array.GetUnsafeReadOnlyPtr()) + index;
         }
@@ -341,9 +365,9 @@ namespace VLib
             // Detect this stuff in editor mode
 #if SAFETY
             if (!array.IsCreated)
-                UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+                UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
             if (!array.IsValidIndex(index))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' is >= Length '{array.Length}'");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
 #endif
             return ((T*) array.ForceGetUnsafePtrNOSAFETY()) + index;
         }
@@ -355,7 +379,7 @@ namespace VLib
         {
             void* bufferVoidPtr = null;
             if (!array.IsCreated)
-                throw new ArgumentException("PKSAFE Exception: NativeArray is not created!");
+                throw new ArgumentException("Safety Exception: NativeArray is not created!");
             if (safety == NativeSafety.ReadWrite)
                 bufferVoidPtr = array.GetUnsafePtr();
             else if (safety == NativeSafety.ReadOnly)
@@ -515,7 +539,7 @@ namespace VLib
 #endif
 #if SAFETY
             if (!list.IsCreated)
-                UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+                UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
 #endif
             return (UnsafeList<T>*) NativeListUnsafeUtility.GetInternalListDataPtrUnchecked(ref list);
         }
@@ -531,7 +555,7 @@ namespace VLib
 #endif
 #if SAFETY
             if (!list.IsCreated)
-                UnityEngine.Debug.LogError("PKSAFE Exception: Array is not created!");
+                UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
 #endif
             return ((UnsafeList<T>*) NativeListUnsafeUtility.GetInternalListDataPtrUnchecked(ref list))->Ptr;
         }
@@ -546,7 +570,7 @@ namespace VLib
 #endif
 #if SAFETY
             if (!list.IsIndexValid(index))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' invalid on NativeList with length {list.Length}");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' invalid on NativeList with length {list.Length}");
 #endif
             return list.GetUnsafePtr() + index;
             //return (T*) ((IntPtr) list.GetUnsafePtr() + index * sizeof(T));
@@ -563,7 +587,7 @@ namespace VLib
 #endif
 #if SAFETY
             if (!list.IsIndexValid(index, logError))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Array is not created or index {index} is invalid in UnsafeList with length {list.Length}");
+                UnityEngine.Debug.LogError($"Safety Exception: Array is not created or index {index} is invalid in UnsafeList with length {list.Length}");
 #endif
             return list.Ptr + index;
         }
@@ -579,7 +603,7 @@ namespace VLib
 #endif
 #if SAFETY
             if (!list.IsIndexValid(index, logError))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Array is not created or index {index} is invalid in UnsafeList with length {list.Length}");
+                UnityEngine.Debug.LogError($"Safety Exception: Array is not created or index {index} is invalid in UnsafeList with length {list.Length}");
 #endif
             return list.listData->Ptr + index;
         }
@@ -594,7 +618,7 @@ namespace VLib
 #endif
 #if SAFETY
             if (!list.IsIndexValid(index))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' invalid on NativeList with length {list.Length}");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' invalid on NativeList with length {list.Length}");
 #endif
             return (T*) ((IntPtr) list.GetUnsafeReadOnlyPtr() + index * sizeof(T));
         }
@@ -609,7 +633,7 @@ namespace VLib
 #endif
 #if SAFETY
             if (!list.IsIndexValid(index))
-                UnityEngine.Debug.LogError($"PKSAFE Exception: Index '{index}' invalid on NativeList with length {list.Length}");
+                UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' invalid on NativeList with length {list.Length}");
 #endif
             return ((T*) list.ForceGetUnsafePtrNOSAFETY()) + index;
         }
@@ -757,6 +781,13 @@ namespace VLib
 
             value = default;
             return false;
+        }
+        
+        public static ref T TryGetRef<T>(this UnsafeList<T> list, int index, out bool success)
+            where T : unmanaged
+        {
+            success = list.IsIndexValid(index);
+            return ref success ? ref list.ElementAt(index) : ref UnsafeUtility.AsRef<T>(null);
         }
         
         public static bool TryGetElementPtr<T>(this UnsafeList<T> list, int index, out T* valuePtr)

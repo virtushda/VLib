@@ -129,26 +129,26 @@ namespace VLib
                 if (path.IsNullOrWhitespace())
                 {
                     if (logOnFail)
-                        Debug.LogError("PKMoveDir: Path is invalid!");
+                        Debug.LogError("MoveDir: Path is invalid!");
                     return false;
                 }
                 if (newPath.IsNullOrWhitespace())
                 {
                     if (logOnFail)
-                        Debug.LogError("PKMoveDir: New Path is invalid!");
+                        Debug.LogError("MoveDir: New Path is invalid!");
                     return false;
                 }
                 if (path.Equals(newPath))
                 {
                     if (logOnFail)
-                        Debug.LogError("PKMoveDir: Paths are the same!");
+                        Debug.LogError("MoveDir: Paths are the same!");
                     return false;
                 }
 
                 if (!Directory.Exists(path))
                 {
                     if (logOnFail)
-                        Debug.LogError($"PKMoveDir: Directory does not exist at path {path}!");
+                        Debug.LogError($"MoveDir: Directory does not exist at path {path}!");
                     return false;
                 }
 
@@ -157,7 +157,7 @@ namespace VLib
                     if (!deleteExistingAtNewPath)
                     {
                         if (logOnFail)
-                            Debug.LogError("PKMoveDir: Target path already has a folder and 'deleteExistingAtNewPath' is false!");
+                            Debug.LogError("MoveDir: Target path already has a folder and 'deleteExistingAtNewPath' is false!");
                         return false;
                     }
                     else

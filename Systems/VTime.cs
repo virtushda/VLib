@@ -9,6 +9,7 @@ using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
+using VLib.Threading;
 
 namespace VLib.Systems
 {
@@ -151,6 +152,17 @@ namespace VLib.Systems
         public static long TenthsOfASecond => (long)(timePrecise * 10);
         /// <summary> When cast to uint, runs for 24.8 days. </summary>
         public static long Milliseconds => (long)(timePrecise * 1000);
+
+        /// <summary> Changing the timescale with this method allows VTime to be perfectly up to date, allowing the timescale to be fetched from other threads & burst immediately after being set. </summary>
+        public static void SetTimeScale(float factor, bool setUnityTimeScale = true)
+        {
+            if (setUnityTimeScale)
+            {
+                MainThread.AssertMainThreadConditional();
+                Time.timeScale = factor;
+            }
+            rawTimeDataPtr->currentTimeScale = factor;
+        }
         
         public static ulong SecondsToNanoSeconds(double seconds) => (ulong)(seconds * 1000000000);
         public static long SecondsToTicks(double seconds) => (long)(seconds * 10000000);

@@ -48,7 +48,7 @@ namespace VLib
             return AddColor(color, preciseColor);
         }
 
-        /// <summary>Try to read the internal color by index</summary>
+        /*/// <summary>Try to read the internal color by index</summary>
         public unsafe bool TryGetColorByIndex(int index, out ColorRGB color)
         {
             if (index < length)
@@ -58,7 +58,7 @@ namespace VLib
             }
             color = native->defaultValue;
             return false;
-        }
+        }*/
 
         /// <summary>Converts a color to an integer representation based on the input precision.</summary>
         public int3 ColorToPrecisionColor(ColorRGB color)

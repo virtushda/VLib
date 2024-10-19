@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.Assertions;
 using Object = UnityEngine.Object;
 
 namespace VLib
@@ -29,7 +30,7 @@ namespace VLib
 
             Object.Destroy(obj, delay);
 
-            return true;
+            return obj == null;
         }
 
         /// <summary> Automagically destroys an object without forcing the user to care about internal Unity architectural problems. :) </summary>
@@ -43,11 +44,13 @@ namespace VLib
             if (Application.isPlaying)
             {
                 Object.Destroy(obj);
+                Assert.IsNull(obj);
                 return true;
             }
             else
             {
                 Object.DestroyImmediate(obj);
+                Assert.IsNull(obj);
                 return false;
             }
         }

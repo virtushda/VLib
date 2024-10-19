@@ -1,6 +1,8 @@
-﻿namespace VLib
+﻿using System.Collections.Generic;
+
+namespace VLib
 {
-    /// <summary> <para> This job uses PK automatic job dependency handling. </para>
+    /// <summary> <para> This job uses automatic job dependency handling. </para>
     /// <para>Usage:</para>
     /// <para>Jobs implementing ITrackedJob are expected to collect and report their dependencies in their constructor. </para>
     /// <para> Use this.GrabDepsTrackingList() to call an ITrackedJob extension that will give you a pooled list of the correct type for collecting dependencies. </para>
@@ -11,22 +13,19 @@
         // We can't really enforce tracking code architecture nicely, it is best done in the constructor of a job
         
         /// <summary> When the job schedules, the caller needs to know what tracked IDs you are submitting and whether they require write access to the structures they are tracking. </summary>
-        //public void OnTrackedSchedule(ref List<(long id, bool writeAccess)> trackedIDs);
+        //public void OnTrackedSchedule(in List<TrackedDependency> dependencies);
     }
 
-    // TEST
-    /*public struct JobStruct : IJob, ITrackedJob
+    /*// TEST
+    public struct JobStruct : IJob, ITrackedJob
     {
         Tracked<UnsafeList<int>> list;
-
-        public void OnTrackedSchedule(ref List<(uint id, bool writeAccess)> trackedIDs)
-        {
-            trackedIDs.Add((list, true));
-        }
 
         public void Execute()
         {
             throw new System.NotImplementedException();
         }
+
+        public void OnTrackedSchedule(ref List<TrackedDependency> trackedIDs) => trackedIDs.Add(list.AsDependency(false));
     }*/
 }

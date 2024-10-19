@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.Jobs;
 
 namespace VLib
 {
@@ -10,11 +11,30 @@ namespace VLib
         {
             return new Tracked<T>(objToTrack);
         }
+        
+        public static TrackedDependency AsReadDependency<T>(this T tracked)
+            where T : struct, ITracked
+        {
+            return new TrackedDependency(tracked.ID, false);
+        }
+        
+        public static TrackedDependency AsWriteDependency<T>(this T tracked)
+            where T : struct, ITracked
+        {
+            return new TrackedDependency(tracked.ID, true);
+        }
+        
+        public static JobHandle GetDependencyHandle<T>(this T tracked, bool writeAccess)
+            where T : ITracked
+        {
+            return TrackedCollectionManager.GetDependencyHandleMainThread(tracked.ID, writeAccess);
+        }
 
         public static void CompleteClearDependencies<T>(this T tracked)
             where T : unmanaged, ITracked
         {
-            TrackedCollectionManager.CompleteAllJobsFor(tracked.ID);
+            if (tracked.IsCreated)
+                TrackedCollectionManager.CompleteAllJobsFor(tracked.ID);
         }
 
         /// <summary> DisposeRefToDefault for Tracked Structs that provides more control! </summary>

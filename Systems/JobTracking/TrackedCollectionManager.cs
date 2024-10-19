@@ -1,14 +1,13 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Jobs;
-using UnityEngine;
-using UnityEngine.Pool;
 using VLib.Threading;
 
 namespace VLib
 {
     public static class TrackedCollectionManager
     {
+        static readonly SimpleListPool<ulong> idListPool = new(4, 8);
         static readonly Dictionary<ulong, CollectionHandles> IDToHandlesMap = new();
 
         struct CollectionHandles
@@ -64,6 +63,7 @@ namespace VLib
         /// <summary> NOT THREAD SAFE </summary>
         public static JobHandle GetDependencyHandleMainThread(ulong id, bool writeAccess)
         {
+            MainThread.AssertMainThreadConditional();
             if (IDToHandlesMap.TryGetValue(id, out var handles))
             {
                 // If write, await both read and write jobs already scheduled
@@ -79,6 +79,7 @@ namespace VLib
         /// <summary> NOT THREAD SAFE </summary>
         public static void SetDependencyHandleMainThread(ulong id, bool writeAccess, JobHandle jobHandle)
         {
+            MainThread.AssertMainThreadConditional();
             if (!IDToHandlesMap.TryGetValue(id, out var handles))
                 handles = new CollectionHandles();
             
@@ -102,10 +103,7 @@ namespace VLib
         /// <summary> Will complete any jobs dependent on the tracked struct </summary>
         public static void CompleteAllJobsFor(ulong id)
         {
-#if UNITY_EDITOR
-            if (!MainThread.OnMain())
-                throw new UnityException("CRITICAL: TrackedCollectionManager.CompleteAllJobsFor() called from non-main thread!");
-#endif
+            MainThread.AssertMainThreadConditional();
             if (IDToHandlesMap.TryGetValue(id, out var handles))
             {
                 handles.ReadHandleDirect.Complete();
@@ -114,17 +112,16 @@ namespace VLib
             }
         }
 
-        /// <summary> Will complete any jobs dependent on the tracked structures </summary>
+        internal static List<ulong> GrabIDListFromPool() => idListPool.Fetch();
+
+        /// <summary> Will complete any jobs dependent on the tracked structures. Consumes the list and returns it to an internal pool. </summary>
         public static void CompleteAllJobsFor(List<ulong> ids, bool sendListToUnityListPool)
         {
-#if UNITY_EDITOR
-            if (!MainThread.OnMain())
-                throw new UnityException("CRITICAL: TrackedCollectionManager.CompleteAllJobsFor() called from non-main thread!");
-#endif
+            MainThread.AssertMainThreadConditional();
             foreach (var id in ids)
                 CompleteAllJobsFor(id);
             if (sendListToUnityListPool)
-                ListPool<ulong>.Release(ids);
+                idListPool.Repool(ids);
         }
     }
 }

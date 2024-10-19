@@ -3,11 +3,9 @@ using UnityEngine;
 
 namespace VLib
 {
-    /// <summary>
-    /// Wrapped for native collections that integrates with the Native Sentinel Seth Shit, Simplifies chaining unrelated jobs.
+    /// <summary> Wrapped for native collections that integrates with the Native Sentinel Seth Shit, Simplifies chaining unrelated jobs.
     /// Multiply to create compound job handle.
-    /// Add to create lists of Tracked-T.
-    /// </summary>
+    /// Add to create lists of Tracked-T. </summary>
     public unsafe struct Tracked<TVal> : IDisposable, ITracked, IComparable<Tracked<TVal>>
         where TVal : unmanaged, IDisposable
     {
@@ -15,11 +13,12 @@ namespace VLib
         public static implicit operator TVal(Tracked<TVal> tracked) => tracked.Value;
         public static implicit operator ulong(Tracked<TVal> tracked) => tracked.ID;
         
-        //VUnsafeRef<TVal> valueHolder;
         RefStruct<TVal> valueHolder;
 
         /// <summary> Only checks that the container is created. </summary>
-        public readonly bool IsCreated => valueHolder.IsCreated;
+        public bool IsCreated => IsCreatedReadOnly;
+        /// <summary> Only checks that the container is created. (Readonly can help avoid struct copies) </summary>
+        public readonly bool IsCreatedReadOnly => valueHolder.IsCreated;
 
         public readonly TVal Value
         {
