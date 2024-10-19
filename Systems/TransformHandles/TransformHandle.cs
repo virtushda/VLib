@@ -34,7 +34,7 @@ namespace VLib.Systems.TransformHandles
 
     internal struct TransformHandleInternal
     {
-        internal readonly VUnsafeKeyedRef<TransformSystemInternal> nativeRef;
+        internal readonly VUnsafeKeyedRef<TransformSystemInternal> native;
         internal readonly int transformID;
         
         internal bool outOfDate;

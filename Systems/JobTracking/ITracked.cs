@@ -4,6 +4,8 @@
     {
         public ulong ID { get; }
         
+        public bool IsCreated { get; }
+        
         public void Dispose(bool logException = true);
         
         /*public JobHandle GetJobHandle();

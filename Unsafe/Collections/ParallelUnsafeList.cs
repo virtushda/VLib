@@ -1,4 +1,4 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD || PKSAFE
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 #define SAFETY
 #endif
 
@@ -204,7 +204,7 @@ namespace VLib
             return true;
         }
         
-        public void AssertIsCreated()
+        public readonly void AssertIsCreated()
         {
             if (!IsCreated)
                 throw new InvalidOperationException("VUnsafeList has not been allocated or has been deallocated.");
@@ -400,7 +400,7 @@ namespace VLib
 
         /// <summary>Locks the collection and returns a disposable struct that can be used to repeatedly access the collection before releasing the lock</summary>
         /// <example>using var listReader = list.GetScopedParallelReader()</example>
-        public ScopedParallelReader GetScopedParallelReader(float timeout = 0.25f)
+        public readonly ScopedParallelReader GetScopedParallelReader(float timeout = 0.25f)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             AssertIsCreated();
@@ -435,12 +435,12 @@ namespace VLib
                 locked = false;
             }
 
-            public bool GetIsValid()
+            public readonly bool GetIsValid()
             {
                 if (list.IsCreated && locked)
                     return true;
                 
-                Debug.LogError("PKSAFE Exception: UnsafeReader is invalid! ParallelUnsafeList was not created, or failed to secure a read lock!");
+                Debug.LogError("Safety Exception: UnsafeReader is invalid! ParallelUnsafeList was not created, or failed to secure a read lock!");
                 return false;
             }
 

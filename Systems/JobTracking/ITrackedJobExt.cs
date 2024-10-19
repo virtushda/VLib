@@ -1,8 +1,13 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.Jobs;
 using UnityEngine.Profiling;
+using VLib.Threading;
+using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
@@ -26,7 +31,7 @@ namespace VLib
         static JobHandle DetermineDependencies<J>(ref this J job, List<TrackedDependency> trackedIDs)
             where J : struct, ITrackedJob
         {
-            Profiler.BeginSample("Determine Tracked Dependencies");
+            Profiler.BeginSample(nameof(DetermineDependencies));
             
             // Gather dependencies
             var dependencies = TrackedCollectionManager.GetDependencyHandleMainThread(trackedIDs);
@@ -37,7 +42,7 @@ namespace VLib
         
         static void RegisterNewDependenciesAndCleanup(in List<TrackedDependency> trackedIDs, in JobHandle handle)
         {
-            Profiler.BeginSample("Register Tracked Dependencies");
+            Profiler.BeginSample(nameof(RegisterNewDependenciesAndCleanup));
             
             // Send requirements back in
             foreach (var trackedTuple in trackedIDs)
@@ -48,12 +53,12 @@ namespace VLib
             
             Profiler.EndSample();
         }
-
+        
         /// <summary> Special scheduler for tracked IJobs </summary>
         public static JobHandle ScheduleTracked<J>(ref this J job, List<TrackedDependency> dependencies, JobHandle addInDeps = default)
             where J : struct, IJob, ITrackedJob
         {
-            Profiler.BeginSample("Schedule Tracked IJob");
+            Profiler.BeginSample(nameof(ScheduleTracked));
             
             var dependsOn = DetermineDependencies(ref job, dependencies);
             
@@ -79,7 +84,7 @@ namespace VLib
         public static JobHandle ScheduleTracked_ParallelFor<J>(ref this J job, int arrayLength, int innerloopBatchCount, List<TrackedDependency> dependencies, JobHandle addInDeps = default)
             where J : struct, IJobParallelFor, ITrackedJob
         {
-            Profiler.BeginSample("Schedule Tracked IJobParallelFor");
+            Profiler.BeginSample(nameof(ScheduleTracked_ParallelFor));
             
             var dependsOn = DetermineDependencies(ref job, dependencies);
             
@@ -98,11 +103,12 @@ namespace VLib
         public static JobHandle ScheduleTracked_ParallelForBatch<J>(ref this J job, int arrayLength, List<TrackedDependency> dependencies, JobHandle addInDeps = default, float approxBatchesPerThread = 4f, int minBatchSize = 2)
             where J : struct, IJobParallelForBatch, ITrackedJob
         {
-            Profiler.BeginSample("Schedule Tracked IJobParallelFor");
+            Profiler.BeginSample(nameof(ScheduleTracked_ParallelForBatch));
 
             if (arrayLength < 1)
             {
                 Debug.LogError("Cannot schedule a job with an array length of 0!");
+                Profiler.EndSample();
                 return default;
             }
             
@@ -122,7 +128,7 @@ namespace VLib
         public static JobHandle ScheduleTracked_ParallelForTransform<J>(ref this J job, in TransformAccessArray transforms, List<TrackedDependency> dependencies, JobHandle addInDeps = default)
             where J : struct, IJobParallelForTransform, ITrackedJob
         {
-            Profiler.BeginSample("Schedule Tracked IJobParallelForTransform");
+            Profiler.BeginSample(nameof(ScheduleTracked_ParallelForTransform));
             
             var dependsOn = DetermineDependencies(ref job, dependencies);
             
@@ -141,7 +147,7 @@ namespace VLib
             (ref this J job, in TransformAccessArray transforms, int batchSize, List<TrackedDependency> dependencies, JobHandle addInDeps = default)
             where J : struct, IJobParallelForTransform, ITrackedJob
         {
-            Profiler.BeginSample("Schedule Tracked IJobParallelForTransform");
+            Profiler.BeginSample(nameof(ScheduleTracked_ParallelForTransformReadonly));
             
             var dependsOn = DetermineDependencies(ref job, dependencies);
             

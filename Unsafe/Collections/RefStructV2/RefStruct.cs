@@ -3,6 +3,7 @@
 #endif
 
 using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
@@ -10,6 +11,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
+using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
@@ -25,6 +27,9 @@ namespace VLib
 
         public ulong SafetyID => safetyHandle.safetyIDCopy;
         public bool IsCreated => safetyHandle.IsValid;
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public void ConditionalCheckValid() => safetyHandle.ConditionalCheckValid();
         
         public T ValueCopy
         {
@@ -71,7 +76,7 @@ namespace VLib
         }
 
         /// <summary> Dispose with the instance's <see cref="Dispose"/> method. </summary>
-        public static RefStruct<T> Create(T value, Allocator allocator = Allocator.Persistent
+        public static RefStruct<T> Create(T value = default, Allocator allocator = Allocator.Persistent
 #if CLAIM_TRACKING
             , [CallerLineNumber] int callerLine = -1
 #endif

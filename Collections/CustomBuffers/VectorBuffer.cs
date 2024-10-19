@@ -8,6 +8,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Assertions;
 using static Unity.Mathematics.math;
 
 namespace VLib
@@ -17,52 +18,47 @@ namespace VLib
     public unsafe class VectorBuffer<T> : IVectorBuffer
         where T : unmanaged, IEquatable<T>
     {
-        protected VUnsafeRef<InternalNativeUnsafe> nativeRef;
-        protected InternalNativeUnsafe* native;
+        protected RefStruct<InternalNativeUnsafe> native;
         protected ComputeBuffer gpuBuffer;
         protected string shaderPropertyName = "SET THIS!";
         
         public virtual string ShaderPropertyName => shaderPropertyName;
-        public int Capacity => native->cpuBufferUnsafe->m_capacity;
-        public int CapacityGPU => gpuBuffer == null ? 0 : gpuBuffer.count;
-        public bool IsDirty => any(native->dirtyRange.Value > -1);
+        public int CapacityCPU => native.ValueRef.cpuBufferUnsafe.Capacity;
+        public int CapacityGPU => gpuBuffer?.count ?? 0;
+        public bool IsDirty => any(native.ValueRef.dirtyRange > -1);
 
-        public InternalNativeUnsafe* Native => native;
-        public UnsafeList<T>* CPUBuffer => native->cpuBufferUnsafe;
+        public RefStruct<InternalNativeUnsafe> Native => native;
         public ComputeBuffer GPUBuffer => gpuBuffer;
-        public T DefaultValue
+        /*public T DefaultValue
         {
             get => native->defaultValue;
             set => native->defaultValue = value;
-        }
+        }*/
         
         #region Structures
 
         /// <summary> Must be accessed using a reference structure like NativeReference or VUnsafeRef </summary>
         [GenerateTestsForBurstCompatibility]
-        public unsafe struct InternalNativeUnsafe : IDisposable
+        public struct InternalNativeUnsafe : IDisposable
         {
-            public UnsafeList<T>* cpuBufferUnsafe;
+            public UnsafeList<T> cpuBufferUnsafe;
             /// <summary>X: Inclusive, Y:Exclusive</summary>
-            public VUnsafeRef<int2> dirtyRange;
+            public int2 dirtyRange;
             public T defaultValue;
-            public bool bufferSizeMismatch;
 
             public InternalNativeUnsafe(T defaultValue, int initialCapacity = 8) : this()
             {
-                cpuBufferUnsafe = UnsafeList<T>.Create(initialCapacity, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-                dirtyRange = new VUnsafeRef<int2>(-1, Allocator.Persistent);
+                cpuBufferUnsafe = new UnsafeList<T>(initialCapacity, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+                dirtyRange = -1;
                 this.defaultValue = defaultValue;
             }
 
             public void Dispose()
             {
-                UnsafeList<T>.Destroy(cpuBufferUnsafe);
-                cpuBufferUnsafe = null;
-                dirtyRange.DisposeRefToDefault();
+                cpuBufferUnsafe.DisposeRefToDefault();
             }
 
-            public T Read(int index) => (*cpuBufferUnsafe)[index];
+            public T Read(int index) => cpuBufferUnsafe[index];
 
             public void Write(int index, T value)
             {
@@ -75,19 +71,16 @@ namespace VLib
 
             public void WriteNoResize(int index, T value)
             {
-                // Don't know why I AM resizing here, but it's probably for a good reason
-                cpuBufferUnsafe->m_length = max(cpuBufferUnsafe->m_length, index + 1);
-                (*cpuBufferUnsafe)[index] = value;
+                var requiredLength = index + 1;
+                if (cpuBufferUnsafe.Capacity < requiredLength)
+                    throw new ArgumentOutOfRangeException($"VectorBuffer CPU buffer capacity is too small! Required: {requiredLength}, Current: {cpuBufferUnsafe.Capacity}");
+                cpuBufferUnsafe.Length = max(cpuBufferUnsafe.Length, requiredLength);
+                cpuBufferUnsafe[index] = value;
             }
 
             public bool EnsureCapacity(int requiredCapacity)
             {
-                if (cpuBufferUnsafe == null)
-                {
-                    Debug.LogError("EnsureCapacity called on null VectorBuffer!");
-                    return false;
-                }
-                if (cpuBufferUnsafe->m_capacity < requiredCapacity)
+                if (cpuBufferUnsafe.Capacity < requiredCapacity)
                     ResizeCPU(requiredCapacity);
                 return true;
             }
@@ -95,14 +88,12 @@ namespace VLib
             /// <summary> Does resizing logic, but cannot resize the GPU buffer, trips a flag for that. </summary>
             public void ResizeCPU(int newCapacity)
             {
-                int oldCapacity = cpuBufferUnsafe->m_capacity;
+                int oldCapacity = cpuBufferUnsafe.Capacity;
             
                 //CPU
-                cpuBufferUnsafe->Resize(newCapacity, NativeArrayOptions.UninitializedMemory);
-
+                cpuBufferUnsafe.Capacity = newCapacity;
                 //GPU buffer needs to be resized later at the managed level
-                bufferSizeMismatch = true;
-            
+
                 //New Default Values
                 ResetRangeToDefaultNoDirty(oldCapacity, -1);
 
@@ -112,54 +103,40 @@ namespace VLib
             /// <summary> Sets all values within the specified range to the default value. </summary>
             /// <param name="start">First index to be reset.</param>
             /// <param name="count">How many indices to reset. Less than one will reset all indices from start to the end of the buffer.</param>
-            [GenerateTestsForBurstCompatibility]
             public void ResetRangeToDefaultNoDirty(int start, int count)
             {
+                // If unspecified count, reset all values from start to the end of the buffer
                 if (count < 1)
-                    count = int.MaxValue;
-                int endBefore = min(start + count, cpuBufferUnsafe->m_capacity);
+                    count = cpuBufferUnsafe.Capacity - start;
+                int endBefore = start + count;
+                endBefore = min(endBefore, cpuBufferUnsafe.Capacity);
 
                 // Modify length temporarily to allow for default value writes
-                var prevLength = cpuBufferUnsafe->m_length;
-                cpuBufferUnsafe->Length = endBefore;
+                var prevLength = cpuBufferUnsafe.Length;
+                cpuBufferUnsafe.Length = endBefore;
+                
                 // Write default values
-                for (int i = start; i < endBefore; i++) 
-                    (*cpuBufferUnsafe)[i] = defaultValue;
-                cpuBufferUnsafe->Length = prevLength;
+                for (int i = start; i < endBefore; ++i) 
+                    cpuBufferUnsafe[i] = defaultValue;
+                
+                // Restore length
+                cpuBufferUnsafe.Length = prevLength;
             }
 
-            /*[GenerateTestsForBurstCompatibility]
-            public U ReadAs<U>(int index)
-                where U : struct
-            {
-                return cpuBuffer.ReinterpretLoad<U>(index * UnsafeUtility.SizeOf<T>());
-            }
-
-            [GenerateTestsForBurstCompatibility]
-            public void WriteAsNoResize<U>(int index, U value)
-                where U : struct
-            {
-                int byteIndex = index * UnsafeUtility.SizeOf<U>();
-                cpuBuffer.ReinterpretStore(byteIndex, value);
-                Dirty(byteIndex);
-            }*/
-
-            public unsafe void Dirty(int index)
+            public void Dirty(int index)
             {
                 if (index < 0)
                     return;
-                
-                int2* dirtyRangeRef = dirtyRange.TPtr;
-                if (dirtyRangeRef->x < 0)
-                    dirtyRangeRef->x = index;
-                dirtyRangeRef->x = min(dirtyRangeRef->x, index);
-                dirtyRangeRef->y = max(dirtyRangeRef->y, index + 1); //Exclusive
+                if (dirtyRange.x < 0)
+                    dirtyRange.x = index;
+                dirtyRange.x = min(dirtyRange.x, index);
+                dirtyRange.y = max(dirtyRange.y, index + 1); //Exclusive
             }
 
             public void DirtyAll()
             {
                 Dirty(0);
-                Dirty(cpuBufferUnsafe->m_length - 1); //Exclusive
+                Dirty(cpuBufferUnsafe.Length - 1); //Exclusive
             }
         }
             
@@ -167,8 +144,7 @@ namespace VLib
 
         public VectorBuffer(T defaultValue, int initialCapacity = 8)
         {
-            nativeRef = new VUnsafeRef<InternalNativeUnsafe>(new InternalNativeUnsafe(defaultValue, initialCapacity), Allocator.Persistent);
-            native = nativeRef.TPtr;
+            native = RefStruct<InternalNativeUnsafe>.Create(new InternalNativeUnsafe(defaultValue, initialCapacity));
             gpuBuffer = new ComputeBuffer(initialCapacity,  UnsafeUtility.SizeOf<T>(), ComputeBufferType.Structured, ComputeBufferMode.SubUpdates);
             
             //Reset all values
@@ -177,13 +153,16 @@ namespace VLib
 
         public void Dispose()
         {
+            // CPU
+            if (native.IsCreated)
+            {
+                native.ValueRef.DisposeRefToDefault();
+                native.DisposeRefToDefault();
+            }
+            
+            // GPU
             gpuBuffer?.Release();
             gpuBuffer = null;
-
-            if (nativeRef.IsCreated)
-                nativeRef.TPtr->Dispose();
-            nativeRef.DisposeRefToDefault();
-            native = null;
         }
 
         public T this[int index]
@@ -194,7 +173,7 @@ namespace VLib
                 if (native == null)
                     throw new NullReferenceException("VectorBuffer native ptr is null!");
 #endif
-                return native->Read(index);
+                return native.ValueRef.Read(index);
             }
             set
             {
@@ -202,11 +181,11 @@ namespace VLib
                 if (native == null)
                     throw new NullReferenceException("VectorBuffer native ptr is null!");
 #endif
-                native->Write(index, value);
+                native.ValueRef.Write(index, value);
             }
         }
 
-        public void WriteNoResize(int index, T value) => native->WriteNoResize(index, value);
+        //public void WriteNoResize(int index, T value) => native->WriteNoResize(index, value);
 
         public bool TrySetValueFromDeclaration<TDeclaration>(int index, TDeclaration declaration) 
             where TDeclaration : IVectorBufferDeclaration
@@ -222,75 +201,67 @@ namespace VLib
 
         public void EnsureCapacity(int requiredCapacity)
         {
-            native->EnsureCapacity(requiredCapacity);
+            native.ValueRef.EnsureCapacity(requiredCapacity);
             EnsureGPUBufferFitsCPUBuffer(true);
         }
 
         /// <summary>Any .SetBuffer calls will need to be reexecuted!</summary>
         public void Resize(int newCapacity)
         {
-            native->ResizeCPU(newCapacity);
+            native.ValueRef.ResizeCPU(newCapacity);
             EnsureGPUBufferFitsCPUBuffer(false);
         }
 
         public void EnsureGPUBufferFitsCPUBuffer(bool dirty)
         {
-            if (Capacity != CapacityGPU)
-            {
-                if (gpuBuffer != null) 
-                    gpuBuffer.Dispose();
-                gpuBuffer = new ComputeBuffer(Capacity, UnsafeUtility.SizeOf<T>(), ComputeBufferType.Structured, ComputeBufferMode.SubUpdates);
+            if (CapacityCPU == CapacityGPU)
+                return;
+            
+            if (gpuBuffer != null) 
+                gpuBuffer.Dispose();
+            gpuBuffer = new ComputeBuffer(CapacityCPU, UnsafeUtility.SizeOf<T>(), ComputeBufferType.Structured, ComputeBufferMode.SubUpdates);
 
-                if (dirty)
-                    DirtyAll();
-            }
-
-            native->bufferSizeMismatch = false;
+            if (dirty)
+                DirtyAll();
         }
 
         /// <summary> Sets all values within the specified range to the default value. </summary>
         /// <param name="start">First index to be reset.</param>
         /// <param name="count">How many indices to reset. Less than one will reset all indices from start to the end of the buffer.</param>
-        public void ResetRangeToDefaultNoDirty(int start, int count) => native->ResetRangeToDefaultNoDirty(start, count);
+        public void ResetRangeToDefaultNoDirty(int start, int count) => native.ValueRef.ResetRangeToDefaultNoDirty(start, count);
 
-        /*[GenerateTestsForBurstCompatibility]
-        public U ReadAs<U>(int index)
-            where U : struct
-        {
-            return cpuBuffer.ReinterpretLoad<U>(index * UnsafeUtility.SizeOf<T>());
-        }
+        public void Dirty(int index) => native.ValueRef.Dirty(index);
 
-        [GenerateTestsForBurstCompatibility]
-        public void WriteAsNoResize<U>(int index, U value)
-            where U : struct
-        {
-            int byteIndex = index * UnsafeUtility.SizeOf<U>();
-            cpuBuffer.ReinterpretStore(byteIndex, value);
-            Dirty(byteIndex);
-        }*/
-
-        public unsafe void Dirty(int index) => native->Dirty(index);
-
-        public void DirtyAll() => native->DirtyAll();
+        public void DirtyAll() => native.ValueRef.DirtyAll();
 
         /// <summary> Call this to update the internal computebuffer, otherwise the GPU will not get the updated data!</summary>
         public void UpdateGPUBuffer()
         {
             //If buffer is modified on the native-end, we need to ensure the GPUBuffer still fits.
-            //if (native->bufferSizeMismatch)  //Check causes major issues if it's ever wrong and it's wrong rarely, just skip it since it's cheap
             EnsureGPUBufferFitsCPUBuffer(true);
+
+            ref var nativeRef = ref native.ValueRef;
+
+            // Absolutely ensure that the dirty range is within the bounds of the CPU buffer
+            nativeRef.dirtyRange.x = max(nativeRef.dirtyRange.x, 0);
+            nativeRef.dirtyRange.y = min(nativeRef.dirtyRange.y, CapacityCPU);
+            if (nativeRef.dirtyRange.x >= nativeRef.dirtyRange.y)
+            {
+                // No need to update the GPU buffer if the dirty range is empty
+                if (nativeRef.dirtyRange.x > nativeRef.dirtyRange.y)
+                    Debug.LogError($"Dirty range is invalid! X:{nativeRef.dirtyRange.x} Y:{nativeRef.dirtyRange.y}");
+                return;
+            }
+            int count = nativeRef.dirtyRange.y - nativeRef.dirtyRange.x;
             
-            var dirtyRangeRef = native->dirtyRange.TPtr;
-            int count = dirtyRangeRef->y - dirtyRangeRef->x;
-            var writeBuffer = gpuBuffer.BeginWrite<T>(dirtyRangeRef->x, count);
+            var writeBuffer = gpuBuffer.BeginWrite<T>(nativeRef.dirtyRange.x, count);
             
-            //Copy between buffers as fast as poosible
-            UnsafeUtility.MemCpy(writeBuffer.GetUnsafePtr(),
-                native->cpuBufferUnsafe->Ptr + dirtyRangeRef->x,
-                sizeof(T) * count);
-            //NativeArray<T>.Copy(native->cpuBufferUnsafe->Ptr, dirtyRangeRef.x, writeBuffer, 0, count);
-            /*for (int i = 0; i < count; i++) 
-                writeBuffer[i] = cpuBuffer[i + dirtyRange.x];*/
+            // Get write view
+            var writeBufferAsUnsafeList = writeBuffer.AsUnsafeList(NativeSafety.ReadWrite);
+            // Get read view
+            var readBuffer = new UnsafeList<T>(nativeRef.cpuBufferUnsafe.Ptr + nativeRef.dirtyRange.x, count);
+            //Copy between buffers fast
+            writeBufferAsUnsafeList.CopyFrom(readBuffer);
             
             gpuBuffer.EndWrite<T>(count);
             
@@ -311,14 +282,13 @@ namespace VLib
             }
             if (cpuBuffer->m_capacity != gpuData.Length)
                 Debug.LogError("");
-            
 #endif
 
             //Reset Dirty
-            *dirtyRangeRef = new int2(-1);
+            nativeRef.dirtyRange = -1;
             
 #if UNITY_EDITOR
-            if (!native->dirtyRange.Value.Equals(new int2(-1)))
+            if (!native.ValueRef.dirtyRange.Equals(new int2(-1)))
                 Debug.LogError("Dirty range ref broke!");
 #endif
         }

@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using System.Diagnostics;
 using System.Threading;
 using Unity.Collections;
@@ -11,7 +11,7 @@ namespace VLib
     /// <summary> An unmanaged, untyped, heterogeneous buffer. </summary>
     /// <remarks> The values written to an individual append buffer can be of different types. </remarks>
     [GenerateTestsForBurstCompatibility]
-    public unsafe struct UnsafeBuffer// : INativeDisposable
+    public unsafe struct UnsafeAppendBuffer// : INativeDisposable
     {
         /// <summary> The internal buffer where the content is stored. </summary>
         /// <value>The internal buffer where the content is stored.</value>
@@ -110,10 +110,10 @@ namespace VLib
             CapacityBytes = 0;
         }
 
-        /*/// <summary> Creates and schedules a job that will dispose this append buffer. </summary>
+        /#1#// <summary> Creates and schedules a job that will dispose this append buffer. </summary>
         /// <param name="inputDeps">The handle of a job which the new job will depend upon.</param>
         /// <returns>The handle of a new job that will dispose this append buffer. The new job depends upon inputDeps.</returns>
-        [NotBurstCompatible /* This is not burst compatible because of IJob's use of a static IntPtr. Should switch to IJobBurstSchedulable in the future #1#]
+        [NotBurstCompatible /* This is not burst compatible because of IJob's use of a static IntPtr. Should switch to IJobBurstSchedulable in the future #2#]
         public JobHandle Dispose(JobHandle inputDeps)
         {
             var alloc = Allocator.ToAllocator;
@@ -130,7 +130,7 @@ namespace VLib
             Ptr = null;
 
             return inputDeps;
-        }*/
+        }#1#
         
         /// <summary> Read buffer as type, indexes in types stride! </summary>
         /// <returns>Value in buffer as T!</returns>
@@ -286,7 +286,7 @@ namespace VLib
             Add(NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(value), UnsafeUtility.SizeOf<T>() * value.Length);
         }
 
-        /*/// <summary>
+        /#1#// <summary>
         /// Appends the content of a string as UTF-16 to the end of this append buffer.
         /// </summary>
         /// <remarks>Because some Unicode characters require two chars in UTF-16, each character is written as one or two chars (two or four bytes).
@@ -295,9 +295,9 @@ namespace VLib
         ///
         /// A null terminator is not appended after the character data.</remarks>
         /// <param name="value">The string to append.</param>
-        [NotBurstCompatible /* Deprecated #1#]
+        [NotBurstCompatible /* Deprecated #2#]
         [Obsolete("Please use `AddNBC` from `Unity.Collections.LowLevel.Unsafe.NotBurstCompatible` namespace instead. (RemovedAfter 2021-06-22)", false)]
-        public void Add(string value) => NotBurstCompatible.Extensions.AddNBC(ref this, value);*/
+        public void Add(string value) => NotBurstCompatible.Extensions.AddNBC(ref this, value);#1#
 
         public void Insert<T>(int indexTStride, T value)
             where T : unmanaged
@@ -374,15 +374,15 @@ namespace VLib
             LengthBytes -= structSize;
         }
 
-        /*/// <summary>
+        /#1#// <summary>
         /// Copies this append buffer to a managed array of bytes.
         /// </summary>
         /// <returns>A managed array of bytes.</returns>
-        [NotBurstCompatible /* Deprecated #1#]
+        [NotBurstCompatible /* Deprecated #2#]
         [Obsolete("Please use `ToBytesNBC` from `Unity.Collections.LowLevel.Unsafe.NotBurstCompatible` namespace instead. (RemovedAfter 2021-06-22)", false)]
-        public byte[] ToBytes() => NotBurstCompatible.Extensions.ToBytesNBC(ref this);*/
+        public byte[] ToBytes() => NotBurstCompatible.Extensions.ToBytesNBC(ref this);#1#
 
-        /*/// <summary>
+        /#1#// <summary>
         /// Returns a reader for this append buffer.
         /// </summary>
         /// <returns>A reader for the append buffer.</returns>
@@ -540,7 +540,7 @@ namespace VLib
             ///
             /// Advances the reader's offset by the size of the string (in bytes).</remarks>
             /// <param name="value">Outputs the string read from the append buffer.</param>
-            [NotBurstCompatible /* Deprecated #1#]
+            [NotBurstCompatible /* Deprecated #2#]
             [Obsolete("Please use `ReadNextNBC` from `Unity.Collections.LowLevel.Unsafe.NotBurstCompatible` namespace instead. (RemovedAfter 2021-06-22)", false)]
             public void ReadNext(out string value) => NotBurstCompatible.Extensions.ReadNextNBC(ref this, out value);
 #endif
@@ -553,7 +553,7 @@ namespace VLib
                     throw new ArgumentException($"Requested value outside bounds of UnsafeAppendOnlyBuffer. Remaining bytes: {Size - Offset} Requested: {structSize}");
                 }
             }
-        }*/
+        }#1#
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         static void CheckAlignment(int alignment)
@@ -568,4 +568,4 @@ namespace VLib
             }
         }
     }
-}
+}*/

@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
+﻿/*#if UNITY_EDITOR || DEVELOPMENT_BUILD
 #define SAFETY
 #define LOCK_CHECKS
 //#define LOG_BUFFER_SHRINKS
@@ -49,7 +49,7 @@ namespace VLib
 
             /*Debug.Log($"UnsafeBufferPool Maximum Memory Footprint: " +
                       $"{(rootBufferSize * subBufferSize * (unsafeBufferSize + UnsafeUtility.SizeOf<UnsafeBuffer>())).AsDataSizeInBytesToReadableString()}");
-            Debug.Log($"UnsafeBufferPool Init Footprint: {ReportBytes().AsDataSizeInBytesToReadableString()}");*/
+            Debug.Log($"UnsafeBufferPool Init Footprint: {ReportBytes().AsDataSizeInBytesToReadableString()}");#1#
         }
 
         /// <summary> Disposes ALL buffers, claimed buffers merely have exclusive access, they don't "remove" the buffers themselves from the pool. </summary>
@@ -206,7 +206,7 @@ namespace VLib
                     /*if (bufferPoolData->claimedBuffers.Remove(bufferClaim.poolAddress))
                         bufferPoolData->FreeIndices->Add(bufferClaim.poolAddress);
                     else
-                        Debug.LogError($"Buffer {bufferClaim.poolAddress} not claimed!");*/
+                        Debug.LogError($"Buffer {bufferClaim.poolAddress} not claimed!");#1#
                 }
                 finally
                 {
@@ -230,11 +230,11 @@ namespace VLib
             
             Data->DemandIsLocked();
             
-            /*// Release claim
+            /#1#/ Release claim
             if (!Data->claimedBuffers.Remove(bufferClaim.poolAddress))
                 Debug.LogError($"Buffer {bufferClaim.poolAddress} not claimed!");
             // Return index
-            Data->FreeIndices->Add(bufferClaim.poolAddress);*/
+            Data->FreeIndices->Add(bufferClaim.poolAddress);#1#
         }
         
         void DisclaimPoolAddressNoLock(int poolAddress) => DisclaimPoolAddressNoLock(Data, poolAddress);
@@ -302,8 +302,8 @@ namespace VLib
         /// <summary>Current highest known free index of the pool.</summary>
         public volatile int poolAllocIndex;
 
-        [NativeDisableUnsafePtrRestriction] public VUnsafeBufferedRef<UnsafeList<IntPtr>> rootBuffer;
-        [NativeDisableUnsafePtrRestriction] public VUnsafeBufferedRef<UnsafeList<int>> freeIndices;
+        public VUnsafeBufferedRef<UnsafeList<IntPtr>> rootBuffer;
+        public VUnsafeBufferedRef<UnsafeList<int>> freeIndices;
         public UnsafeParallelHashSet<int> claimedBuffers;
 
         public int freeIndexProcessMarker;
@@ -315,7 +315,7 @@ namespace VLib
         public readonly UnsafeList<int>* FreeIndices => freeIndices.TPtr;
 
         public bool IsFullyCreated => rootBuffer.IsValid && freeIndices.IsValid;/* RootBuffer != null && RootBuffer->IsCreated &&
-                                      FreeIndices != null && FreeIndices->IsCreated;*/
+                                      FreeIndices != null && FreeIndices->IsCreated;#1#
 
         public UnsafeBufferPoolData(ushort rootBufferSize, ushort unsafeBufferInitialSize, GlobalBurstTimer burstTimer) : this()
         {
@@ -729,4 +729,4 @@ namespace VLib
 #endif
         }
     }
-}
+}*/

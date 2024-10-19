@@ -240,13 +240,17 @@ namespace VLib
         public readonly void ConditionalCheckIsCreated()
         {
             if (!IsCreated)
+            {
+                if (keyPtr == null)
+                    throw new NullReferenceException("The VUnsafeKeyedRef is not created! Key ptr is null.");
                 throw new InvalidOperationException($"The VUnsafeKeyedRef is not created! Value at keyPtr: {keyPtr[0]}");
+            }
         }
         
         #region Alloc Utils
 
         /// <summary> The internal memory allocation method of VUnsafeRef </summary>
-        public static void AllocateMemory(ref T* ptrRef, AllocatorManager.AllocatorHandle allocator)
+        static void AllocateMemory(ref T* ptrRef, AllocatorManager.AllocatorHandle allocator)
         {
             if (ptrRef != null)
                 throw new ArgumentException("Incoming ptrRef is not null!");
@@ -254,7 +258,7 @@ namespace VLib
         }
 
         /// <summary> The internal memory disposal method of VUnsafeRef </summary>
-        public static void DisposeMemory(ref T* ptr, AllocatorManager.AllocatorHandle allocator)
+        static void DisposeMemory(ref T* ptr, AllocatorManager.AllocatorHandle allocator)
         {
             if (ptr != null)
             {

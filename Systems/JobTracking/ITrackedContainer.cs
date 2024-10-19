@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using UnityEngine.Pool;
 
 namespace VLib
 {
@@ -13,11 +12,11 @@ namespace VLib
     
     public static class TrackedContainerExtensions
     {
-        /// <summary> The list you receive is pulled from UnityEngine.Pool.ListPool </summary>
-        public static List<ulong> AutoGetTrackIDsWithPoolList<T>(this T container)
+        /// <summary> The list you receive is pulled from a pool and needs to be returned. </summary>
+        public static List<ulong> AutoGetTrackIDs<T>(this T container)
             where T : ITrackedContainer
         {
-            var trackIDs = ListPool<ulong>.Get();
+            var trackIDs = TrackedCollectionManager.GrabIDListFromPool();
             container.GetTrackIDs(ref trackIDs);
             return trackIDs;
         }

@@ -33,7 +33,12 @@ namespace VLib
             });
         }*/
 
-        public void Interleave() => toggle = !toggle;
+        /// <summary> Swaps the items and returns the new current. </summary>
+        public ref T Interleave()
+        {
+            toggle = !toggle;
+            return ref toggle ? ref valueB : ref valueA;
+        }
     }
     
     public static class InterleaverExt

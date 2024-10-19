@@ -7,7 +7,7 @@ namespace VLib
     {
         public string ShaderPropertyName { get; }
         
-        public int Capacity { get; }
+        public int CapacityCPU { get; }
         public ComputeBuffer GPUBuffer { get; }
         public bool IsDirty { get; }
 

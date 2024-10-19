@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Unity.Collections;
@@ -16,11 +17,13 @@ namespace VLib
         where T : unmanaged
     {
         /// <summary> This must be added to a void* or IntPtr, NOT a T* </summary>
-        const int BufferedOffset = 321; // Little nudge
+        const int BufferedOffset = 337; // Little prime number nudge
         
         [NativeDisableUnsafePtrRestriction]
         T* ptr;
-        IntPtr ptrBuffered; // (IntPtr)Ptr + 534231
+        /// <summary> The pointer copy that is expected to be at a specific offset. Random memory is extremely unlikely to produce this same offset. </summary>
+        [NativeDisableUnsafePtrRestriction]
+        IntPtr ptrBuffered;
 
         public T* TPtr
         {
@@ -29,7 +32,6 @@ namespace VLib
                 if (TryGetTPtr(out _))
                     return ptr;
                 throw new InvalidOperationException("Failed to fetch double buffered pointer! Potential corruption?");
-                //return (T*) IntPtr.Zero;
             }
             private set // 
             {
@@ -42,7 +44,14 @@ namespace VLib
             }
         }
 
-        public T* TPtrNoSafety => ptr;
+        public T* TPtrNoSafety
+        {
+            get
+            {
+                ConditionalCheckValid();
+                return ptr;
+            }
+        }
 
         /// <summary> Try grab the ptr without triggering any log errors. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -102,13 +111,15 @@ namespace VLib
 #endif
             
             this = default;
+            m_AllocatorLabel = Allocator.None;
             TPtr = value;
         }
 
         /// <summary> This type does not ALWAYS allocate, it can be used as a pointer safety wrapper! </summary>
         static void Allocate(AllocatorManager.AllocatorHandle allocator, out VUnsafeBufferedRef<T> reference)
         {
-            //CollectionHelper.CheckAllocator(allocator);
+            if (allocator.ToAllocator <= Allocator.None)
+                throw new ArgumentException("Allocator must not be Allocator.None or Allocator.Invalid!");
             reference = default;
             reference.TPtr = (T*) UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>(), UnsafeUtility.AlignOf<T>(), allocator.ToAllocator);
             reference.m_AllocatorLabel = allocator;
@@ -133,28 +144,38 @@ namespace VLib
         /// <summary> Does not check validity, just checks that internal pointer isn't null. Corruption can make this return true! </summary>
         public bool IsCreated => ptr != null;
 
-        /// <summary> Whether this reference IS VALID and has been allocated (and not yet deallocated).
-        /// WARNING: This can return true on a wrapper, but does not mean that this type is allocating memory. </summary>
+        /// <summary> Whether this reference IS VALID and has been allocated (and not yet deallocated). <br/>
+        /// WARNING: This can return true on a wrapper, but does not mean that this type is allocating memory. <br/> </summary>
         /// <value>True if this reference has been allocated (and not yet deallocated).</value>
         public bool IsValid
         {
             get
             {
+                // Check for offset, equality and NOT NULL
+                
+                // NOT NULL
                 if (!IsCreated)
                     return false;
                 
-                // Check for offset, equality and NOT NULL
+                // OFFSET AND EQUALITY
                 var offsetPtr = ((IntPtr) ptr) + BufferedOffset;
                 // Offset should protect from needing an equals ZERO check
                 return offsetPtr == ptrBuffered;
             }
+        }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public void ConditionalCheckValid()
+        {
+            if (!IsValid)
+                throw new InvalidOperationException("VUnsafeBufferedRef is not valid!");
         }
 
         /// <summary> NOTE: Extension <see cref="NativeCollectionExtUnsafe.DisposeRefToDefault{T}"/> is ideal to use.
         /// Releases all resources (memory and safety handles). Inherently safe, will not throw exception if already disposed.</summary>
         public void DisposeUnsafe()
         {
-            if (TPtr != null)
+            if (TryGetTPtr(out var tPtr) && tPtr != null)
             {
                 // A wrapper or already disposed?
                 if (m_AllocatorLabel.ToAllocator is Allocator.Invalid or Allocator.None)
@@ -162,7 +183,7 @@ namespace VLib
                     Debug.LogError("The NativeArray can not be Disposed because it was not allocated with a valid allocator. Are you disposing twice? Or disposing a wrapper?");
                     return;
                 }
-                UnsafeUtility.Free(TPtr, m_AllocatorLabel.ToAllocator);
+                UnsafeUtility.Free(tPtr, m_AllocatorLabel.ToAllocator);
                 m_AllocatorLabel = default;
                 TPtr = null;
             }
@@ -193,7 +214,15 @@ namespace VLib
         /// <returns>True if the value stored in this reference is equal to the value stored in another reference.</returns>
         public bool Equals(VUnsafeBufferedRef<T> other)
         {
-            return TPtr == other.ptr;
+            var valid = IsValid;
+            var otherValid = other.IsValid;
+            if (valid != otherValid)
+                return false;
+            // Now valid == otherValid
+            if (!valid)
+                return true;
+            // Now both are definitely valid
+            return ptr == other.ptr;
         }
 
         /// <summary>
@@ -215,11 +244,8 @@ namespace VLib
         /// Returns the hash code of this reference.
         /// </summary>
         /// <returns>The hash code of this reference.</returns>
-        public override int GetHashCode()
-        {
-            return Value.GetHashCode();
-        }
-        
+        public override int GetHashCode() => Value.GetHashCode();
+
         /// <summary>
         /// Returns true if the values stored in two references are equal.
         /// </summary>
@@ -230,7 +256,6 @@ namespace VLib
         {
             return left.Equals(right);
         }
-
         /// <summary>
         /// Returns true if the values stored in two references are unequal.
         /// </summary>

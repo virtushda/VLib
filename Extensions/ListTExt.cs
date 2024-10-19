@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
-using UnityEngine;
+using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
 
 namespace VLib
@@ -352,6 +353,13 @@ namespace VLib
         {
             if (list.Capacity < capacity)
                 list.Capacity = capacity;
+        }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        public static void ConditionalCheckIndexValid<T>(this IReadOnlyList<T> readOnlyList, int index)
+        {
+            if (index < 0 || index >= readOnlyList.Count)
+                throw new IndexOutOfRangeException($"Index '{index}' is out of range of list of count {readOnlyList.Count}!");
         }
     } 
 }
