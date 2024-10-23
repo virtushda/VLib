@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Unity.Burst.Intrinsics;
 using Unity.IL2CPP.CompilerServices;
+using VLib.Systems;
 
 namespace VLib
 {
@@ -15,7 +16,7 @@ namespace VLib
         /// <summary> Lock Exclusive. Will block if cannot lock immediately </summary>
         /// <returns>True if lock acquired, false if not </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TryEnterExclusiveBlocking(ref long lockVar, ref long readersVar, in GlobalBurstTimer burstTimer, float timeoutSeconds)
+        public static bool TryEnterExclusiveBlocking(ref long lockVar, ref long readersVar, float timeoutSeconds)
         {
 #if MARK_THREAD_OWNERS
             var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
@@ -25,11 +26,11 @@ namespace VLib
 #endif
 
             // Safety expected to be implemented higher up
-            float exitLockTime = burstTimer.TimeUnsafe + timeoutSeconds;
+            var exitLockTime = VTime.intraFrameTime + timeoutSeconds;
             
             while (Interlocked.CompareExchange(ref lockVar, threadId, 0) != 0)
             {
-                if (burstTimer.Time > exitLockTime)
+                if (VTime.intraFrameTime > exitLockTime)
                     return false;
                 Common.Pause();
                     
@@ -44,7 +45,7 @@ namespace VLib
             // while we have readers
             while (Interlocked.Read(ref readersVar) != 0)
             {
-                if (burstTimer.Time > exitLockTime)
+                if (VTime.intraFrameTime > exitLockTime)
                     return false;
                 Common.Pause();
                     
@@ -104,12 +105,12 @@ namespace VLib
         /// Lock for Read. Will block if exclusive is locked
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TryEnterReadBlocking(ref long lockVar, ref long readersVar, in GlobalBurstTimer burstTimer, float timeoutSeconds)
+        public static bool TryEnterReadBlocking(ref long lockVar, ref long readersVar, float timeoutSeconds)
         {
             BurstSpinLockCheckFunctions.CheckForRecursiveLock(ref lockVar);
 
             // Don't need timer safety in here, callers are expected to implement safety higher up
-            var exitLockTime = burstTimer.TimeUnsafe + timeoutSeconds;
+            var exitLockTime = VTime.intraFrameTime + timeoutSeconds;
             
             // Loop until we get lock or time out
             while (true)
@@ -128,7 +129,7 @@ namespace VLib
                 // while it is locked - spin
                 while (Interlocked.Read(ref lockVar) != 0)
                 {
-                    if (burstTimer.Time > exitLockTime)
+                    if (VTime.intraFrameTime > exitLockTime)
                         return false;
                     Common.Pause();
                     

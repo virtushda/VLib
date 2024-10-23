@@ -213,7 +213,7 @@ namespace VLib
         public static float Angle(float3 from, float3 to)
         {
             float num = (float) sqrt(lengthsq(from) * (double) lengthsq(to));
-            return num < 1.0000000036274937E-15 ? 0.0f : (float) acos((double) clamp(dot(from, to) / num, -1f, 1f)) * 57.29578f;
+            return num < 1.0000000036274937E-15 ? 0.0f : (float) acos((double) clamp(dot(from, to) / num, -1f, 1f)) * TODEGREES;
         }
 
         /// <summary>Copied from Vector3.SignedAngle. Returns value in degrees.</summary>

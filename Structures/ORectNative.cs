@@ -96,8 +96,8 @@ namespace VLib
         public ORectNative(ORectNative rectToCopy)
         {
             localAlignedRect = rectToCopy.localAlignedRect;
-            this.matrixL2W = rectToCopy.matrixL2W;
-            this.matrixW2L = rectToCopy.matrixW2L;
+            matrixL2W = rectToCopy.matrixL2W;
+            matrixW2L = rectToCopy.matrixW2L;
         }
 
         public float Width => localAlignedRect.corners.z - localAlignedRect.corners.x;

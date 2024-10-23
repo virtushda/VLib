@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using System.Threading;
 using Unity.Collections;
 using UnityEngine.Profiling;
@@ -9,7 +9,7 @@ namespace VLib
     
     /// <summary> Designed to be created once and updated at a high frequency. </summary>
     [GenerateTestsForBurstCompatibility]
-    public struct GlobalBurstTimer : IDisposable
+    public struct GlobalBurstTimer : IDisposabl
     {
         public static bool isInSpecialSetupMode = false;
         
@@ -76,4 +76,4 @@ namespace VLib
             return thread;
         }
     }
-}
+}*/

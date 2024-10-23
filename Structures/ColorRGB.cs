@@ -43,9 +43,9 @@ namespace VLib
 
         public ColorRGB(Color c)
         {
-            this.r = c.r;
-            this.g = c.g;
-            this.b = c.b;
+            r = c.r;
+            g = c.g;
+            b = c.b;
         }
 
         public override string ToString() => $"R:{r}, G:{g}, B:{b}";
@@ -286,7 +286,7 @@ namespace VLib
         ///   <para>An opaque colour with HSV matching the input.</para>
         /// </returns>
         /// <footer><a href="https://docs.unity3d.com/2020.3/Documentation/ScriptReference/30_search.html?q=Color.HSVToRGB">`Color.HSVToRGB` on docs.unity3d.com</a></footer>
-        public static ColorRGB HSVToRGB(float H, float S, float V) => ColorRGB.HSVToRGB(H, S, V, true);
+        public static ColorRGB HSVToRGB(float H, float S, float V) => HSVToRGB(H, S, V, true);
 
         /// <summary>
         ///   <para>Creates an RGB colour from HSV input.</para>

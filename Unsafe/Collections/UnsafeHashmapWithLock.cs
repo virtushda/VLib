@@ -14,10 +14,10 @@ namespace VLib
         public UnsafeParallelHashMap<TKey, TValue> map;
         public BurstSpinLockReadWrite spinLock;
 
-        public UnsafeHashmapWithLock(GlobalBurstTimer burstTimer, int capacity, Allocator allocator = Allocator.Persistent)
+        public UnsafeHashmapWithLock(int capacity, Allocator allocator = Allocator.Persistent)
         {
             map = new UnsafeParallelHashMap<TKey, TValue>(capacity, allocator);
-            spinLock = new BurstSpinLockReadWrite(allocator, burstTimer);
+            spinLock = new BurstSpinLockReadWrite(allocator);
         }
 
         public void Dispose()

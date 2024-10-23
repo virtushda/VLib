@@ -226,7 +226,7 @@ namespace VLib
 
             if (ll < lowerBound || ll > upperBound)
             {
-                throw new System.ArgumentException("Plane must be normalized. Call Plane.Normalize() to normalize plane.");
+                throw new ArgumentException("Plane must be normalized. Call Plane.Normalize() to normalize plane.");
             }
         }
     }

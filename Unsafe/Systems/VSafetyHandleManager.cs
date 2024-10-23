@@ -114,6 +114,7 @@ namespace VLib
 #endif
         
 
+        [BurstDiscard]
         static void StackTraceClaimTrackingInit()
         {
 #if STACKTRACE_CLAIM_TRACKING

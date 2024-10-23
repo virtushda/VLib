@@ -5,7 +5,6 @@
 
 using System;
 using System.Diagnostics;
-using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -15,54 +14,20 @@ namespace VLib.Systems
 {
     public unsafe class VTime //
     {
+        #region Statics
+        
         public static readonly int GTimeUnscaledSin = Shader.PropertyToID("GTimeUnscaledSin");
-        
-        readonly static SharedStatic<TimeData> timeNative = SharedStatic<TimeData>.GetOrCreate<VTime, TimeData>();
-#if TIME_PTR_AS_PROPERTY
-        static TimeData* rawTimeDataPtr => (TimeData*) timeNative.UnsafeDataPointer;
-#else
-        /// <summary> This cached pointer speeds up access to the time data by a factor of 2-3x by removing a property call. </summary>
-        static TimeData* rawTimeDataPtr;
-#endif
-        
-        internal struct TimeData
-        {
-            public float currentTimeScale;
-            public float time;
-            public double timePrecise;
-            public float timeUnscaled;
-            public double timeUnscaledPrecise;
-            public float deltaTime;
-            public float smoothDeltaTime;
-            public float unscaledDeltaTime;
-            public int frameCount;
-
-            public void SetFromMain()
-            {
-                time = Time.time;
-                timePrecise = Time.timeAsDouble;
-                timeUnscaled = Time.unscaledTime;
-                timeUnscaledPrecise = Time.unscaledTimeAsDouble;
-                deltaTime = Time.deltaTime;
-                smoothDeltaTime = Time.smoothDeltaTime;
-                unscaledDeltaTime = Time.unscaledDeltaTime;
-                frameCount = Time.frameCount;
-
-                currentTimeScale = Time.timeScale;
-            }
-        }
         
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init()
         {
             onEarlyUpdateInvoked = false;
-#if !TIME_PTR_AS_PROPERTY
-            rawTimeDataPtr = (TimeData*) timeNative.UnsafeDataPointer; // This should never move in memory during the lifetime of the application.
-#endif
         }
-
+        
         static bool onEarlyUpdateInvoked;
         public static bool HasEarlyUpdated => onEarlyUpdateInvoked;
+        
+        #endregion
 
         [Conditional("CHECK_EARLY_UPDATE_CALLED")]
         public static void CheckEarlyUpdateCalled()
@@ -75,11 +40,11 @@ namespace VLib.Systems
         public static void OnEarlyUpdate()
         {
             onEarlyUpdateInvoked = true;
-            timeNative.Data.SetFromMain();
+            VTimeData.timeNative.Data.SetFromMain();
             
             const string message = "TimeData pointer moved in memory, this is not allowed.";
-            Assert.IsTrue(rawTimeDataPtr == timeNative.UnsafeDataPointer, message);
-            Assert.IsTrue(rawTimeDataPtr != null);
+            Assert.IsTrue(VTimeData.rawTimeDataPtr == VTimeData.timeNative.UnsafeDataPointer, message);
+            Assert.IsTrue(VTimeData.rawTimeDataPtr != null);
         }
         
         public const float DeltaTime10FPS = 1 / 10f;
@@ -113,33 +78,36 @@ namespace VLib.Systems
         
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float currentTimeScale => rawTimeDataPtr->currentTimeScale;
+        public static float currentTimeScale => VTimeData.rawTimeDataPtr->currentTimeScale;
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float time => rawTimeDataPtr->time;
+        public static float time => VTimeData.rawTimeDataPtr->time;
 
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static double timePrecise => rawTimeDataPtr->timePrecise;
+        public static double timePrecise => VTimeData.rawTimeDataPtr->timePrecise;
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float timeUnscaled => rawTimeDataPtr->timeUnscaled;
+        public static float timeUnscaled => VTimeData.rawTimeDataPtr->timeUnscaled;
 
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static double timeUnscaledPrecise => rawTimeDataPtr->timeUnscaledPrecise;
+        public static double timeUnscaledPrecise => VTimeData.rawTimeDataPtr->timeUnscaledPrecise;
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float deltaTime => rawTimeDataPtr->deltaTime;
+        public static float deltaTime => VTimeData.rawTimeDataPtr->deltaTime;
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float smoothDeltaTime => rawTimeDataPtr->smoothDeltaTime;
+        public static float smoothDeltaTime => VTimeData.rawTimeDataPtr->smoothDeltaTime;
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float unscaledDeltaTime => rawTimeDataPtr->unscaledDeltaTime;
+        public static float unscaledDeltaTime => VTimeData.rawTimeDataPtr->unscaledDeltaTime;
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static int frameCount => rawTimeDataPtr->frameCount;
+        public static int frameCount => VTimeData.rawTimeDataPtr->frameCount;
+
+        /// <summary> <inheritdoc cref="TimeData.externallyUpdatedTime"/> </summary>
+        public static double intraFrameTime => VTimeData.rawTimeDataPtr->externallyUpdatedTime;
         
         // Integer time
         /// <summary> When cast to uint, runs for 4085 years. </summary>
@@ -161,7 +129,7 @@ namespace VLib.Systems
                 MainThread.AssertMainThreadConditional();
                 Time.timeScale = factor;
             }
-            rawTimeDataPtr->currentTimeScale = factor;
+            VTimeData.rawTimeDataPtr->currentTimeScale = factor;
         }
         
         public static ulong SecondsToNanoSeconds(double seconds) => (ulong)(seconds * 1000000000);

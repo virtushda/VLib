@@ -111,8 +111,9 @@ namespace VLib
             bool respectComponentStates, out List<Transform> allTransforms, out List<Transform> writeTransforms, out VirtualValueTransformTree virtualTransformTree)
         {
             var requestors = ProcessTransformGathering(gatherer, respectComponentStates, out allTransforms, out writeTransforms);
-
-            virtualTransformTree = new VirtualValueTransformTree(ownerID, allTransforms);
+            
+            // Virtual transform tree supports ulong size IDs, but we're putting entity indices in there
+            virtualTransformTree = new VirtualValueTransformTree(ownerID.ToUlong(), allTransforms);
             
             gatherer.SendTransformNativeTreeToChildComponents(respectComponentStates, virtualTransformTree, requestors);
             gatherer.ReleaseRequestorList(requestors);

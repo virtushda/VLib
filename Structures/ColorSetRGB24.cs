@@ -16,10 +16,10 @@ namespace VLib
 
         public ColorSetRGB24(ColorRGB24 color)
         {
-            this.color0 = color;
-            this.color1 = color;
-            this.color2 = color;
-            this.color3 = color;
+            color0 = color;
+            color1 = color;
+            color2 = color;
+            color3 = color;
         }
         
         public ColorSetRGB24(ColorRGB24[] colors)

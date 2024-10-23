@@ -12,6 +12,7 @@ using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.IL2CPP.CompilerServices;
+using VLib.Systems;
 
 namespace VLib
 {
@@ -23,17 +24,15 @@ namespace VLib
     public unsafe struct BurstSpinLock
     {
         private VUnsafeBufferedRef<long> m_LockHolder;
-        GlobalBurstTimer burstTimerRef;
         
         /// <summary> Checks locked buffer length as well to detect corruption </summary>
-        public bool IsCreatedAndValid => m_LockHolder.IsValid && burstTimerRef.IsCreated;
+        public bool IsCreatedAndValid => m_LockHolder.IsValid;
 
         /// <summary> Constructor for the spin lock </summary>
         /// <param name="allocator">allocator to use for internal memory allocation. Usually should be Allocator.Persistent</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public BurstSpinLock(Allocator allocator, GlobalBurstTimer burstTimerRef = default) // Is optional to allow 
+        public BurstSpinLock(Allocator allocator)
         {
-            this.burstTimerRef = burstTimerRef;
             m_LockHolder = new VUnsafeBufferedRef<long>(0, allocator);
         }
 
@@ -80,10 +79,10 @@ namespace VLib
             var threadId = 1;
 #endif
             ref long lockVar = ref m_LockHolder.ValueRef;
-            var forceExitTime = burstTimerRef.Time + timeoutSeconds;
+            var forceExitTime = VTime.intraFrameTime + timeoutSeconds;
             while (Interlocked.CompareExchange(ref lockVar, threadId, 0) != 0)
             {
-                if (burstTimerRef.Time > forceExitTime)
+                if (VTime.intraFrameTime > forceExitTime)
                     return false;
                 
                 Common.Pause();

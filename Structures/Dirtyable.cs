@@ -15,7 +15,7 @@
             get => internalValue;
             set
             {
-                this.internalValue = value;
+                internalValue = value;
                 dirty = true;
             }
         }

@@ -19,10 +19,10 @@ namespace VLib
 
         public ColorRGB101210Set(ColorRGB101210 color, int newCount = 4)
         {
-            this.color0 = color;
-            this.color1 = color;
-            this.color2 = color;
-            this.color3 = color;
+            color0 = color;
+            color1 = color;
+            color2 = color;
+            color3 = color;
             count = (byte)math.clamp(newCount, 0, 4);
         }
         

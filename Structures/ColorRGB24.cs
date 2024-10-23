@@ -1,5 +1,4 @@
 ﻿using System;
-using MaxMath;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -8,24 +7,26 @@ namespace VLib
     /// <summary> Like <see cref="ColorRGB"/> but with 8 bits per channel instead of 32, for a 75% mem reduction </summary>
     public struct ColorRGB24 : IEquatable<ColorRGB24>, IFormattable
     {
-        public byte3 rgb;
+        public byte r;
+        public byte g;
+        public byte b;
 
         public float Redf
         {
-            get => rgb.x.ToPercent01();
-            set => rgb.x = value.ToByteFromFloat01();
+            get => r.ToPercent01();
+            set => r = value.ToByteFromFloat01();
         }
         
         public float Greenf
         {
-            get => rgb.y.ToPercent01();
-            set => rgb.y = value.ToByteFromFloat01();
+            get => g.ToPercent01();
+            set => g = value.ToByteFromFloat01();
         }
 
         public float Bluef
         {
-            get => rgb.z.ToPercent01();
-            set => rgb.z = value.ToByteFromFloat01();
+            get => b.ToPercent01();
+            set => b = value.ToByteFromFloat01();
         }
         
         public float3 RGBf
@@ -39,43 +40,38 @@ namespace VLib
             }
         }
         
-        public ColorRGB24(byte3 rgb) => this.rgb = rgb;
+        //public ColorRGB24(byte3 rgb) => this.rgb = rgb;
         
-        public ColorRGB24(byte r, byte g, byte b) => rgb = new byte3(r, g, b);
+        //public ColorRGB24(byte r, byte g, byte b) => rgb = new byte3(r, g, b);
 
         public ColorRGB24(float r, float g, float b)
         {
-            rgb = new byte3(r.ToByteFromFloat01(), g.ToByteFromFloat01(), b.ToByteFromFloat01());
+            this.r = r.ToByteFromFloat01();
+            this.g = g.ToByteFromFloat01();
+            this.b = b.ToByteFromFloat01();
         }
 
-        public ColorRGB24(Color c)
+        /*public ColorRGB24(Color c)
         {
             rgb = new byte3(c.r.ToByteFromFloat01(), c.g.ToByteFromFloat01(), c.b.ToByteFromFloat01());
-        }
+        }*/
 
         public override string ToString() => $"R:{Redf}, G:{Greenf}, B:{Bluef}";
         public string ToString(string format, IFormatProvider formatProvider) => ToString();
 
-        public override int GetHashCode() => rgb.GetHashCode();
+        public override int GetHashCode() => (r << 16) | (g << 8) | b;
 
+        public bool Equals(ColorRGB24 other) => r.Equals(other.r) && g.Equals(other.g) && b.Equals(other.b);
         public override bool Equals(object other) => other is ColorRGB24 other1 && Equals(other1);
 
-        public bool Equals(ColorRGB24 other) => rgb.Equals(other.rgb);
-
         /*public static ColorRGB24 operator +(ColorRGB24 a, ColorRGB24 b) => new ColorRGB24(((int3) a.rgb + (int3) b.rgb));
-
         public static ColorRGB24 operator -(ColorRGB24 a, ColorRGB24 b) => new ColorRGB24(a.r - b.r, a.g - b.g, a.b - b.b);
-
         public static ColorRGB24 operator *(ColorRGB24 a, ColorRGB24 b) => new ColorRGB24(a.r * b.r, a.g * b.g, a.b * b.b);
-
         public static ColorRGB24 operator *(ColorRGB24 a, float b) => new ColorRGB24(a.r * b, a.g * b, a.b * b);
-
         public static ColorRGB24 operator *(float b, ColorRGB24 a) => new ColorRGB24(a.r * b, a.g * b, a.b * b);
-
         public static ColorRGB24 operator /(ColorRGB24 a, float b) => new ColorRGB24(a.r / b, a.g / b, a.b / b);*/
 
-        public static bool operator ==(ColorRGB24 lhs, ColorRGB24 rhs) => math.all(lhs.rgb == rhs.rgb);
-
+        public static bool operator ==(ColorRGB24 lhs, ColorRGB24 rhs) => lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b;
         public static bool operator !=(ColorRGB24 lhs, ColorRGB24 rhs) => !(lhs == rhs);
 
         /*/// <summary>
@@ -175,7 +171,7 @@ namespace VLib
         ///   <para>The grayscale value of the color. (Read Only)</para>
         /// </summary>
         /// <footer><a href="https://docs.unity3d.com/2020.3/Documentation/ScriptReference/30_search.html?q=Color-grayscale">`Color.grayscale` on docs.unity3d.com</a></footer>
-        public float grayscale => (float)(0.29899999499321 * rgb.x + 0.587000012397766 * rgb.y + 57.0 / 500.0 * rgb.z);
+        public float grayscale => (float)(0.29899999499321 * r + 0.587000012397766 * g + 57.0 / 500.0 * b);
 
         // Use ColorRGB conversions in floating point BEFORE using this type to avoid losing more info
         /*/// <summary>
@@ -194,9 +190,9 @@ namespace VLib
         /// <summary>
         ///   Returns component-wise maximum
         /// </summary>
-        public float maxColorComponent => maxmath.cmax(rgb);
+        //public float maxColorComponent => maxmath.cmax(rgb);
 
-        public static implicit operator Vector3(ColorRGB24 c) => (float3)c.rgb;
+        public static implicit operator Vector3(ColorRGB24 c) => new(c.r, c.g, c.b);
         public static implicit operator ColorRGB24(Vector3 v) => new(v.x, v.y, v.z);
         public static implicit operator float3(ColorRGB24 c) => c.RGBf;
         public static implicit operator ColorRGB24(float3 v) => new(v.x, v.y, v.z);

@@ -38,13 +38,13 @@ namespace VLib
 
         public readonly int CapacityUnsafe => RawListPtr->Capacity;
 
-        public ParallelUnsafeList(int initialCapacity, Allocator allocator, GlobalBurstTimer globalBurstTimer, NativeArrayOptions initialization = NativeArrayOptions.UninitializedMemory)
+        public ParallelUnsafeList(int initialCapacity, Allocator allocator, NativeArrayOptions initialization = NativeArrayOptions.UninitializedMemory)
         {
             var list = new UnsafeList<T>(initialCapacity, allocator, initialization);
             // Store the list in a buffered ref to detect memory corruption and facilitate struct copy safety
             vListPtr = new VUnsafeBufferedRef<UnsafeList<T>>(list, allocator);
             
-            burstLock = new BurstSpinLockReadWrite(allocator, globalBurstTimer);
+            burstLock = new BurstSpinLockReadWrite(allocator);
         }
 
         /// <summary> Make sure you don't hold onto the disposed struct! </summary>

@@ -38,20 +38,20 @@ namespace VLib
             this.radius = radius;
 
             float2 vertAToVertB = this.vertB - this.vertA;
-            this.normal = VMath.Rotate90CW(math.normalize(vertAToVertB));
-            this.center = (this.vertA + this.vertB) * .5f;
+            normal = VMath.Rotate90CW(math.normalize(vertAToVertB));
+            center = (this.vertA + this.vertB) * .5f;
             float length = math.length(vertAToVertB);
-            this.lengthSq = length * length;
+            lengthSq = length * length;
             float lengthHalf = length * .5f;
-            this.lengthHalfSq = lengthHalf * lengthHalf;
+            lengthHalfSq = lengthHalf * lengthHalf;
             float halfLengthPlusRadius = lengthHalf + radius;
-            this.halfLengthPlusRadiusSq = halfLengthPlusRadius * halfLengthPlusRadius;
+            halfLengthPlusRadiusSq = halfLengthPlusRadius * halfLengthPlusRadius;
 
             float minHeight = math.min(vertA.y, vertB.y);
             float maxHeight = math.max(vertA.y, vertB.y);
-            this.heightMinMax = new float2(minHeight - heightMargin, maxHeight + heightMargin);
+            heightMinMax = new float2(minHeight - heightMargin, maxHeight + heightMargin);
 
-            this.centerOuterRejectPlane = center + normal * this.radius;
+            centerOuterRejectPlane = center + normal * this.radius;
         }
 
         public EdgeCapsuleCollider2D(float3x2 edge, float radius, float heightMargin = 1) => this = new EdgeCapsuleCollider2D(edge.c0, edge.c1, radius, heightMargin);

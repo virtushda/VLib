@@ -13,7 +13,7 @@ namespace VLib
     {
         public struct Data
         {
-            public short ownerID;
+            public ulong ownerIndex;
             public UnsafeList<VirtualValueTransform> transforms;
             public UnsafeParallelHashMap<int, int> idToIndexMap;
             
@@ -34,15 +34,15 @@ namespace VLib
         
         public UnsafeList<VirtualValueTransform>.ReadOnly TransformsReadOnly => DataRef.transforms.AsReadOnly();
 
-        public short OwnerID => DataRef.ownerID;
+        public ulong OwnerIndex => DataRef.ownerIndex;
 
         byte* accessKey => &data.ValuePtr->accessKey;
 
-        public VirtualValueTransformTree(short ownerID, List<Transform> transforms)
+        public VirtualValueTransformTree(ulong ownerID, List<Transform> transforms)
         {
             var dataStruct = new Data
             {
-                ownerID = ownerID,
+                ownerIndex = ownerID,
                 transforms = new UnsafeList<VirtualValueTransform>(transforms.Count, Allocator.Persistent),
                 idToIndexMap = new UnsafeParallelHashMap<int, int>(transforms.Count, Allocator.Persistent),
                 // Create key with access granted

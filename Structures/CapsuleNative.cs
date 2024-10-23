@@ -24,8 +24,8 @@ namespace VLib
         /// <summary> Generate a capsule from a world transform and some local points. </summary>
         public CapsuleNative(in AffineTransform transform, float3 localPointA, float3 localPointB, float radiusA, float radiusB)
         {
-            this.pointA = new float4(math.transform(transform, localPointA), radiusA);
-            this.pointB = new float4(math.transform(transform, localPointB), radiusB);
+            pointA = new float4(math.transform(transform, localPointA), radiusA);
+            pointB = new float4(math.transform(transform, localPointB), radiusB);
         }
 
         public CapsuleNative(CapsuleCollider capsuleCollider)
@@ -54,7 +54,7 @@ namespace VLib
             // Compute direction change
             //var aToBNormalized = normalizesafe(aToB);
             var rotation = (quaternion)Quaternion.FromToRotation(aToB, capsuleTransform.Forward());
-            var aToBNew = math.rotate(rotation, aToB);
+            var aToBNew = rotate(rotation, aToB);
             
             pointB.xyz = pointA.xyz + aToBNew;
         }
@@ -102,7 +102,7 @@ namespace VLib
             var pointAtoB = pointB.xyz - pointA.xyz;
             var pointAToBNorm = normalizesafe(pointAtoB);
             var offsetDir = cross(pointAToBNorm, up());
-            var rotatorForNextLine = quaternion.AxisAngle(pointAToBNorm, math.PI2 / connectingLines);
+            var rotatorForNextLine = quaternion.AxisAngle(pointAToBNorm, PI2 / connectingLines);
             
             for (int i = 0; i < connectingLines; i++)
             {

@@ -1,5 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
-using MaxMath;
+//using MaxMath;
 using Unity.Mathematics;
 
 namespace VLib
@@ -24,7 +24,7 @@ namespace VLib
             return false;
         }
         
-        public static bool IsValidByte2(this sbyte2 value, out byte2 byteValue, bool scaleToByteMax) 
+        /*public static bool IsValidByte2(this sbyte2 value, out byte2 byteValue, bool scaleToByteMax) 
         {
             if (math.all(value >= sbyte2.zero))
             {
@@ -45,6 +45,6 @@ namespace VLib
             }
             sbValue = sbyte2.zero;
             return false;
-        }
+        }*/
     }
 }

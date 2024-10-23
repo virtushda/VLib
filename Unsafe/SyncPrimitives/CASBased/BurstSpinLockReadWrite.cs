@@ -35,20 +35,14 @@ namespace VLib
         // Make it a damn pointer so it don't duplicate and fail to recognize a lock!!!
         [NativeDisableUnsafePtrRestriction]
         private VUnsafeBufferedRef<UnsafeList<long>> m_LockHolder;
-        GlobalBurstTimer burstTimerRef;
-        public float Time => burstTimerRef.Time;
-        
-        public GlobalBurstTimer BurstTimer => burstTimerRef;
 
         UnsafeList<long>* m_Locked => m_LockHolder.TPtr;
         UnsafeList<long>* m_LockedUnsafe => m_LockHolder.TPtrNoSafety;
 
         /// <param name="allocator">allocator to use for internal memory allocation. Usually should be Allocator.Persistent</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public BurstSpinLockReadWrite(Allocator allocator, GlobalBurstTimer globalBurstTimerRef)
+        public BurstSpinLockReadWrite(Allocator allocator)
         {
-            burstTimerRef = globalBurstTimerRef;
-            
             // Create a list, then create a separate double-buffered pointer to it
             var lockBuffer = new UnsafeList<long>(MemorySize, allocator);
             m_LockHolder = new VUnsafeBufferedRef<UnsafeList<long>>(lockBuffer, allocator);
@@ -82,7 +76,7 @@ namespace VLib
         public bool LockedAny => LockedExclusive || LockedForRead;
         
         /// <summary> Checks locked buffer length as well to detect corruption </summary>
-        public bool IsCreatedAndValid => m_LockHolder.IsValid/* && m_Locked->IsCreated && m_Locked->Length == MemorySize */&& burstTimerRef.IsCreated;
+        public bool IsCreatedAndValid => m_LockHolder.IsValid/* && m_Locked->IsCreated && m_Locked->Length == MemorySize && burstTimerRef.IsCreated*/;
 
         public long Id => (long) m_Locked->Ptr;
 
@@ -107,7 +101,6 @@ namespace VLib
             return BurstSpinLockReadWriteFunctions.TryEnterExclusiveBlocking(
                 ref m_LockedUnsafePtr->ElementAt(LockLocation),
                 ref m_LockedUnsafePtr->ElementAt(ReadersLocation),
-                burstTimerRef,
                 timeoutSeconds);
         }
 
@@ -142,7 +135,6 @@ namespace VLib
             return BurstSpinLockReadWriteFunctions.TryEnterReadBlocking(
                 ref m_LockedUnsafe->ElementAt(LockLocation),
                 ref m_LockedUnsafe->ElementAt(ReadersLocation),
-                burstTimerRef,
                 timeoutSeconds);
         }
 
@@ -246,12 +238,14 @@ namespace VLib
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
-    public struct BurstScopedExclusiveLock : IDisposable
+    public struct BurstScopedExclusiveLock : IAllocating
     {
         private BurstSpinLockReadWrite m_parentLock;
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
         public bool Succeeded { get; }
         public static implicit operator bool(BurstScopedExclusiveLock d) => d.Succeeded;
+        
+        public bool IsCreated => m_parentLock.IsCreatedAndValid;
 
         /// <summary> Creates ScopedReadLock and locks SpinLockReadWrite in exclusive mode </summary>
         /// <param name="sl">SpinLock to lock</param>
@@ -276,7 +270,7 @@ namespace VLib
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
-    public struct BurstScopedReadLock : IDisposable
+    public struct BurstScopedReadLock : IAllocating
     {
         private BurstSpinLockReadWrite m_parentLock;
 
@@ -284,6 +278,8 @@ namespace VLib
         public bool Succeeded { get; }
         public static implicit operator bool(BurstScopedReadLock d) => d.Succeeded;
 
+        public bool IsCreated => m_parentLock.IsCreatedAndValid;
+        
         /// <summary> Creates ScopedReadLock and locks SpinLockReadWrite in read mode </summary>
         /// <param name="sl">SpinLock to lock</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

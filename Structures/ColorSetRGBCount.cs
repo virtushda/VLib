@@ -18,7 +18,7 @@ namespace VLib
         public ColorSetRGBCount(Color[] colors)
         {
             this.colors = new ColorSetRGB(colors);
-            this.count = (byte) colors.Length;
+            count = (byte) colors.Length;
         }
         
         public ColorRGB this[int index]

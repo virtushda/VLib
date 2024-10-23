@@ -1,6 +1,4 @@
-﻿using MaxMath;
-using Unity.Mathematics;
-using UnityEngine.Assertions;
+﻿using Unity.Mathematics;
 
 namespace VLib
 {
@@ -17,7 +15,7 @@ namespace VLib
             return false;
         }
         
-        public static bool IsValidByte2(this short2 value, out byte2 byteValue)
+        /*public static bool IsValidByte2(this short2 value, out byte2 byteValue)
         {
             if (math.all(value >= 0) && math.all(value <= byte.MaxValue))
             {
@@ -37,19 +35,31 @@ namespace VLib
             }
             byteValue = byte2.zero;
             return false;
-        }
+        }*/
 
         ///<summary> Throws in editor if value out of range </summary>
         public static byte ToByte(this ushort value)
         {
-            Assert.IsTrue(value <= byte.MaxValue);
+            BurstAssert.True(value <= byte.MaxValue);
             return (byte) value;
         }
         
         public static short ToShort(this ushort value)
         {
-            Assert.IsTrue(value <= short.MaxValue);
+            BurstAssert.True(value <= short.MaxValue);
             return (short) value;
+        }
+        
+        public static uint ToUint(this short value)
+        {
+            BurstAssert.True(value >= 0);
+            return (uint) value;
+        }
+        
+        public static ulong ToUlong(this short value)
+        {
+            BurstAssert.True(value >= 0);
+            return (ulong) value;
         }
     }
 }

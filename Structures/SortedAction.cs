@@ -10,8 +10,8 @@ namespace VLib
 
         public SortedAction(Action action, int order)
         {
-            this.Action = action;
-            this.Order = order;
+            Action = action;
+            Order = order;
         }
 
         public int CompareTo(SortedAction other) => Order.CompareTo(other.Order);

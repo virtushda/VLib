@@ -16,7 +16,7 @@ namespace VLib
             this.startTimestamp = startTimestamp;
         }
 
-        public TimeSpan Elapsed => TimeSpan.FromTicks(this.ElapsedTicks);
+        public TimeSpan Elapsed => TimeSpan.FromTicks(ElapsedTicks);
 
         public bool IsInvalid => startTimestamp == 0;
 
