@@ -219,14 +219,14 @@ namespace VLib
             public void Execute() => theLock.ExitRead();
         }
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void ConditionalCheckReadLockHeld()
         {
             if (!LockedForRead)
                 throw new InvalidOperationException("Read lock must be held!");
         }
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void ConditionalCheckWriteLockHeld()
         {
             if (!LockedExclusive)

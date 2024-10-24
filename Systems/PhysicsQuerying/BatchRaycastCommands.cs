@@ -211,21 +211,21 @@ namespace VLib.Physics
             return true;
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckCommandLengthNoResize()
         {
             if (unsafeCommands->Length > unsafeCommands->Capacity)
                 throw new System.Exception("Command list is full. Use AddCommandResize instead.");
         }
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckJobInactive()
         {
             if (jobActive)
                 throw new System.Exception("Job is active, cannot modify commands.");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckHitsAllocated()
         {
             if (!unsafeHits->IsCreated)
@@ -273,21 +273,21 @@ namespace VLib.Physics
                 }
             }
 
-            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
             public void CheckCurrentHitIndex()
             {
                 if (currentHitIndex < hitStart || currentHitIndex >= hitEnd)
                     throw new System.InvalidOperationException($"Index out of range: {currentHitIndex}, Range: {hitStart} - {hitEnd - 1}");
             }
 
-            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
             public void CheckIndexAgainstCollection(int index)
             {
                 if (index < 0 || index >= hitsBuffer->Length)
                     throw new System.InvalidOperationException($"Index out of range: {index}, Range: {hitStart} - {hitEnd - 1}");
             }
 
-            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
             public void CheckRangeAgainstCollection(int start, int count)
             {
                 if (start < 0)

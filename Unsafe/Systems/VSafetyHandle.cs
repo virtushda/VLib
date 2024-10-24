@@ -26,7 +26,7 @@ namespace VLib
         
         public static bool TryDispose(VSafetyHandle handle) => VSafetyHandleManager.InternalMemoryField.Data.TryDestroy(handle);
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void ConditionalCheckValid()
         {
             if (!IsValid)

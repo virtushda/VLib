@@ -66,7 +66,7 @@ namespace VLib.Unsafe.Structures
             value = UnsafeUtility.As<T2, T1>(ref newValue);
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckTypeSizesValid()
         {
             var size1 = UnsafeUtility.SizeOf<T1>();
@@ -75,7 +75,7 @@ namespace VLib.Unsafe.Structures
                 throw new InvalidOperationException($"Type 1 size '{size1}' is less than type 2 size '{size2}'!");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void CheckIsType(bool isType2)
         {
             if (IsType2 != isType2)

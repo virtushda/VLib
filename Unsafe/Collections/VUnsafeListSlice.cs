@@ -150,7 +150,7 @@ namespace VLib.UnsafeListSlicing
         }
 
         /// <summary> Requires length allocation. </summary>
-        public unsafe bool TryAddRangeNoResize(UnsafeList<T> values, int count)
+        public bool TryAddRangeNoResize(UnsafeList<T> values, int count)
         {
             CheckLengthModifiable();
             ref var lengthRef = ref LengthInternalRef;
@@ -166,7 +166,7 @@ namespace VLib.UnsafeListSlicing
 
         /// <summary> Requires length allocation. <br/>
         /// Shifts all memory beyond the index, toward zero by one index. Overwrites the value at 'index'. </summary>
-        public unsafe void RemoveAt(int index)
+        public void RemoveAt(int index)
         {
             CheckLengthModifiable();
             CheckSliceIndex(index);
@@ -311,14 +311,14 @@ namespace VLib.UnsafeListSlicing
 
         #region Checks
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         readonly void CheckLengthModifiable()
         {
             if (!lengthMemory.IsCreated)
                 throw new InvalidOperationException("Slice is not write capable, it was initialized as readonly, without the ability to store it's own length.");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         readonly void CheckMainList()
         {
             if (!mainList.IsCreated)
@@ -326,7 +326,7 @@ namespace VLib.UnsafeListSlicing
         }
 
         /// <summary> This method implicitly will throw also if the main list is not created. </summary>
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         readonly void CheckSliceIndex(int index)
         {
             index += sliceStartIndex;
@@ -334,7 +334,7 @@ namespace VLib.UnsafeListSlicing
                 throw new IndexOutOfRangeException($"Index {index} is out of range for mainlist of length {mainList.Length}");
         }
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         readonly void CheckStartLength(int start, int length)
         {
             if (start < 0)
@@ -345,7 +345,7 @@ namespace VLib.UnsafeListSlicing
                 throw new ArgumentOutOfRangeException($"Slice start {start} and length {length} are out of range for slice of length {Length}");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void CheckStartLengthSliceOfSlice(VUnsafeListSlice<T> slice, int startRelative, int length)
         {
             if (startRelative < 0)
@@ -356,7 +356,7 @@ namespace VLib.UnsafeListSlicing
                 throw new ArgumentOutOfRangeException($"Slice start {startRelative} and length {length} are out of range for slice of length {slice.Length}");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         readonly void CheckInsideCapacity(int index)
         {
             if (index >= Capacity)

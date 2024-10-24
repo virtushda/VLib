@@ -13,8 +13,10 @@ using UnityEngine;
 
 namespace VLib
 {
+    // TODO: Review enumerators and completely remove pointer usage
+    
     /// <summary> A special list that uses a the shiny new burst locks to allow for universal thread-safety. </summary>
-    public unsafe struct ParallelUnsafeList<T> : IEnumerable<T>
+    public struct ParallelUnsafeList<T> : IEnumerable<T>, IAllocating
         where T : unmanaged
     {
         // Protect from invalid memory access
@@ -22,21 +24,21 @@ namespace VLib
         BurstSpinLockReadWrite burstLock;
         public readonly BurstSpinLockReadWrite BurstLock => burstLock;
         
-        public readonly bool IsCreated => vListPtr.IsValid && vListPtr.TPtr->IsCreated && BurstLock.IsCreatedAndValid;
+        public readonly bool IsCreated => vListPtr.IsValid && vListPtr.ValueRef.IsCreated && BurstLock.IsCreatedAndValid;
         
-        public ref UnsafeList<T> ListRef => ref vListPtr.ValueRef;
+        public readonly ref UnsafeList<T> ListRef => ref vListPtr.ValueRef;
 
         /// <summary> Access to list struct is forced through the safety checks of .TPtr </summary>
-        public readonly UnsafeList<T>* RawListPtr => vListPtr.TPtr;
+        //readonly UnsafeList<T>* RawListPtr => vListPtr.TPtr;
 
         /// <summary> Ignores lock. Safety guaranteed only when lock is properly held. </summary>
         public int LengthUnsafe
         {
-            readonly get => RawListPtr->Length;
-            set => RawListPtr->Length = value;
+            readonly get => ListRef.Length;
+            set => ListRef.Length = value;
         }
 
-        public readonly int CapacityUnsafe => RawListPtr->Capacity;
+        public readonly int CapacityUnsafe => ListRef.Capacity;
 
         public ParallelUnsafeList(int initialCapacity, Allocator allocator, NativeArrayOptions initialization = NativeArrayOptions.UninitializedMemory)
         {
@@ -56,7 +58,7 @@ namespace VLib
             if (vListPtr.IsValid)
             {
                 // Dispose list
-                vListPtr.TPtr->Dispose();
+                vListPtr.ValueRef.Dispose();
                 // Dispose Ref
                 vListPtr.DisposeRefToDefault();
             }
@@ -64,6 +66,8 @@ namespace VLib
             
             burstLock.DisposeRefToDefault();
         }
+
+        public void Dispose() => DisposeUnsafe();
 
         public T this[int index]
         {
@@ -76,10 +80,10 @@ namespace VLib
         }
 
         /// <summary> Checks if the index is valid without locking the list. Appropriate for situations where the list lock is already held properly. </summary>
-        public bool IsIndexValidUnsafe(int index) => index >= 0 && index < RawListPtr->Length;
+        public readonly bool IsIndexValidUnsafe(int index) => index >= 0 && index < ListRef.Length;
 
         /// <summary> Auto locks for read and checks index validity. </summary>
-        public bool IsIndexValidSafe(int index)
+        public readonly bool IsIndexValidSafe(int index)
         {
             using var scopeLock = BurstLock.ScopedReadLock(.25f);
             if (!scopeLock.Succeeded)
@@ -91,7 +95,7 @@ namespace VLib
             return IsIndexValidUnsafe(index);
         }
         
-        public bool CountSafe(out int count)
+        public readonly bool CountSafe(out int count)
         {
             using var scopeLock = BurstLock.ScopedReadLock(.25f);
             if (!scopeLock.Succeeded)
@@ -99,11 +103,11 @@ namespace VLib
                 count = 0;
                 return false;
             }
-            count = RawListPtr->Length;
+            count = ListRef.Length;
             return true;
         }
         
-        public bool CapacitySafe(out int capacity)
+        public readonly bool CapacitySafe(out int capacity)
         {
             using var scopeLock = BurstLock.ScopedReadLock(.25f);
             if (!scopeLock.Succeeded)
@@ -111,7 +115,7 @@ namespace VLib
                 capacity = 0;
                 return false;
             }
-            capacity = RawListPtr->Capacity;
+            capacity = ListRef.Capacity;
             return true;
         }
 
@@ -120,11 +124,11 @@ namespace VLib
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeout);
             if (!scopeLock.Succeeded)
                 return false;
-            RawListPtr->Clear();
+            ListRef.Clear();
             return true;
         }
 
-        public bool ReadSafe(int index, out T value, float timeout = .25f)
+        public readonly bool ReadSafe(int index, out T value, float timeout = .25f)
         {
             using var scopeLock = BurstLock.ScopedReadLock(timeout);
             if (!scopeLock.Succeeded)
@@ -135,36 +139,27 @@ namespace VLib
             return ReadUnsafe(index, out value);
         }
         
-        public bool ReadUnsafe(int index, out T value)
+        public readonly bool ReadUnsafe(int index, out T value)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            if (index < 0 || index >= RawListPtr->Length)
+            this.ConditionalCheckIsCreated();
+            if (index < 0 || index >= ListRef.Length)
             {
                 value = default;
                 return false;
             }
-#endif
-            value = (*RawListPtr)[index];
+            value = ListRef[index];
             return true;
         }
 
-        /// <summary> Acquires read lock. Do not hold the pointer past the read lock. </summary>
-        public bool TryGetElementPtrSafe(int index, out T* valuePtr)
-        {
-            using var scopeLock = BurstLock.ScopedReadLock(.25f);
-            return TryGetElementPtrNoLock(index, out valuePtr);
-        }
-
-        /// <summary> Do NOT hold onto this pointer, use it and drop it ASAP for safety. Should be used inside a lock. </summary>
-        public bool TryGetElementPtrNoLock(int index, out T* valuePtr)
+        public readonly unsafe ref T TryGetElementRefNoLock(int index, out bool success)
         {
             if (!IsIndexValidUnsafe(index))
             {
-                valuePtr = null;
-                return false;
+                success = false;
+                return ref UnsafeUtility.AsRef<T>(null);
             }
-            valuePtr = (*RawListPtr).GetListElementPtr(index);
-            return true;
+            success = true;
+            return ref ListRef.ElementAt(index);
         }
 
         public bool WriteSafe(int index, T value, float timeOut = 0.25f)
@@ -172,17 +167,19 @@ namespace VLib
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeOut);
             if (!scopeLock.Succeeded)
                 return false;
-            if (index < 0 || index >= RawListPtr->Length)
+            ref var listRef = ref ListRef;
+            if (index < 0 || index >= listRef.Length)
                 return false;
-            (*RawListPtr)[index] = value;
+            listRef[index] = value;
             return true;
         }
         
         public bool WriteUnsafe(int index, T value)
         {
-            if (index < 0 || index >= RawListPtr->Length)
+            ref var listRef = ref ListRef;
+            if (index < 0 || index >= listRef.Length)
                 return false;
-            (*RawListPtr)[index] = value;
+            listRef[index] = value;
             return true;
         }
 
@@ -191,7 +188,7 @@ namespace VLib
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeOut);
             if (!scopeLock.Succeeded)
                 return false;
-            RawListPtr->Add(value);
+            ListRef.Add(value);
             return true;
         }
 
@@ -200,14 +197,8 @@ namespace VLib
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeOut);
             if (!scopeLock.Succeeded)
                 return false;
-            RawListPtr->RemoveAt(index);
+            ListRef.RemoveAt(index);
             return true;
-        }
-        
-        public readonly void AssertIsCreated()
-        {
-            if (!IsCreated)
-                throw new InvalidOperationException("VUnsafeList has not been allocated or has been deallocated.");
         }
         
         #region Enumeration
@@ -239,7 +230,7 @@ namespace VLib
         /// In an enumerator's initial state, <see cref="Current"/> is invalid.
         /// The first <see cref="MoveNext"/> call advances the enumerator to the first element of the list.
         /// </remarks>
-        public struct Enumerator : IEnumerator<T>, IDisposable
+        public unsafe struct Enumerator : IEnumerator<T>, IDisposable
         {
             private T* m_Ptr;
             private int m_Length;
@@ -251,7 +242,7 @@ namespace VLib
             {
                 list.burstLock.EnterRead();
                 
-                m_Ptr = list.RawListPtr->Ptr;
+                m_Ptr = list.ListRef.Ptr;
                 burstLock = list.burstLock;
                 m_Length = list.LengthUnsafe;
                 m_Index = -1;
@@ -291,7 +282,7 @@ namespace VLib
             object IEnumerator.Current => Current;
         }
         
-        public struct UnsafeEnumerator : IEnumerator<T>
+        public unsafe struct UnsafeEnumerator : IEnumerator<T>
         {
             private T* m_Ptr;
             private int m_Length;
@@ -299,7 +290,7 @@ namespace VLib
             
             public UnsafeEnumerator(ParallelUnsafeList<T> list)
             {
-                m_Ptr = list.RawListPtr->Ptr;
+                m_Ptr = list.ListRef.Ptr;
                 m_Length = list.LengthUnsafe;
                 m_Index = -1;
             }
@@ -345,23 +336,21 @@ namespace VLib
         /// <returns>A read only of this list.</returns>
         public ReadOnly AsReadOnly()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            this.ConditionalCheckIsCreated();
             // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
             return new ReadOnly(this);
         }
 
         /// <summary> A readonly version of ParallelUnsafeList, use AsReadOnly() to get one. </summary>
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] { typeof(int) })]
-        public struct ReadOnly : IReadOnlyList<T>
+        public unsafe struct ReadOnly : IReadOnlyList<T>
         {
             private ParallelUnsafeList<T> list;
             
             public ReadOnly(ParallelUnsafeList<T> list) => this.list = list;
             
             /// <summary> The internal buffer of the list. </summary>
-            public readonly T* Ptr => list.RawListPtr->Ptr;
+            public readonly T* Ptr => list.ListRef.Ptr;
 
             public int Count => list.CountSafe(out var count) ? count : default;
             public readonly int CountUnsafe => list.LengthUnsafe;
@@ -402,9 +391,7 @@ namespace VLib
         /// <example>using var listReader = list.GetScopedParallelReader()</example>
         public readonly ScopedParallelReader GetScopedParallelReader(float timeout = 0.25f)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
-#endif
+            this.ConditionalCheckIsCreated();
             // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
             return new ScopedParallelReader(this, timeout);
         }
@@ -446,8 +433,8 @@ namespace VLib
 
             public static implicit operator bool(ScopedParallelReader reader) => reader.locked;
 
-            /// <summary> The internal buffer of the list. </summary>
-            public readonly T* Ptr => list.RawListPtr->Ptr;
+            /*/// <summary> The internal buffer of the list. </summary>
+            public readonly T* Ptr => list.ListRef.Ptr;*/
             
             public readonly int Count => list.LengthUnsafe;
             
@@ -461,9 +448,8 @@ namespace VLib
             
             public ref T ElementAt(int index)
             {
-#if SAFETY
-                GetIsValid();
-#endif
+                list.ConditionalCheckIsCreated();
+                VCollectionUtils.ConditionalCheckIndexValid(index, list.LengthUnsafe);
                 return ref list.ListRef.ElementAt(index);
             }
 

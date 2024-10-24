@@ -90,14 +90,14 @@ namespace VLib.Libraries.VLib.Collections
 
         public bool ListIndexInRange(int listIndex) => listIndex >= 0 && listIndex < listStartLengths.Length;
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckEndListIndex()
         {
             if (EndListIndex < 0)
                 throw new System.InvalidOperationException($"No lists have been added. You must call {nameof(AddList)} before calling {nameof(AddElementToCurrent)}.");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckListIndex(int index)
         {
             if (!ListIndexInRange(index))

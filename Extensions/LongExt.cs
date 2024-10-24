@@ -36,7 +36,7 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong IncrementToUlong(ref this long nextID) => Interlocked.Increment(ref nextID).ToUlongRange();
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void CheckValueInRange(this long valueL, long min, long max)
         {
             if (valueL < min || valueL > max)

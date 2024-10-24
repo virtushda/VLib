@@ -3,26 +3,22 @@ using Unity.Burst;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
+using VLib.Utility;
 
 namespace VLib.Systems
 {
     /// <summary> A class responsible for handling the shared static time data. </summary>
-    internal unsafe class VTimeData
+    internal class VTimeData
     {
         #region Statics
         
         internal static readonly SharedStatic<TimeData> timeNative = SharedStatic<TimeData>.GetOrCreate<VTimeData>();
-#if TIME_PTR_AS_PROPERTY
-        internal static TimeData* rawTimeDataPtr => (TimeData*) timeNative.UnsafeDataPointer;
-#else
-        /// <summary> This cached pointer speeds up access to the time data by a factor of 2-3x by removing a property call. </summary>
-        internal static TimeData* rawTimeDataPtr;
-#endif
 
         static Thread timeBackgroundUpdateThread;
 
         internal struct TimeData
         {
+            /// <summary> This value comes from Time class, but the time class value should be set by <see cref="VTime.SetTimeScale"/> </summary>
             public float currentTimeScale;
             public float time;
             public double timePrecise;
@@ -57,9 +53,6 @@ namespace VLib.Systems
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init()
         {
-#if !TIME_PTR_AS_PROPERTY
-            rawTimeDataPtr = (TimeData*) timeNative.UnsafeDataPointer; // This should never move in memory during the lifetime of the application.
-#endif
             if (timeBackgroundUpdateThread != null)
             {
                 try
@@ -106,13 +99,16 @@ namespace VLib.Systems
             });
             timeBackgroundUpdateThread.Start();
             
-#if UNITY_EDITOR
+            VApplicationMonitor.OnQuitAndAllScenesUnloaded -= OnQuit;
+            VApplicationMonitor.OnQuitAndAllScenesUnloaded += OnQuit;
+            
+/*#if UNITY_EDITOR
             EditorApplication.playModeStateChanged -= OnReenterEditMode;
             EditorApplication.playModeStateChanged += OnReenterEditMode;
-#endif
+#endif*/
         }
         
-#if UNITY_EDITOR
+/*#if UNITY_EDITOR
         static void OnReenterEditMode(PlayModeStateChange stateChange)
         {
             if (stateChange != PlayModeStateChange.EnteredEditMode)
@@ -122,7 +118,15 @@ namespace VLib.Systems
             timeBackgroundUpdateThread.Abort();
             timeBackgroundUpdateThread = null;
         }
-#endif
+#endif*/
+
+        static void OnQuit()
+        {
+            // Cleanup the thread
+            Debug.Log("Aborting background time update thread.");
+            timeBackgroundUpdateThread?.Abort();
+            timeBackgroundUpdateThread = null;
+        }
         
         #endregion
     }

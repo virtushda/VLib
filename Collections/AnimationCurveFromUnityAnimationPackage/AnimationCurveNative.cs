@@ -169,7 +169,7 @@ namespace Unity.Animation
             }
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void ValidateKeyframeGet(int index, AnimationCurveType expectedType)
         {
             if (Type != expectedType)
@@ -178,7 +178,7 @@ namespace Unity.Animation
                 throw new IndexOutOfRangeException($"Index {index} is not in the range of the curve keyframes: [0, {KeyframesTime.Length})");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         internal void ThrowInvalidCurveType()
         {
             throw new InvalidOperationException($"Curve has a type that is not valid ({Type}).");

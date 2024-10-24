@@ -28,7 +28,7 @@ namespace VLib
         public ulong SafetyID => safetyHandle.safetyIDCopy;
         public bool IsCreated => safetyHandle.IsValid;
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void ConditionalCheckValid() => safetyHandle.ConditionalCheckValid();
         
         public T ValueCopy

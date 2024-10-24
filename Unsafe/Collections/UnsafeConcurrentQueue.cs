@@ -854,7 +854,7 @@ namespace VLib.Libraries.VLib.Unsafe.Collections
             *Tail = *Head =  new UnsafeConcurrentQueueSegment<T>(InitialSegmentLength, allocator);
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckFrozenForEnqueues(UnsafeConcurrentQueueSegment<T>* segment)
         {
             if (!segment->_frozenForEnqueues)

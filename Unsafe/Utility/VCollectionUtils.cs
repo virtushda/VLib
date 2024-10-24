@@ -39,7 +39,7 @@ namespace VLib
         #region Checks
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static unsafe void CheckPtrNonNull(void* ptr)
         {
             if (ptr == null)
@@ -47,7 +47,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static unsafe void CheckPtrNonNull(IntPtr ptr)
         {
             if (ptr == IntPtr.Zero)
@@ -55,7 +55,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckValueNonZero(int value)
         {
             if (value == 0)
@@ -63,7 +63,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckValueGreaterThanZero(int value)
         {
             if (value <= 0)
@@ -71,7 +71,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckIndexValid(int index, int length)
         {
             if (index < 0 || index >= length)
@@ -79,7 +79,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckRangeValid(int start, int count, int length)
         {
             if (start < 0)
@@ -91,7 +91,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckIsCreated<T>(this NativeArray<T> array)
             where T : unmanaged
         {
@@ -100,7 +100,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckIsCreated<T>(this UnsafeList<T> list)
             where T : unmanaged
         {
@@ -148,7 +148,7 @@ namespace VLib
         
         #region CHECKS
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalAssertIsCreated<TCollection>(this TCollection collection)
             where TCollection : IVLibUnsafeContainerReadOnly
         {

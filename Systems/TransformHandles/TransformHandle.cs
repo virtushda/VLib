@@ -18,7 +18,7 @@ namespace VLib.Systems.TransformHandles
 
         public bool IsValid => internalMemory.IsCreated && internalMemory.Ref.transformID == transformID;
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void CheckValid()
         {
             if (!IsValid)

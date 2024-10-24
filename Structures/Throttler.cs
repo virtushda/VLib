@@ -147,7 +147,7 @@ namespace OtherIterations.EntityAwarenessSystem
             Interlocked.Exchange(ref internalLock, 0);
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckNonAbsurd()
         {
             if (ratePerElement <= .0001f)

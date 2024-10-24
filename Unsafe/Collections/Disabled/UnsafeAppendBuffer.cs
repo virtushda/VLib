@@ -545,7 +545,7 @@ namespace VLib
             public void ReadNext(out string value) => NotBurstCompatible.Extensions.ReadNextNBC(ref this, out value);
 #endif
 
-            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
             void CheckBounds(int structSize)
             {
                 if (Offset + structSize > Size)
@@ -555,7 +555,7 @@ namespace VLib
             }
         }#1#
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         static void CheckAlignment(int alignment)
         {
             var zeroAlignment = alignment == 0;

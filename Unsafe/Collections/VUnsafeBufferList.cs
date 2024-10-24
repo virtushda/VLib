@@ -48,6 +48,7 @@ namespace VLib
             unusedIndices = UnsafeList<int>.Create(initialCapacity, allocator, options);
         }
 
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public readonly void ConditionalCheckIsCreated()
         {
             if (!IsCreated)
@@ -56,7 +57,7 @@ namespace VLib
 
         public readonly bool IndexValid(int index) => index < Length && index >= 0;
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public readonly void ConditionalCheckIndexValid(int index)
         {
             ConditionalCheckIsCreated();
@@ -360,8 +361,8 @@ namespace VLib
         /// <exception cref="IndexOutOfRangeException">Thrown if `index` is out of bounds.</exception>
         public void RemoveAtSwapBack(int index)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
+           AssertIsCreated();
 #endif
             listData->RemoveAtSwapBack(index);
         }
@@ -378,8 +379,7 @@ namespace VLib
         /// or `index + count` exceeds the length.</exception>
         public void RemoveRangeSwapBack(int index, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           AssertIsCreated();
 #endif
             listData->RemoveRangeSwapBack(index, count);
         }
@@ -394,8 +394,7 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `index` is out of bounds.</exception>
         public void RemoveAt(int index)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIndexValid(index);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           AssertIndexValid(index);
 #endif
             listData->RemoveAt(index);
         }
@@ -413,8 +412,7 @@ namespace VLib
         /// or `index + count` exceeds the length.</exception>
         public void RemoveRange(int index, int count)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           AssertIsCreated();
 #endif
             listData->RemoveRange(index, count);
         }
@@ -439,8 +437,7 @@ namespace VLib
         /// <summary> Try to remove and return a value from the end of the list. False if list is empty. Calling on an uncreated list will throw. </summary>
         public bool TryPopLastElement(out T value)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AssertIsCreated();
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           AssertIsCreated();
 #endif
             var lastIndex = Length - 1;
             if (lastIndex < 0)
@@ -504,7 +501,7 @@ namespace VLib
                 return inputDeps;
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            var jobHandle = new VUnsafeListDisposeJob {Data = new VUnsafeListDispose {m_ListData = (UntypedUnsafeList*) listData, m_Safety = m_Safety}}.Schedule(inputDeps);
+           var jobHandle = new VUnsafeListDisposeJob {Data = new VUnsafeListDispose {m_ListData = (UntypedUnsafeList*) listData, m_Safety = m_Safety}}.Schedule(inputDeps);
             AtomicSafetyHandle.Release(m_Safety);
 #else
             var jobHandle = new VUnsafeListDisposeJob { Data = new VUnsafeListDispose { m_ListData = (UntypedUnsafeList*)m_ListData } }.Schedule(inputDeps);
@@ -647,7 +644,7 @@ namespace VLib
         public NativeArray<T> AsDeferredJobArray()
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AtomicSafetyHandle.CheckExistsAndThrow(m_Safety);
+           AtomicSafetyHandle.CheckExistsAndThrow(m_Safety);
 #endif
             byte* buffer = (byte*) listData;
             // We use the first bit of the pointer to infer that the array is in list mode
@@ -655,8 +652,8 @@ namespace VLib
             buffer += 1;
             var array = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(buffer, 0, Allocator.Invalid);
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref array, m_Safety);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS 
+           NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref array, m_Safety);
 #endif
 
             return array;
@@ -691,9 +688,7 @@ namespace VLib
         /// <param name="other">An container to copy into this container.</param>
         public void CopyFrom(in UnsafeList<T> other)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
             ConditionalCheckIsCreated();
-#endif
             listData->CopyFrom(other);
         }
 
@@ -716,9 +711,7 @@ namespace VLib
         /// <param name="options">Whether to clear any newly allocated bytes to all zeroes.</param>
         public void Resize(int length, NativeArrayOptions options)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
             ConditionalCheckIsCreated();
-#endif
             listData->Resize(length, options);
         }
 
@@ -729,9 +722,7 @@ namespace VLib
         /// <param name="length">The new length of this list.</param>
         public void ResizeUninitialized(int length)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
             ConditionalCheckIsCreated();
-#endif
             Resize(length, NativeArrayOptions.UninitializedMemory);
         }
 
@@ -741,9 +732,7 @@ namespace VLib
         /// <param name="capacity">The new capacity.</param>
         public void SetCapacity(int capacity)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
             ConditionalCheckIsCreated();
-#endif
             listData->SetCapacity(capacity);
         }
 
@@ -752,9 +741,7 @@ namespace VLib
         /// </summary>
         public void TrimExcess()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
             ConditionalCheckIsCreated();
-#endif
             listData->TrimExcess();
         }
 
@@ -767,7 +754,7 @@ namespace VLib
         public NativeArray<T>.ReadOnly AsParallelReader()
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            return new NativeArray<T>.ReadOnly(listData->Ptr, listData->Length, ref m_Safety);
+           return new NativeArray<T>.ReadOnly(listData->Ptr, listData->Length, ref m_Safety);
 #else
             return new NativeArray<T>.ReadOnly(m_ListData->Ptr, m_ListData->Length);
 #endif
@@ -863,16 +850,16 @@ namespace VLib
         [NativeContainer]
         [NativeContainerIsAtomicWriteOnly]
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
-        public unsafe struct ParallelWriter
+        public struct ParallelWriter
         {
-            /// <summary>
+            /*/// <summary>
             /// The data of the list.
             /// </summary>
             public readonly void* Ptr
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 get => ListData->Ptr;
-            }
+            }*/
 
             /// <summary>
             /// The internal unsafe list.
@@ -880,9 +867,16 @@ namespace VLib
             /// <value>The internal unsafe list.</value>
             [NativeDisableUnsafePtrRestriction] public UnsafeList<T>* ListData;
 
-            public bool IsCreated => ListData != null && ListData->IsCreated;
-
-            internal unsafe ParallelWriter(UnsafeList<T>* listData) => ListData = listData;
+            public readonly bool IsCreated => ListData != null && ListData->IsCreated;
+            
+            [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+            public readonly void ConditionalCheckIsCreated()
+            {
+                if (!IsCreated)
+                    throw new InvalidOperationException("ParallelWriter can not be written to because it was not initialized");
+            }
+            
+            internal ParallelWriter(UnsafeList<T>* listData) => ListData = listData;
 
             /// <summary>
             /// Appends an element to the end of this list.
@@ -894,10 +888,7 @@ namespace VLib
             /// <exception cref="InvalidOperationException">Thrown if adding an element would exceed the capacity.</exception>
             public void AddNoResize(T value)
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                if (!IsCreated)
-                    throw new InvalidOperationException("ParallelWriter can not be written to because it was not initialized");
-#endif
+                ConditionalCheckIsCreated();
                 var idx = Interlocked.Increment(ref ListData->m_length) - 1;
                 CheckSufficientCapacity(ListData->Capacity, idx + 1);
 
@@ -916,11 +907,8 @@ namespace VLib
             public void AddRangeNoResize(void* ptr, int count)
             {
                 CheckArgPositive(count);
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                if (!IsCreated)
-                    throw new InvalidOperationException("ParallelWriter can not be written to because it was not initialized");
-#endif
+                ConditionalCheckIsCreated();
+                
                 var idx = Interlocked.Add(ref ListData->m_length, count) - count;
                 CheckSufficientCapacity(ListData->Capacity, idx + count);
 
@@ -1019,22 +1007,20 @@ namespace VLib
         /// <returns>A read only of this list.</returns>
         public ReadOnly AsReadOnly()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
             ConditionalCheckIsCreated();
-#endif
             // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
             return new ReadOnly(this);
         }
 
         /// <summary> A readonly version of VUnsafeList, use AsReadOnly() to get one. </summary>
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] { typeof(int) })]
-        public readonly unsafe struct ReadOnly
-            : IEnumerable<T>
+        public readonly struct ReadOnly
+            /*: IEnumerable<T>*/
         {
             public readonly VUnsafeBufferList<T> list;
             
-            /// <summary> The internal buffer of the list. </summary>
-            public readonly T* Ptr => list.listData->Ptr;
+            /*/// <summary> The internal buffer of the list. </summary>
+            public readonly T* Ptr => list.listData->Ptr;*/
 
             /// <summary> The number of elements. </summary>
             public readonly int Length => list.Length;
@@ -1045,7 +1031,7 @@ namespace VLib
             {
                 get
                 {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG                   
                     return ReadSafe(index);
 #else
                     return list[index];
@@ -1058,6 +1044,7 @@ namespace VLib
             /// <summary> Performs a guarded read and logs and error if something was wrong. </summary>
             public readonly T ReadSafe(int index)
             {
+                
                 if (list.TryGetValue(index, out var value))
                     return value;
                 UnityEngine.Debug.LogError($"Index {index} is out of range in VUnsafeList.ReadOnly of '{Length}' Length.");
@@ -1066,7 +1053,7 @@ namespace VLib
             
             public readonly bool TryGetValue(int index, out T value) => list.TryGetValue(index, out value);
 
-            /// <summary>
+            /*/// <summary>
             /// Returns an enumerator over the elements of the list.
             /// </summary>
             /// <returns>An enumerator over the elements of the list.</returns>
@@ -1084,7 +1071,7 @@ namespace VLib
             /// </summary>
             /// <returns>Throws NotImplementedException.</returns>
             /// <exception cref="NotImplementedException">Method is not implemented.</exception>
-            IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
+            IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();*/
         }
 
         #endregion

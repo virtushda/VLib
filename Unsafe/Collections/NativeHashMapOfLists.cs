@@ -20,7 +20,7 @@ namespace VLib
     [NativeContainer]
     /*[DebuggerDisplay("Count = {m_HashMapData.Count()}, Capacity = {m_HashMapData.Capacity}, IsCreated = {m_HashMapData.IsCreated}, IsEmpty = {IsEmpty}")]*/
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new [] { typeof(int), typeof(int) })]
-    public unsafe struct NativeHashMapOfLists<TKey, TValue>
+    public struct NativeHashMapOfLists<TKey, TValue>
         : IDisposable
         , IEnumerable<KeyValue<TKey, TValue>> // Used by collection initializers.
         where TKey : unmanaged, IEquatable<TKey>
@@ -29,7 +29,7 @@ namespace VLib
         VUnsafeRef<UnsafeParallelHashMap<TKey, VUnsafeList<TValue>>> listMap;
         Allocator listAllocator;
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS      
         internal AtomicSafetyHandle m_Safety;
         static readonly SharedStatic<int> s_staticSafetyId = SharedStatic<int>.GetOrCreate<NativeHashMapOfLists<TKey, TValue>>();
 
@@ -318,7 +318,7 @@ namespace VLib
         {
             ParallelWriter writer;
             writer.m_Writer = m_HashMapData.AsParallelWriter();
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS         
             writer.m_Safety = m_Safety;
             CollectionHelper.SetStaticSafetyId<ParallelWriter>(ref writer.m_Safety, ref ParallelWriter.s_staticSafetyId.Data);
 #endif
@@ -339,8 +339,8 @@ namespace VLib
         {
             internal UnsafeHashMap<TKey, TValue>.ParallelWriter m_Writer;
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            internal AtomicSafetyHandle m_Safety;
+#if ENABLE_UNITY_COLLECTIONS_CHECKS           
+internal AtomicSafetyHandle m_Safety;
             internal static readonly SharedStatic<int> s_staticSafetyId = SharedStatic<int>.GetOrCreate<ParallelWriter>();
 #endif
             /// <summary>
@@ -359,7 +359,7 @@ namespace VLib
             {
                 get
                 {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS                   
                     AtomicSafetyHandle.CheckReadAndThrow(m_Safety);
 #endif
                     return m_Writer.Capacity;
@@ -375,8 +375,8 @@ namespace VLib
             /// <returns>True if the key-value pair was added.</returns>
             public bool TryAdd(TKey key, TValue item)
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AtomicSafetyHandle.CheckWriteAndBumpSecondaryVersion(m_Safety);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS             
+AtomicSafetyHandle.CheckWriteAndBumpSecondaryVersion(m_Safety);
 #endif
                 return m_Writer.TryAdd(key, item);
             }
@@ -413,8 +413,8 @@ namespace VLib
         [NativeContainerIsReadOnly]
         public struct Enumerator : IEnumerator<KeyValue<TKey, TValue>>
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            internal AtomicSafetyHandle m_Safety;
+#if ENABLE_UNITY_COLLECTIONS_CHECKS           
+internal AtomicSafetyHandle m_Safety;
 #endif
             internal UnsafeHashMapDataEnumerator m_Enumerator;
 
@@ -429,8 +429,8 @@ namespace VLib
             /// <returns>True if <see cref="Current"/> is valid to read after the call.</returns>
             public bool MoveNext()
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AtomicSafetyHandle.CheckReadAndThrow(m_Safety);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS            
+AtomicSafetyHandle.CheckReadAndThrow(m_Safety);
 #endif
                 return m_Enumerator.MoveNext();
             }
@@ -440,8 +440,8 @@ namespace VLib
             /// </summary>
             public void Reset()
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AtomicSafetyHandle.CheckReadAndThrow(m_Safety);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS             
+AtomicSafetyHandle.CheckReadAndThrow(m_Safety);
 #endif
                 m_Enumerator.Reset();
             }
@@ -455,29 +455,29 @@ namespace VLib
             object IEnumerator.Current => Current;
         }*/
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckRead()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS           
             AtomicSafetyHandle.CheckReadAndThrow(m_Safety);
 #endif
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckWrite()
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS           
             AtomicSafetyHandle.CheckWriteAndBumpSecondaryVersion(m_Safety);
 #endif
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void ThrowKeyNotPresent(TKey key)
         {
             throw new ArgumentException($"Key: {key} is not present in the NativeHashMap.");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void ThrowKeyAlreadyAdded(TKey key)
         {
             throw new ArgumentException("An item with the same key has already been added", nameof(key));

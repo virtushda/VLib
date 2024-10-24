@@ -9,7 +9,7 @@ namespace VLib
 {
     public static class UnsignedExt
     {
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void CheckPositive(this int value)
         {
             if (value < 0)
@@ -94,7 +94,7 @@ namespace VLib
             Interlocked.Exchange(ref lockValue, 0);
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalErrorIfNonZero(this int value)
         {
             if (value == 0)

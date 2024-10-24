@@ -51,7 +51,7 @@ namespace VLib
             *(T*)ptr = value;
         }
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         private static void CheckAllocateArguments(int length, Allocator allocator, long totalSize)
         {
             if (allocator <= Allocator.None)
@@ -61,7 +61,7 @@ namespace VLib
             IsUnmanagedAndThrow();
         }
 
-        private static unsafe void Allocate(Allocator allocator, out VUnsafeRefDisposable<T> unsafeRef)
+        private static void Allocate(Allocator allocator, out VUnsafeRefDisposable<T> unsafeRef)
         {
             long num = UnsafeUtility.SizeOf<T>();
             CheckAllocateArguments(1, allocator, num);
@@ -216,7 +216,7 @@ namespace VLib
         internal AllocatorManager.AllocatorHandle m_AllocatorLabel;
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-        internal AtomicSafetyHandle m_Safety;
+internal AtomicSafetyHandle m_Safety;
 #endif
 
         public void Dispose()

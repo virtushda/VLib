@@ -17,7 +17,7 @@ namespace VLib
 
             public NativeViewBaggage(ulong gcHandle
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                                     , AtomicSafetyHandle safetyHandle
+                , AtomicSafetyHandle safetyHandle
 #endif
             )
             {
@@ -37,7 +37,7 @@ namespace VLib
                     UnsafeUtility.ReleaseGCObject(gcHandle);
                 else
                     Debug.LogError("GC Handle is 0!");
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS 
                 AtomicSafetyHandle.Release(safetyHandle);
 #endif
             }
@@ -51,7 +51,7 @@ namespace VLib
         public static NativeArray<T> GetNativeView<T>(this T[] array, out NativeViewBaggage baggage, int length = -1)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (array == null)
                 throw new UnityException("Array is null!");
             if (array.Length < 1)
@@ -72,14 +72,14 @@ namespace VLib
             //Create View
             var arrayView = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(matrixArrayPtr, length, Allocator.Invalid);
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS 
             var safety = AtomicSafetyHandle.Create();
             NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref arrayView, safety);
             baggage = new NativeViewBaggage(gcHandle, safety);
 #else
             baggage = new NativeViewBaggage(gcHandle
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                                            , default
+                                           , default
 #endif
                                             );
 #endif
@@ -94,7 +94,7 @@ namespace VLib
         public static UnsafeView<T> GetUnsafeView<T>(this T[] array, int length = -1)
             where T : unmanaged
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (array == null)
                 throw new UnityException("Array is null!");
             if (array.Length < 1)

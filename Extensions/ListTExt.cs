@@ -355,7 +355,7 @@ namespace VLib
                 list.Capacity = capacity;
         }
         
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckIndexValid<T>(this IReadOnlyList<T> readOnlyList, int index)
         {
             if (index < 0 || index >= readOnlyList.Count)

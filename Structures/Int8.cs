@@ -37,7 +37,8 @@ namespace VLib.Structures
             var count = math.min(valueCollection.Length, 8);
             // First 4
             ref var c0 = ref matrix.c0;
-            for (var i = 0; i < count; i++)
+            var countUpTo4 = math.min(count, 4);
+            for (var i = 0; i < countUpTo4; i++)
                 c0[i] = valueCollection.ElementAt(i);
             // Last 4
             ref var c1 = ref matrix.c1;

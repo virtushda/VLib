@@ -17,14 +17,11 @@ namespace VLib
         public static NativeArray<T> GetNativeView<T>(this List<T> list, out ArrayExtUnsafe.NativeViewBaggage baggage, int count = -1)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (count > list.Count)
             {
                 count = list.Count;
                 Debug.LogError($"GetNativeView 'Count' '{count}' is larger than the list.count of '{list.Count}'.");
             }
-#endif
-
             if (count < 0)
                 count = list.Count;
             //Get array inside list (length will NOT match count)

@@ -64,13 +64,13 @@ namespace VLib
             where T : unmanaged
         {
             //Could probably use more checks in here... Add if you encounter an exception PLAS
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+//#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (!dstHandlePinnedType.IsAllocated)
             {
                 UnityEngine.Debug.LogError("Safety Exception: GCHandle is not allocated!");
                 return;
             }
-#endif
+//#endif
 
             UnsafeUtility.MemCpy((void*)((IntPtr)(void*)dstHandlePinnedType.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()),
                                  (void*)((IntPtr)src.Ptr + srcIndex * UnsafeUtility.SizeOf<T>()),
@@ -80,10 +80,7 @@ namespace VLib
         public static void CopyToUnsafe<T>(this NativeArray<T> src, int srcIndex, ref UnsafeList<T> dst, int dstIndex, int length)
             where T : unmanaged
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            if (!dst.IsCreated)
-                throw new ArgumentNullException(nameof(dst));
-#endif
+            dst.ConditionalCheckIsCreated();
 
             //Ensure Cap
             int previousListLength = dst.Length;
@@ -124,7 +121,7 @@ namespace VLib
             int length)
             where T : unmanaged
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (source.Length < sourceIndex + length)
                 throw new ArgumentException("Source array is smaller than the length of the copy!");
             if (dest == null)
@@ -155,7 +152,7 @@ namespace VLib
             int length)
             where T : unmanaged
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (dest == null)
                 throw new ArgumentNullException(nameof(dest));
             if (dest.Length < destIndex + length)
@@ -185,7 +182,7 @@ namespace VLib
         public static ref T GetRef<T>(this NativeArray<T> array, int index)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= array.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
@@ -196,7 +193,7 @@ namespace VLib
         public static ref T GetRefReadOnly<T>(this NativeArray<T> array, int index)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= array.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
@@ -207,7 +204,7 @@ namespace VLib
         public static ref T GetRefReadOnly<T>(this NativeArray<T>.ReadOnly array, int index)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= array.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
@@ -218,7 +215,7 @@ namespace VLib
         public static ref T GetRefNoChecksUNSAFE<T>(this NativeArray<T> array, int index)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= array.Length)
                 throw new ArgumentOutOfRangeException("Safety Exception: " + nameof(index));
@@ -503,8 +500,7 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= list.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
@@ -519,8 +515,7 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= list.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
@@ -862,7 +857,7 @@ namespace VLib
                    parallelWriter.ListData->IsCreated;
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void CheckReinterpretLoadRange<T, U>(this UnsafeList<T> list, int sourceIndex) 
             where T : unmanaged 
             where U : struct
@@ -876,7 +871,7 @@ namespace VLib
                 throw new ArgumentOutOfRangeException(nameof (sourceIndex), "loaded byte range must fall inside container bounds");
         }
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void CheckReinterpretStoreRange<T, U>(this UnsafeList<T> list, int destIndex)
             where T : unmanaged
             where U : struct

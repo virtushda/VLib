@@ -217,7 +217,7 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator float4(UnityMathematicsPlane plane) => plane.NormalAndDistance;
 
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         void CheckPlaneIsNormalized()
         {
             float ll = math.lengthsq(Normal.xyz);
