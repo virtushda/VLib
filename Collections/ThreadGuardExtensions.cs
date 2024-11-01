@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 
 namespace VLib
 {
@@ -20,7 +20,7 @@ namespace VLib
 
     public static class ThreadGuardExtensions
     {
-        /// <summary> Avoid boilerplate at the cost of tiny alloc. We have incremental GC, shouldn't be a problem with moderate use. </summary>
+        /#1#// <summary> Avoid boilerplate at the cost of tiny alloc. We have incremental GC, shouldn't be a problem with moderate use. </summary>
         public static void RunSafelyInLock<TGuard>(this TGuard guard, Action action)
             where TGuard : IThreadGuard
         {
@@ -58,7 +58,7 @@ namespace VLib
             }
 
             return default;
-        }
+        }#1#
 
         /*public static int Count<TList, TElement>(this IThreadGuardLockStruct<TList> guardStruct)
             where TList : ICollection<TElement>
@@ -94,6 +94,6 @@ namespace VLib
             where TList : ICollection<TElement>
         {
             guardStruct.ObjRef.CopyTo(array, arrayIndex);
-        }*/
+        }#1#
     }
-}
+}*/

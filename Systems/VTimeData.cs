@@ -1,6 +1,5 @@
 ﻿using System.Threading;
 using Unity.Burst;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
 using VLib.Utility;
@@ -61,8 +60,8 @@ namespace VLib.Systems
                 }
                 catch (ThreadAbortException e)
                 {
-                    UnityEngine.Debug.LogError("Failed to abort time background update thread.");
-                    UnityEngine.Debug.LogException(e);
+                    Debug.LogError("Failed to abort time background update thread.");
+                    Debug.LogException(e);
                 }
                 finally
                 {
@@ -98,28 +97,14 @@ namespace VLib.Systems
                 }
             });
             timeBackgroundUpdateThread.Start();
-            
-            VApplicationMonitor.OnQuitAndAllScenesUnloaded -= OnQuit;
-            VApplicationMonitor.OnQuitAndAllScenesUnloaded += OnQuit;
-            
-/*#if UNITY_EDITOR
-            EditorApplication.playModeStateChanged -= OnReenterEditMode;
-            EditorApplication.playModeStateChanged += OnReenterEditMode;
-#endif*/
-        }
-        
-/*#if UNITY_EDITOR
-        static void OnReenterEditMode(PlayModeStateChange stateChange)
-        {
-            if (stateChange != PlayModeStateChange.EnteredEditMode)
-                return;
-            
-            // Cleanup
-            timeBackgroundUpdateThread.Abort();
-            timeBackgroundUpdateThread = null;
-        }
-#endif*/
 
+            VApplicationMonitor.OnQuitAndAllScenesUnloaded -= OnQuitAct;
+            VApplicationMonitor.OnQuitAndAllScenesUnloaded += OnQuitAct;
+        }
+
+        // Specify end event happening late.
+        static SortedAction onQuitAct;
+        static SortedAction OnQuitAct => onQuitAct ??= new(OnQuit, 1000);
         static void OnQuit()
         {
             // Cleanup the thread

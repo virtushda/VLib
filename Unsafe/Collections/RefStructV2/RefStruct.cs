@@ -62,12 +62,6 @@ namespace VLib
                 return refData.TPtr;
             }
         }
-
-        /*uniqueID > 0 && // Valid ID
-        refData != null && // Non-null data ptr
-        dataPtrCopy != null && // Data ptr copy is pointing at something
-        refData->TPtr == dataPtrCopy && // Actual data ptr is the same as when this struct was created
-        refData->ValueRef.uniqueID == uniqueID; // IDs match in both locations*/
         
         RefStruct(T value, Allocator allocator = Allocator.Persistent)
         {
@@ -89,17 +83,21 @@ namespace VLib
             return refStruct;
         }
 
-        public void Dispose()
+        public void Dispose() => TryDispose();
+
+        public bool TryDispose()
         {
-            if (VSafetyHandle.TryDispose(safetyHandle))
+            if (safetyHandle.TryDispose())
             {
                 refData.Dispose();
 #if CLAIM_TRACKING
                 RefStructTracker.Untrack(safetyHandle.safetyIDCopy);
 #endif
+                return true;
             }
+            return false;
         }
-        
+
         public bool TryGetValue(out T value)
         {
             if (!IsCreated)
@@ -111,7 +109,7 @@ namespace VLib
             value = refData.ValueRef;
             return true;
         }
-        
+
         public ref T TryGetRef(out bool success)
         {
             if (!IsCreated)
@@ -123,7 +121,7 @@ namespace VLib
             success = true;
             return ref refData.ValueRef;
         }
-        
+
         public bool TryGetPtr(out T* ptr)
         {
             if (!IsCreated)
@@ -139,9 +137,11 @@ namespace VLib
         public override string ToString() => $"RefStruct|{safetyHandle} of type {typeof(T)}";
 
         public bool Equals(RefStruct<T> other) => /*refData.Equals(other.refData) && */safetyHandle.Equals(other.safetyHandle);
+
         public override bool Equals(object obj) => obj is RefStruct<T> other && Equals(other);
-        
+
         public static bool operator ==(RefStruct<T> left, RefStruct<T> right) => left.Equals(right);
+
         public static bool operator !=(RefStruct<T> left, RefStruct<T> right) => !left.Equals(right);
 
         public override int GetHashCode() => safetyHandle.GetHashCode();

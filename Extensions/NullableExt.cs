@@ -1,4 +1,6 @@
-﻿namespace VLib
+﻿using System;
+
+namespace VLib
 {
     public static class NullableExt
     {
@@ -11,6 +13,18 @@
                 return true;
             }
             value = defaultValue;
+            return false;
+        }
+        
+        public static bool TryDisposeToDefault<T>(ref this T? item, T defaultValue = default) 
+            where T : struct, IDisposable
+        {
+            if (item.TryGetValueOrDefault(out var value))
+            {
+                value.Dispose();
+                item = null;
+                return true;
+            }
             return false;
         }
     }

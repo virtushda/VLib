@@ -14,10 +14,12 @@ namespace Libraries.VLib.Tests
         [Test]
         public void VSafetyHandleTestsSimplePasses()
         {
+            var takenHandlesBeforeTest = VSafetyHandleManager.InternalMemoryField.Data.TakenHandles;
+            
             int testCount = 2048;
             
             // Parallel create and destroy test
-            Parallel.For(0, testCount, _ =>
+            Parallel.For((long) 0, testCount, _ =>
             {
                 const int handleCount = 64;
                 
@@ -36,21 +38,21 @@ namespace Libraries.VLib.Tests
                     }
                     else
                     {
-                        VSafetyHandle.TryDispose(handles[j]);
+                        handles[j].Dispose();
                         if (handles[j].IsValid)
                             Assert.Fail($"Just disposed handle {j} is valid!");
                     }
                 }
                 for (int j = 0; j < handleCount; j++)
                 {
-                    VSafetyHandle.TryDispose(handles[j]);
+                    handles[j].Dispose();
                     if (handles[j].IsValid)
                         Assert.Fail($"Just disposed handle {j} is valid!");
                 }
             });
 
             var takenHandles = VSafetyHandleManager.InternalMemoryField.Data.TakenHandles;
-            if (takenHandles != 0)
+            if (takenHandles != takenHandlesBeforeTest)
                 Assert.Fail($"Taken handle count is {takenHandles}!");
             
             // Test that default handles are invalid
@@ -131,7 +133,7 @@ namespace Libraries.VLib.Tests
                 }
                 else
                 {
-                    VSafetyHandle.TryDispose(handles[j]);
+                    handles[j].Dispose();
                     if (handles[j].IsValid)
                     {
                         errors.AddNoResize(HandleError.DisposedHandleIsValid);
@@ -141,7 +143,7 @@ namespace Libraries.VLib.Tests
             }
             for (int j = 0; j < handleCount; j++)
             {
-                VSafetyHandle.TryDispose(handles[j]);
+                handles[j].Dispose();
                 if (handles[j].IsValid)
                 {
                     errors.AddNoResize(HandleError.DisposedHandleIsValid);

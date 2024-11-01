@@ -115,7 +115,7 @@ namespace VLib
                 m_AllocatorLabel = default;
             }
             else
-                Debug.LogWarning("You're trying to dispose a VUnsafeRef that has already been disposed! (It holds a null ptr)");
+                Debug.LogError("You're trying to dispose a VUnsafeRef that has already been disposed! (It holds a null ptr)");
         }
 
         /// <summary>

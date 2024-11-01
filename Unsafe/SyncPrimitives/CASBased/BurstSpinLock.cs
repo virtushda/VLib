@@ -12,6 +12,8 @@ using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.IL2CPP.CompilerServices;
+using Unity.Jobs;
+using VLib.Jobs;
 using VLib.Systems;
 
 namespace VLib
@@ -126,5 +128,7 @@ namespace VLib
             if (Succeeded)
                 spinLock.Exit();
         }
+
+        public JobHandle GenerateDisposeJob(JobHandle dependencies) => new BurstSpinLockScopedReleaseJob(this).Schedule(dependencies);
     }
 }

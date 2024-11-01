@@ -3,13 +3,13 @@ using static Unity.Mathematics.math;
 
 namespace VLib
 {
-    public static class float3Ext
+    public static class float4Ext
     {
-        public static int CompareTo(this float3 value, float3 other)
+        public static int CompareTo(this float4 value, float4 other)
         {
             //Batch comparisons
-            bool3 lessThan = value < other;
-            bool3 greaterThan = value > other;
+            var lessThan = value < other;
+            var greaterThan = value > other;
             
             //Sort by X
             if (lessThan.x)
@@ -29,9 +29,15 @@ namespace VLib
             if (greaterThan.z)
                 return 1;
             
+            //Then W
+            if (lessThan.w)
+                return -1;
+            if (greaterThan.w)
+                return 1;
+            
             return 0;
         }
 
-        public static bool IsNanOrInf(this in float3 value) => any(isnan(value)) || any(isinf(value));
+        public static bool IsNanOrInf(this in float4 value) => any(isnan(value)) || any(isinf(value));
     }
 }

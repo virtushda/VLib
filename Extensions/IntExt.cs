@@ -66,6 +66,7 @@ namespace VLib
             
             public IntRefScopeLock(VUnsafeRef<int> refValue)
             {
+                refValue.ConditionalCheckIsCreated();
                 this.refValue = refValue;
                 refValue.ValueRef.AtomicLockUnsafe();
             }
@@ -90,12 +91,12 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AtomicUnlockChecked(ref this int lockValue)
         {
-            ConditionalErrorIfNonZero(lockValue);
+            ConditionalErrorIfZero(lockValue);
             Interlocked.Exchange(ref lockValue, 0);
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void ConditionalErrorIfNonZero(this int value)
+        public static void ConditionalErrorIfZero(this int value)
         {
             if (value == 0)
                 Debug.LogError($"Value '{value}' is zero!");

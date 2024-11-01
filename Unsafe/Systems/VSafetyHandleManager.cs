@@ -8,6 +8,7 @@ using System.Threading;
 using Unity.Burst;
 using UnityEditor;
 using UnityEngine;
+using VLib.Utility;
 using Debug = UnityEngine.Debug;
 
 namespace VLib
@@ -70,14 +71,15 @@ namespace VLib
             
             internal bool TryDestroy(VSafetyHandle handle)
             {
-                if (!handle.IsValid)
+                if (!handle.TryInvalidate())
                     return false;
                 
 #if STACKTRACE_CLAIM_TRACKING
                 UntrackStackTrace(handle.safetyIDCopy);
 #endif
                 Interlocked.Decrement(ref takenHandles);
-                safetyMemory.ReturnAddress(handle.truthLocation);
+                bool returned = safetyMemory.ReturnAddress(handle.truthLocation);
+                BurstAssert.True(returned);
                 return true;
             }
 
@@ -92,27 +94,34 @@ namespace VLib
         }
         
         // In the editor and the start of the game, ensure we are setting everything up
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init()
         {
             StackTraceClaimTrackingInit();
             InternalMemoryField.Data.Initialize();
-            
-#if UNITY_EDITOR
+
+            VApplicationMonitor.OnQuitAndAllScenesUnloaded += new SortedAction(Cleanup, 10000);
+
+/*#if UNITY_EDITOR
             EditorApplication.playModeStateChanged -= EditorCleanup;
             EditorApplication.playModeStateChanged += EditorCleanup;
-#endif
+#endif*/
         }
 
-#if UNITY_EDITOR
+/*#if UNITY_EDITOR
         // Let the memory leak outside the editor, Unity should give all that memory back to the OS anyway.
         static void EditorCleanup(PlayModeStateChange playModeStateChange)
         {
             if (playModeStateChange is PlayModeStateChange.EnteredEditMode)
                 InternalMemoryField.Data.Dispose();
         }
-#endif
-        
+#endif*/
+
+        static void Cleanup()
+        {
+            if (InternalMemoryField.Data.IsCreated)
+                InternalMemoryField.Data.Dispose();
+        }
 
         [BurstDiscard]
         static void StackTraceClaimTrackingInit()

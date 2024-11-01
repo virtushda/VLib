@@ -1,4 +1,5 @@
-﻿using Unity.Burst.Intrinsics;
+﻿using Unity.Burst;
+using Unity.Burst.Intrinsics;
 
 namespace VLib.Libraries.VLib.Unsafe.Utility
 {

@@ -42,6 +42,7 @@ namespace VLib.Systems
             VTimeData.timeNative.Data.SetFromMain();
         }
         
+        public const float DeltaTime5FPS = 1 / 5f;
         public const float DeltaTime10FPS = 1 / 10f;
         public const float DeltaTime12FPS = 1 / 12f;
         public const float DeltaTime15FPS = 1 / 15f;
@@ -53,6 +54,7 @@ namespace VLib.Systems
         public const float DeltaTime144FPS = 1 / 144f;
         public const float DeltaTime1000FPS = 1 / 1000f;
 
+        public const float DeltaMS5FPS = 1000 / 5f;
         public const float DeltaMS10FPS = 1000 / 10f;
         public const float DeltaMS12FPS = 1000 / 12f;
         public const float DeltaMS15FPS = 1000 / 15f;

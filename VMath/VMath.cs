@@ -1,10 +1,11 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using static Unity.Mathematics.math;
-
+using Debug = UnityEngine.Debug;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
 using quaternion = Unity.Mathematics.quaternion;
@@ -313,6 +314,52 @@ namespace VLib
             intersection = new float3(intersectionXZ.x, lerp(ya, yb, heightLerp), intersectionXZ.y);
             return true;
         }
+        
+        #region Checks
+        
+        /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
+        public static float CheckedDivide(this float numerator, float denominator, float epsilon = 0.0001f, bool logError = true)
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
+            if (abs(denominator) < epsilon)
+            {
+                if (logError)
+                    Debug.LogError("Division by zero!");
+                return 0;
+            }
+#endif
+            return numerator / denominator;
+        }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void CheckNAN(this float value)
+        {
+            if (isnan(value))
+                Debug.LogError("VALUE NAN");
+        }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void CheckNAN(this float2 value)
+        {
+            if (any(isnan(value)))
+                Debug.LogError("VALUE NAN");
+        }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void CheckNAN(this float3 value)
+        {
+            if (any(isnan(value)))
+                Debug.LogError("VALUE NAN");
+        }
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void CheckNAN(this float4 value)
+        {
+            if (any(isnan(value)))
+                Debug.LogError("VALUE NAN");
+        }
+        
+        #endregion
         
         public static class Grid
         {

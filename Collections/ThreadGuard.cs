@@ -2,28 +2,12 @@
 
 namespace VLib
 {
-    public enum LockType : byte { Unlocked, ConcurrentRead, Upgradable, ReadWrite }
-    
     /// <summary> Custom guard object. </summary>
-    public class ThreadGuard : IThreadGuard
+    public class ThreadGuard// : IThreadGuard
     {
         public const int DefaultTimeout = 10000;
         
         protected VReaderWriterLockSlim vRWLock = new();
-
-        public LockType LockState
-        {
-            get
-            {
-                if (vRWLock.internalLock.IsWriteLockHeld)
-                    return LockType.ReadWrite;
-                if (vRWLock.internalLock.IsUpgradeableReadLockHeld)
-                    return LockType.Upgradable;
-                if (vRWLock.internalLock.IsReadLockHeld)
-                    return LockType.ConcurrentRead;
-                return LockType.Unlocked;
-            }
-        }
 
         /// <summary> Exclusive </summary>
         public void EngageLock() => vRWLock.internalLock.EnterWriteLock();
@@ -50,7 +34,7 @@ namespace VLib
         public ref T ForceGetRef() => ref obj;
         
         public ExclusiveLock ScopedExclusiveLock(out T outObj) => new(this, out outObj);
-        public readonly struct ExclusiveLock : IDisposable, IThreadGuardLockExclusiveStruct<T>
+        public readonly struct ExclusiveLock : IDisposable//, IThreadGuardLockExclusiveStruct<T>
         {
             readonly ThreadGuard<T> guard;
             readonly VRWLockHoldScoped rwLockHold;
@@ -68,7 +52,7 @@ namespace VLib
         }
 
         public ReadLock ScopedReadLock(out T outObj) => new(this, out outObj);
-        public readonly struct ReadLock : IDisposable, IThreadGuardLockStruct<T>
+        public readonly struct ReadLock : IDisposable//, IThreadGuardLockStruct<T>
         {
             readonly ThreadGuard<T> guard;
             readonly VRWLockHoldScoped rwLockHold;

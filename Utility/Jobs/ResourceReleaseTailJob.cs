@@ -29,6 +29,68 @@ namespace VLib.Jobs
             }
         }
     }
+
+    public struct ManagedResourceReleaseTailJob<T> : IJob
+        where T : class, IReleasableJobResource
+    {
+        JobObjectRef<T> resourceRef;
+        
+        public ManagedResourceReleaseTailJob(JobObjectRef<T> resourceReference) => resourceRef = resourceReference;
+        
+        public void Execute()
+        {
+            try
+            {
+                if (resourceRef.IsValid && resourceRef.TryGet(out var resource))
+                    resource.ReleaseJobResource();
+                else
+                    UnityEngine.Debug.LogError($"Resource release job failed to get resource.");
+            }
+            catch (System.Exception e)
+            {
+                UnityEngine.Debug.LogError($"Error releasing job resource, next line...");
+                UnityEngine.Debug.LogException(e);
+            }
+            finally
+            {
+                resourceRef.Dispose();
+            }
+        }
+    }
+
+    /*public struct UnmanagedResourceReleaseTailJob<T> : IJob
+        where T : unmanaged, IReleasableJobResource
+    {
+        RefStruct<T> resourceRef;
+        
+        public UnmanagedResourceReleaseTailJob(RefStruct<T> resourceReference) => resourceRef = resourceReference;
+        
+        public void Execute()
+        {
+            try
+            {
+                if (resourceRef.IsCreated)
+                {
+                    ref var resource = ref resourceRef.TryGetRef(out var hasResource);
+                    if (hasResource)
+                        resource.ReleaseJobResource();
+                    else
+                        UnityEngine.Debug.LogError($"Resource release job failed to get resource.");
+                }
+                else
+                    UnityEngine.Debug.LogError($"Resource release job failed to get resource. Container not created.");
+            }
+            catch (System.Exception e)
+            {
+                UnityEngine.Debug.LogError($"Error releasing job resource, next line...");
+                UnityEngine.Debug.LogException(e);
+            }
+            finally
+            {
+                resourceRef.Dispose();
+            }
+        }
+    }*/
     
     public static class ResourceReleaseTailJobExtensions
     {
@@ -36,6 +98,12 @@ namespace VLib.Jobs
             where T : unmanaged, IReleasableJobResource
         {
             return new ResourceReleaseTailJob<T>(resource).Schedule(dependency);
+        }
+        
+        public static JobHandle ScheduleManagedResourceRelease<T>(this JobObjectRef<T> resourceRef, JobHandle dependency)
+            where T : class, IReleasableJobResource
+        {
+            return new ManagedResourceReleaseTailJob<T>(resourceRef).Schedule(dependency);
         }
     }
 }

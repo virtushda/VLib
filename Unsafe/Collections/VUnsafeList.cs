@@ -150,6 +150,12 @@ namespace VLib
         }
 
         public readonly void* GetUnsafePtr() => listData->Ptr;
+        
+        public ref T GetRef(int index)
+        {
+            ConditionalAssertIndexValid(index);
+            return ref ElementAt(index);
+        }
 
         public readonly bool TryGetValue(int index, out T value)
         {
@@ -161,6 +167,14 @@ namespace VLib
 
             value = default;
             return false;
+        }
+
+        public ref T TryGetRef(int index, out bool success)
+        {
+            success = IndexValid(index);
+            if (success)
+                return ref ElementAt(index);
+            return ref UnsafeUtility.AsRef<T>(default);
         }
 
         public readonly bool TryGetElementPtr(int index, out T* valuePtr)

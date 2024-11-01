@@ -6,7 +6,7 @@ namespace VLib
     /// <summary> Wrapped for native collections that integrates with the Native Sentinel Seth Shit, Simplifies chaining unrelated jobs.
     /// Multiply to create compound job handle.
     /// Add to create lists of Tracked-T. </summary>
-    public unsafe struct Tracked<TVal> : IDisposable, ITracked, IComparable<Tracked<TVal>>
+    public unsafe struct Tracked<TVal> : IAllocating, ITracked, IComparable<Tracked<TVal>>
         where TVal : unmanaged, IDisposable
     {
         public static implicit operator bool(Tracked<TVal> tracked) => tracked.IsCreated;
@@ -68,6 +68,7 @@ namespace VLib
         /// <summary> Recommend to use <see cref="ITrackedExt.DisposeTrackedToDefault(x,bool)"/> wherever possible. This simply satisfies IDisposable </summary>
         public void Dispose() => Dispose(true);
 
+        /// <summary> Recommend to use <see cref="ITrackedExt.DisposeTrackedToDefault(x,bool)"/> wherever possible. This simply satisfies IDisposable </summary>
         public void Dispose(bool reportException)
         {
             //Gotta protect this call, some code is awkward and disposes this before it's initialized...

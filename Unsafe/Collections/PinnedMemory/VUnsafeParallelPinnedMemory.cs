@@ -97,14 +97,19 @@ namespace VLib
             return GetPinnedMemoryAtIndex(index);
         }
 
-        /// <summary> Fully concurrent safe. </summary>
-        public void ReturnAddress(PinnedMemoryElement<T> address)
+        /// <summary> Fully concurrent safe. <br/>
+        /// Note on race condition potential: <br/>
+        /// This method itself is safe, but if you rely on the value in the memory being non-default,
+        /// and check it BEFORE passing it in here where it's defaulted, you may produce a race condition!
+        /// </summary>
+        public bool ReturnAddress(PinnedMemoryElement<T> address)
         {
             this.ConditionalCheckIsCreated();
             if (!address.IsCreated)
-                return;
+                return false;
             address.Value = default;
             ReturnIndex(address.ListIndex);
+            return true;
         }
 
         int FetchIndex()

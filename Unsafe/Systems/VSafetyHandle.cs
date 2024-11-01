@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading;
 using Unity.Collections.LowLevel.Unsafe;
 
 namespace VLib
@@ -18,13 +19,24 @@ namespace VLib
             safetyIDCopy = truthLocation.Value;
         }
         
-        public void Dispose() => TryDispose(this);
+        public void Dispose() => VSafetyHandleManager.InternalMemoryField.Data.TryDestroy(this);
         
-        public bool TryDispose() => TryDispose(this);
+        public bool TryDispose() => VSafetyHandleManager.InternalMemoryField.Data.TryDestroy(this);
 
         public static VSafetyHandle Create() => VSafetyHandleManager.InternalMemoryField.Data.Create();
-        
-        public static bool TryDispose(VSafetyHandle handle) => VSafetyHandleManager.InternalMemoryField.Data.TryDestroy(handle);
+
+        /// <summary> A concurrent safe way to check that the handle is valid and invalidate it at the same time. Part of disposal. </summary>
+        internal bool TryInvalidate()
+        {
+            if (!IsValid)
+                return false;
+            // View as long so we can use an atomic call
+            ref var dataAsLong = ref UnsafeUtility.As<ulong, long>(ref truthLocation.Ref);
+            // Swap the value to default atomically
+            var previousAsLong = Interlocked.Exchange(ref dataAsLong, default);
+            // Check if the previous value was the same as the safety ID, otherwise we're the second caller and the handle is already invalidated
+            return UnsafeUtility.As<long, ulong>(ref previousAsLong) == safetyIDCopy;
+        }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void ConditionalCheckValid()
