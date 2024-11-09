@@ -1,7 +1,9 @@
-﻿using Unity.Mathematics;
+﻿using System;
+using Unity.Mathematics;
 
 namespace VLib.Structures
 {
+    [Serializable]
     public struct Sbyte2
     {
         public sbyte x;

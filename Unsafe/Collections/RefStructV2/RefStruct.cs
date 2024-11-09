@@ -25,15 +25,15 @@ namespace VLib
         // Security
         readonly VSafetyHandle safetyHandle;
 
-        public ulong SafetyID => safetyHandle.safetyIDCopy;
-        public bool IsCreated => safetyHandle.IsValid;
+        public readonly ulong SafetyID => safetyHandle.safetyIDCopy;
+        public readonly bool IsCreated => safetyHandle.IsValid;
         
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public void ConditionalCheckValid() => safetyHandle.ConditionalCheckValid();
+        public readonly void ConditionalCheckValid() => safetyHandle.ConditionalCheckValid();
         
         public T ValueCopy
         {
-            get
+            readonly get
             {
                 safetyHandle.ConditionalCheckValid();
                 return refData.ValueRef;
@@ -45,7 +45,7 @@ namespace VLib
             }
         }
 
-        public ref T ValueRef
+        public readonly ref T ValueRef
         {
             get
             {
@@ -54,7 +54,7 @@ namespace VLib
             }
         }
 
-        public T* ValuePtr
+        public readonly T* ValuePtr
         {
             get
             {
@@ -110,7 +110,7 @@ namespace VLib
             return true;
         }
 
-        public ref T TryGetRef(out bool success)
+        public readonly ref T TryGetRef(out bool success)
         {
             if (!IsCreated)
             {
@@ -122,7 +122,7 @@ namespace VLib
             return ref refData.ValueRef;
         }
 
-        public bool TryGetPtr(out T* ptr)
+        public readonly bool TryGetPtr(out T* ptr)
         {
             if (!IsCreated)
             {

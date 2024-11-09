@@ -44,13 +44,15 @@ namespace VLib
             if (Application.isPlaying)
             {
                 Object.Destroy(obj);
-                Assert.IsNull(obj);
+                if (obj != null)
+                    Object.DestroyImmediate(obj);
+                Assert.IsTrue(obj == null);
                 return true;
             }
             else
             {
                 Object.DestroyImmediate(obj);
-                Assert.IsNull(obj);
+                Assert.IsTrue(obj == null);
                 return false;
             }
         }

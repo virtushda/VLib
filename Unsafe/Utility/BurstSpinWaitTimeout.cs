@@ -12,6 +12,8 @@ namespace VLib.Libraries.VLib.Unsafe.Utility
         public readonly double startTime;
         public readonly float timeoutSeconds;
         
+        public double TimeSinceStart => VTime.intraFrameTime - startTime;
+        
         public BurstSpinWaitTimeout(float timeoutSeconds)
         {
             spinner = 0;

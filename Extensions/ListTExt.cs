@@ -343,7 +343,7 @@ namespace VLib
         {
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i].Equals(value))
+                if (value.Equals(list[i]))
                     return i;
             }
             return -1;

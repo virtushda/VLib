@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Profiling;
 using Object = UnityEngine.Object;
 
 namespace VLib
@@ -35,29 +36,6 @@ namespace VLib
         public static void ResetField<T>(T obj, FieldInfo field)
             where T : Object =>
             field.SetValue(obj, field.FieldType.GetDefaultValue());
-
-        public static T[] GetComponentsInAllChildren<T>(this Component c)
-        {
-            List<T> components = new List<T>();
-            foreach (Transform t in c.transform.GetDescendants())
-            {
-                var comp = t.GetComponent<T>();
-                if (comp != null) components.Add(comp);
-            }
-
-            return components.ToArray();
-        }
-        
-        public static T GetComponentInParents<T>(this Component c)
-        {
-            foreach (Transform t in c.transform.GetAncestors())
-            {
-                var comp = t.GetComponent<T>();
-                if (comp != null) return comp;
-            }
-
-            return default(T);
-        }
 
         public static List<T> GetComponentsInAssetsPath<T>(string path)
         {

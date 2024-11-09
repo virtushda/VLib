@@ -1,5 +1,5 @@
 ﻿#if UNITY_EDITOR
-#define MAIN_THREAD_CHECKS
+#define PROVE_MAIN_THREAD
 #endif
 
 using System;
@@ -17,18 +17,15 @@ namespace VLib.Threading
     {
         private static int mainThreadId;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void Initialize()
-        {
-            mainThreadId = Thread.CurrentThread.ManagedThreadId;
-        }
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void Initialize() => mainThreadId = Thread.CurrentThread.ManagedThreadId;
 
         /// <summary> Checks the thread ID against the known main thread ID. </summary>
         /// <param name="allowExecutingInJob"> By default, false is returned if this is called from within a job. Pass true to allow a job running on the main thread to return true. </param>
         public static bool OnMain(bool allowExecutingInJob = false)
         {
             bool isMainThread = mainThreadId == Thread.CurrentThread.ManagedThreadId && (!JobsUtility.IsExecutingJob || allowExecutingInJob);
-#if UNITY_EDITOR
+#if PROVE_MAIN_THREAD
             // Prove it in editor by doing something cheap on the main thread.
             Profiler.BeginSample("Main thread proof");
             if (isMainThread)
@@ -49,7 +46,7 @@ namespace VLib.Threading
             return isMainThread;
         }
 
-        [Conditional("MAIN_THREAD_CHECKS")]
+        [Conditional("UNITY_EDITOR")]
         public static void AssertMainThreadConditional()
         {
             if (!OnMain())

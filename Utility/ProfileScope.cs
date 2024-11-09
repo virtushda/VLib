@@ -10,7 +10,7 @@ namespace VLib
         #if ENABLE_PROFILER
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ProfileScope Auto([CallerMemberName] string profileTag = "") => WithTag(profileTag);
+        public static ProfileScope Auto([CallerMemberName] string autoPopulatedTag = "") => WithTag(autoPopulatedTag);
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ProfileScope WithTag(string profileTag)
@@ -25,7 +25,7 @@ namespace VLib
         #else // When the profiler is disabled, this struct does as little as possible.
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ProfileScope Auto([CallerMemberName] string profileTag = "") => default;
+        public static ProfileScope Auto([CallerMemberName] string autoPopulatedTag = "") => default;
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ProfileScope WithTag(string profileTag) => default;

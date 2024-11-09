@@ -119,5 +119,13 @@ namespace VLib
             stream.Position = 0;
             return (T[]) formatter.Deserialize(stream);
         }
+
+        public static ulong Sum(this ulong[] array)
+        {
+            var sum = 0ul;
+            foreach (var value in array)
+                sum += value;
+            return sum;
+        }
     }
 }

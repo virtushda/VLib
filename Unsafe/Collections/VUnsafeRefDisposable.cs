@@ -81,7 +81,13 @@ namespace VLib
             set => *(T*)ptr = value;
         }
         
-        public ref T ValueRef => ref *(T*)ptr;
+        public ref T ValueRef
+        {
+            get
+            {
+                return ref *(T*) ptr;
+            }
+        }
 
         /// <summary>
         /// Whether this reference has been allocated (and not yet deallocated).

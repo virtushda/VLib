@@ -11,6 +11,12 @@ namespace VLib
         internal readonly PinnedMemoryElement<ulong> truthLocation;
         internal readonly ulong safetyIDCopy;
         
+        public static implicit operator ulong(VSafetyHandle handle)
+        {
+            //handle.ConditionalCheckValid();
+            return handle.safetyIDCopy;
+        }
+
         public bool IsValid => truthLocation.IsCreated && truthLocation.Value == safetyIDCopy;
         
         internal VSafetyHandle(PinnedMemoryElement<ulong> truthLocation)

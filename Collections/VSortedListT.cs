@@ -74,6 +74,8 @@ namespace VLib
         bool ICollection<T>.IsReadOnly => false;
 
         public bool Contains(T obj) => IndexOf(obj) >= 0;
+        
+        public bool ContainsSlow(T obj) => IndexOfSlow(obj) >= 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void Clear() => list.Clear();

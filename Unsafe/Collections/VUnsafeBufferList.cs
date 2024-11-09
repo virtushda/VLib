@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using VLib.Libraries.VLib.Unsafe.Utility;
 
 namespace VLib
 {
@@ -92,7 +93,7 @@ namespace VLib
         /// <param name="index">An index.</param>
         /// <returns>A reference to the element at the index.</returns>
         /// <exception cref="IndexOutOfRangeException">Thrown if index is out of bounds.</exception>
-        public ref T ElementAt(int index)
+        public readonly ref T ElementAt(int index)
         {
             ConditionalCheckIndexValid(index);
             return ref listData->ElementAt(index);
@@ -152,8 +153,21 @@ namespace VLib
             value = default;
             return false;
         }
+        
+        public readonly ref T TryGetRef(int index, out bool hasRef)
+        {
+            if (IsCreated && IndexValid(index))
+            {
+                hasRef = true;
+                return ref listData->ElementAt(index);
+            }
+            hasRef = false;
+            return ref VUnsafeUtil.NullRef<T>();
+        }
 
-        public readonly bool TryGetElementPtr(int index, out T* valuePtr)
+        public readonly ref readonly T TryGetRefReadonly(int index, out bool hasRef) => ref TryGetRef(index, out hasRef);
+
+        /*public readonly bool TryGetElementPtr(int index, out T* valuePtr)
         {
             valuePtr = null;
             if (!IsCreated)
@@ -163,9 +177,9 @@ namespace VLib
             
             valuePtr = listData->Ptr + index;
             return true;
-        }
+        }*/
 
-        public int PeekUnusedIndex()
+        public readonly int PeekUnusedIndex()
         {
             ConditionalCheckIsCreated();
             return unusedIndices->IsEmpty ? Length : unusedIndices->Peek();
@@ -556,7 +570,7 @@ namespace VLib
 
         /// <summary> Returns a native array that aliases the content of this list. </summary>
         /// <returns> A native array that aliases the content of this list. </returns>
-        public NativeArray<T> AsArray()
+        public readonly NativeArray<T> AsArray()
         {
             ConditionalCheckIsCreated();
             return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(listData->Ptr, listData->Length, Allocator.None);
@@ -664,7 +678,7 @@ namespace VLib
         /// </summary>
         /// <param name="allocator">The allocator to use.</param>
         /// <returns>An array containing a copy of this list's content.</returns>
-        public NativeArray<T> ToArray(AllocatorManager.AllocatorHandle allocator)
+        public readonly NativeArray<T> ToArray(AllocatorManager.AllocatorHandle allocator)
         {
             ConditionalCheckIsCreated();
             NativeArray<T> result = CollectionHelper.CreateNativeArray<T>(Length, allocator, NativeArrayOptions.UninitializedMemory);
@@ -1005,7 +1019,7 @@ namespace VLib
 
         /// <summary> Returns a read only of this list. </summary>
         /// <returns>A read only of this list.</returns>
-        public ReadOnly AsReadOnly()
+        public readonly ReadOnly AsReadOnly()
         {
             ConditionalCheckIsCreated();
             // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
@@ -1106,7 +1120,7 @@ namespace VLib
     /// Provides extension methods for UnsafeList.
     /// </summary>
     [GenerateTestsForBurstCompatibility]
-    public unsafe static class VUnsafeBufferListExtensions
+    public static unsafe class VUnsafeBufferListExtensions
     {
         /// <summary>
         /// Returns true if a particular value is present in this list.
@@ -1120,6 +1134,7 @@ namespace VLib
         public static bool Contains<T, U>(this VUnsafeBufferList<T> list, U value)
             where T : unmanaged, IEquatable<U>
         {
+            list.ConditionalCheckIsCreated();
             return NativeArrayExtensions.IndexOf<T, U>(list.listData->Ptr, list.Length, value) != -1;
         }
 
@@ -1135,6 +1150,7 @@ namespace VLib
         public static int IndexOf<T, U>(this VUnsafeBufferList<T> list, U value)
             where T : unmanaged, IEquatable<U>
         {
+            list.ConditionalCheckIsCreated();
             return NativeArrayExtensions.IndexOf<T, U>(list.listData->Ptr, list.Length, value);
         }
     }

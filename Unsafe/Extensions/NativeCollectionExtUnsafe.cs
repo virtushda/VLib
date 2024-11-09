@@ -523,6 +523,12 @@ namespace VLib
             return ref UnsafeUtility.ArrayElementAsRef<T>(list.GetUnsafeReadOnlyPtr(), index);
         }
         
+        public static ref T TryGetRef<T>(this NativeList<T> list, int index, out bool success)
+            where T : unmanaged
+        {
+            return ref list.AsUnsafeList().TryGetRef(index, out success);
+        }
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UnsafeList<T>* AsUnsafeListPtr<T>(this ref NativeList<T> list, bool logError = true)
             where T : unmanaged

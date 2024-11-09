@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.Jobs;
 
 namespace VLib
 {
@@ -7,7 +8,14 @@ namespace VLib
     {
         public static implicit operator bool(JobTracker tracked) => tracked.IsCreated;
         public static implicit operator ulong(JobTracker tracked) => tracked.ID;
-        
+
+        /// <summary> Assumes write-access job to be on the safe side. </summary>
+        public static JobTracker operator +(JobTracker tracked, JobHandle handle)
+        {
+            tracked.AddHandle(handle);
+            return tracked;
+        }
+
         VSafetyHandle safetyHandle;
 
         public bool IsCreated => safetyHandle.IsValid;
@@ -31,6 +39,12 @@ namespace VLib
             // Try to complete jobs first
             this.CompleteClearDependencies();
             safetyHandle.Dispose();
+        }
+        
+        public void AddHandle(JobHandle handle, bool writeAccess = true)
+        {
+            safetyHandle.ConditionalCheckValid();
+            TrackedCollectionManager.SetDependencyHandleMainThread(ID, writeAccess, JobHandle.CombineDependencies(this.GetDependencyHandle(writeAccess), handle));
         }
     }
 }

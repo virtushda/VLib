@@ -27,7 +27,7 @@ namespace VLib
         public readonly VTriangle2 To2D_XY => new(this, 0, 1);
         public readonly VTriangle2 To2D_YZ => new(this, 1, 2);
 
-        public float3x2 this[byte edgeIndex] => edgeIndex switch
+        public readonly float3x2 this[byte edgeIndex] => edgeIndex switch
         {
             0 => EdgeAB,
             1 => EdgeBC,
@@ -35,17 +35,7 @@ namespace VLib
             _ => throw new ArgumentOutOfRangeException(nameof(edgeIndex), edgeIndex, "Edge Index must be 0, 1, or 2")
         };
 
-        public readonly float Area
-        {
-            get
-            {
-                float a = math.length(AToB);
-                float b = math.length(BToC);
-                float c = math.length(CToA);
-                float s = (a + b + c) / 2f;
-                return math.sqrt(s * (s - a) * (s - b) * (s - c));
-            }
-        }
+        public readonly float Area => GetArea(new float3 (math.length(AToB), math.length(BToC), math.length(CToA)));
 
         public readonly float3 EdgeLengths => new float3(math.length(AToB), math.length(BToC), math.length(CToA));
         public readonly half3 EdgeLengthsHalf => new half3((half)math.length(AToB), (half)math.length(BToC), (half)math.length(CToA));
@@ -57,6 +47,7 @@ namespace VLib
             float c = edgeLengths.z;
             float s = (a + b + c) / 2f;
             var area = math.sqrt(math.abs(s * (s - a) * (s - b) * (s - c)));
+            BurstAssert.TrueCheap(area >= 0);
             return area;
         }
 
@@ -281,7 +272,7 @@ namespace VLib
             }
         }*/
 
-        public bool SegmentOverlapXZ(float3x2 segment, out float3x2 overlap, float heightLerp = 0f)
+        public readonly bool SegmentOverlapXZ(float3x2 segment, out float3x2 overlap, float heightLerp = 0f)
         {
             overlap = default;
             var p0 = ProjectPointToSurfaceXZ(segment.c0.xz, out var bary0);
@@ -296,7 +287,7 @@ namespace VLib
 
             if (contains0 && contains1)
             {
-                overlap = new float3x2(new float3(p0.x, p0.y, p0.z), new float3(p1.x, p1.y, p1.z));
+                overlap = new float3x2(p0, p1);
                 return true;
             }
             

@@ -28,6 +28,7 @@ namespace VLib
         where T : unmanaged
     {
         [NativeDisableUnsafePtrRestriction] public UnsafeList<T>* listData;
+        public readonly ref UnsafeList<T> ListData => ref *listData;
 
         /// <summary> Initializes and returns a VUnsafeList with a capacity of one. </summary>
         /// <param name="allocator">The allocator to use.</param>
@@ -98,7 +99,13 @@ namespace VLib
         /// <param name="index">An index.</param>
         /// <returns>A reference to the element at the index.</returns>
         /// <exception cref="IndexOutOfRangeException">Thrown if index is out of bounds.</exception>
-        public ref T ElementAt(int index)
+        public readonly ref T ElementAt(int index)
+        {
+            ConditionalAssertIndexValid(index);
+            return ref listData->ElementAt(index);
+        }
+        
+        public readonly ref readonly T ElementAtReadOnly(int index)
         {
             ConditionalAssertIndexValid(index);
             return ref listData->ElementAt(index);
@@ -151,11 +158,12 @@ namespace VLib
 
         public readonly void* GetUnsafePtr() => listData->Ptr;
         
-        public ref T GetRef(int index)
+        // Just use ElementAt
+        /*public ref T GetRef(int index)
         {
             ConditionalAssertIndexValid(index);
             return ref ElementAt(index);
-        }
+        }*/
 
         public readonly bool TryGetValue(int index, out T value)
         {
@@ -174,6 +182,14 @@ namespace VLib
             success = IndexValid(index);
             if (success)
                 return ref ElementAt(index);
+            return ref UnsafeUtility.AsRef<T>(default);
+        }
+
+        public readonly ref readonly T TryGetRefReadOnly(int index, out bool success)
+        {
+            success = IndexValid(index);
+            if (success)
+                return ref ElementAtReadOnly(index);
             return ref UnsafeUtility.AsRef<T>(default);
         }
 
@@ -1049,21 +1065,21 @@ namespace VLib
             readonly VUnsafeList<T> list;
             
             /// <summary> The internal buffer of the list. </summary>
-            public readonly T* Ptr => list.listData->Ptr;
+            T* Ptr => list.listData->Ptr;
 
             /// <summary> The number of elements. </summary>
-            public readonly int Length => list.Length;
+            public int Length => list.Length;
 
-            public readonly int Count => list.Length;
+            public int Count => list.Length;
             
-            public readonly int Capacity => list.Capacity;
+            public int Capacity => list.Capacity;
             
             public T this[int index] => list[index];
 
             public ReadOnly(VUnsafeList<T> list) => this.list = list;
 
             /// <summary> Performs a guarded read and logs and error if something was wrong. </summary>
-            public readonly T GetValueOrDefault(int index)
+            public T GetValueOrDefault(int index)
             {
                 if (list.TryGetValue(index, out var value))
                     return value;
@@ -1071,7 +1087,11 @@ namespace VLib
                 return default;
             }
             
-            public readonly bool TryGetValue(int index, out T value) => list.TryGetValue(index, out value);
+            public ref readonly T ElementAtReadOnly(int index) => ref list.ElementAtReadOnly(index);
+            
+            public bool TryGetValue(int index, out T value) => list.TryGetValue(index, out value);
+            
+            public ref readonly T TryGetRef(int index, out bool hasRef) => ref list.TryGetRefReadOnly(index, out hasRef);
 
             /// <summary>
             /// Returns an enumerator over the elements of the list.
@@ -1150,7 +1170,7 @@ namespace VLib
     /// Provides extension methods for UnsafeList.
     /// </summary>
     [GenerateTestsForBurstCompatibility]
-    public unsafe static class VUnsafeListExtensions
+    public static unsafe class VUnsafeListExtensions
     {
         /// <summary>
         /// Returns true if a particular value is present in this list.
@@ -1164,6 +1184,7 @@ namespace VLib
         public static bool Contains<T, U>(this VUnsafeList<T> list, U value)
             where T : unmanaged, IEquatable<U>
         {
+            list.ConditionalCheckIsCreated();
             return NativeArrayExtensions.IndexOf<T, U>(list.listData->Ptr, list.Length, value) != -1;
         }
 
@@ -1179,6 +1200,7 @@ namespace VLib
         public static int IndexOf<T, U>(this VUnsafeList<T> list, U value)
             where T : unmanaged, IEquatable<U>
         {
+            list.ConditionalCheckIsCreated();
             return NativeArrayExtensions.IndexOf<T, U>(list.listData->Ptr, list.Length, value);
         }
     }

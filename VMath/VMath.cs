@@ -318,9 +318,9 @@ namespace VLib
         #region Checks
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
-        public static float CheckedDivide(this float numerator, float denominator, float epsilon = 0.0001f, bool logError = true)
+        public static float CheckedDivide(this float numerator, float denominator, float epsilon = EPSILON, bool logError = true)
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
             if (abs(denominator) < epsilon)
             {
                 if (logError)
@@ -330,29 +330,37 @@ namespace VLib
 #endif
             return numerator / denominator;
         }
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("UNITY_DOTS_DEBUG")]
+        [Conditional("DEVELOPMENT_BUILD")]
         public static void CheckNAN(this float value)
         {
             if (isnan(value))
                 Debug.LogError("VALUE NAN");
         }
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("UNITY_DOTS_DEBUG")]
+        [Conditional("DEVELOPMENT_BUILD")]
         public static void CheckNAN(this float2 value)
         {
             if (any(isnan(value)))
                 Debug.LogError("VALUE NAN");
         }
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("UNITY_DOTS_DEBUG")]
+        [Conditional("DEVELOPMENT_BUILD")]
         public static void CheckNAN(this float3 value)
         {
             if (any(isnan(value)))
                 Debug.LogError("VALUE NAN");
         }
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("UNITY_DOTS_DEBUG")]
+        [Conditional("DEVELOPMENT_BUILD")]
         public static void CheckNAN(this float4 value)
         {
             if (any(isnan(value)))
