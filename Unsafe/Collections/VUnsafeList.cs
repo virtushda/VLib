@@ -532,7 +532,7 @@ namespace VLib
         /// <summary> Returns a native array that aliases the content of this list. </summary>
         /// <returns> A native array that aliases the content of this list. <br/>
         /// The returned native array will not have a safety handle, if that is an issue use <see cref="AsArrayView"/> instead! </returns>
-        public NativeArray<T> AsArray()
+        public readonly NativeArray<T> AsArray()
         {
             ConditionalCheckIsCreated();
             return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(listData->Ptr, listData->Length, Allocator.None);

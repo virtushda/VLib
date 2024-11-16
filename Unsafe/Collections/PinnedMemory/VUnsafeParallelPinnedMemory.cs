@@ -1,8 +1,5 @@
-﻿using System;
-using System.Threading;
-using Unity.Collections;
+﻿using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace VLib
@@ -16,17 +13,13 @@ namespace VLib
     {
         public readonly int subListSize;
         public readonly int maximumElementCount;
-        public readonly int maximumIndex;
-
-        int nextIndex;
         
         /// <summary> This list can move. Lists inside cannot! </summary>
         UnsafeList<UnsafeList<T>> lists;
         VUnsafeRef<int> listsLock;
-        
+
         /// <summary> This list can also move. </summary>
-        UnsafeList<int> unusedIndices;
-        VUnsafeRef<int> unusedIndicesLock;
+        VPackedIndexProvider packedIndices;
         
         public bool IsCreated => /*lists.IsCreated && unusedIndices.IsCreated && */listsLock.IsCreated/* && unusedIndicesLock.IsCreated*/;
         
@@ -38,15 +31,12 @@ namespace VLib
             maxCountL.CheckValueInRange(1, int.MaxValue);
             
             maximumElementCount = subListSize * maximumListCount;
-            maximumIndex = maximumElementCount - 1;
+            var maximumIndex = maximumElementCount - 1;
             
             lists = new UnsafeList<UnsafeList<T>>(maximumListCount, Allocator.Persistent);
-            unusedIndices = new UnsafeList<int>(maximumListCount, Allocator.Persistent);
-
-            nextIndex = -1;
-            
             listsLock = new VUnsafeRef<int>(0, Allocator.Persistent);
-            unusedIndicesLock = new VUnsafeRef<int>(0, Allocator.Persistent);
+
+            packedIndices = VPackedIndexProvider.Create(maximumIndex, Allocator.Persistent);
         }
 
         public void Dispose()
@@ -70,21 +60,12 @@ namespace VLib
                     lists.DisposeRefToDefault();
                 }
             }
-            using (unusedIndicesLock.ScopedAtomicLock())
-            {
-                var takenIndices = nextIndex + 1 - unusedIndices.Length;
-                if (takenIndices > 0)
-                    Debug.LogError($"VUnsafeParallelPinnedMemory.Dispose: {takenIndices} taken indices were not returned! \n" +
-                                   $" Taken: {takenIndices}, Unused: {unusedIndices.Length}, NextIndex: {nextIndex}");
-                unusedIndices.DisposeRefToDefault();
-            }
+            
+            packedIndices.Dispose();
 
             if (listsLock.IsCreated)
                 listsLock.Dispose();
             listsLock = default;
-            if (unusedIndicesLock.IsCreated)
-                unusedIndicesLock.Dispose();
-            unusedIndicesLock = default;
             
             Profiler.EndSample();
         }
@@ -112,29 +93,9 @@ namespace VLib
             return true;
         }
 
-        int FetchIndex()
-        {
-            // Try get unused
-            if (!unusedIndices.IsEmpty)
-            {
-                using var lockHold = unusedIndicesLock.ScopedAtomicLock();
-                // Protect against empty again now that we're in the lock scope
-                if (unusedIndices.TryPop(out var unusedIndex, false))
-                    return unusedIndex;
-            }
-            
-            // Try get new
-            if (nextIndex >= maximumIndex)
-                throw new InvalidOperationException($"Maximum index '{maximumIndex}' reached!");
-            
-            return Interlocked.Increment(ref nextIndex);
-        }
+        int FetchIndex() => packedIndices.FetchIndex();
         
-        void ReturnIndex(int unusedIndex)
-        {
-            using var lockHold = unusedIndicesLock.ScopedAtomicLock();
-            unusedIndices.Add(unusedIndex);
-        }
+        void ReturnIndex(int unusedIndex) => packedIndices.ReturnIndex(unusedIndex);
 
         unsafe PinnedMemoryElement<T> GetPinnedMemoryAtIndex(int globalIndex)
         {
