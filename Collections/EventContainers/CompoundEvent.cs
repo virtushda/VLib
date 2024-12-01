@@ -2,7 +2,7 @@
 {
     public class CompoundEvent : EventContainer
     {
-        private readonly ushort[] triggers;
+        readonly ushort[] triggers;
         
         public CompoundEvent(int triggerCount)
         {
@@ -32,7 +32,7 @@
     
     public class CompoundEvent<T> : EventContainer<T>
     {
-        private readonly ushort[] triggers;
+        readonly ushort[] triggers;
         
         public CompoundEvent(int triggerCount)
         {

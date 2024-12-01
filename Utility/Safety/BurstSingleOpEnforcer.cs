@@ -2,6 +2,7 @@
 #define BURST_SINGLE_OP
 #endif
 
+using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -18,7 +19,9 @@ namespace VLib.Safety
         public static BurstSingleOpEnforcer Create() => new() {lastOpLine = -1, locker = 0};
 
         [Conditional("BURST_SINGLE_OP")]
-        public void StartOp([CallerLineNumber] int callerLine = -1)
+        public void StartOp([CallerLineNumber] int callerLine = -1) => StartOpCustomLine(callerLine);
+
+        void StartOpCustomLine(int callerLine)
         {
             Lock();
             if (lastOpLine != -1)
@@ -45,6 +48,30 @@ namespace VLib.Safety
         }
 
         void Unlock() => Interlocked.Exchange(ref locker, 0);
+        
+        public struct ScopedOp : IDisposable
+        {
+            readonly RefStruct<BurstSingleOpEnforcer> enforcer;
+
+            public ScopedOp(RefStruct<BurstSingleOpEnforcer> enforcer, int callerLine)
+            {
+#if BURST_SINGLE_OP
+                BurstAssert.TrueCheap(enforcer.IsCreated);
+                this.enforcer = enforcer;
+                enforcer.ValueRef.StartOpCustomLine(callerLine);
+                return;
+#endif
+                this.enforcer = default;
+            }
+
+            public void Dispose()
+            {
+#if BURST_SINGLE_OP
+                if (enforcer.TryGetValue(out var enforcerValue))
+                    enforcerValue.CompleteOp();
+#endif
+            }
+        }
 
         /*static long nextID;
 
@@ -70,4 +97,10 @@ namespace VLib.Safety
 
         public static long GetNextID() => Interlocked.Increment(ref nextID);*/
     }
+
+    public static class BurstSingleOpEnforcerExt
+    {
+        public static BurstSingleOpEnforcer.ScopedOp ScopedOp(this RefStruct<BurstSingleOpEnforcer> enforcer, [CallerLineNumber] int callerLine = -1) => new(enforcer, callerLine);
+    }
+    
 }

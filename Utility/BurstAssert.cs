@@ -30,6 +30,7 @@ namespace VLib
 
         /// <summary> Cheaper version of true, but provides less debugging data. </summary>
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void TrueCheap(bool condition)
         {
             if (!condition)
@@ -38,6 +39,7 @@ namespace VLib
         
         /// <summary> Cheaper version of false, but provides less debugging data. </summary>
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void FalseCheap(bool condition)
         {
             if (condition)

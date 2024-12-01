@@ -5,15 +5,13 @@
     {
         public int PooledCount { get; }
 
-        public void ClearAll();
+        public void ClearPooled();
     }
     
     public interface IPool<T> : IPool
     {
-        public T Fetch();
+        public T Depool(bool runPostProcessAction = true);
 
-        public bool TryFetch(out T poolable);
-
-        public void Repool(T objToPool);
+        public void Repool(T objToPool, bool runPreProcessAction = true);
     }
 }

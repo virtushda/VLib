@@ -7,6 +7,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
@@ -23,12 +24,14 @@ namespace VLib
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
-    public unsafe struct BurstSpinLock
+    public struct BurstSpinLock
     {
+        public const float DefaultTimeout = 2f;
+        
         private VUnsafeBufferedRef<long> m_LockHolder;
         
         /// <summary> Checks locked buffer length as well to detect corruption </summary>
-        public bool IsCreatedAndValid => m_LockHolder.IsValid;
+        public bool IsCreated => m_LockHolder.IsCreated; // NOTE: If this check is changed to anything other than using the reference holder's 'IsCreated', conditional checks may be needed once again!!!
 
         /// <summary> Constructor for the spin lock </summary>
         /// <param name="allocator">allocator to use for internal memory allocation. Usually should be Allocator.Persistent</param>
@@ -42,38 +45,36 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void DisposeUnsafe()
         {
-            if (IsCreatedAndValid)
+            if (IsCreated)
             {
-                if (!TryEnter(.5f))
+                if (!TryEnter(DefaultTimeout))
                     UnityEngine.Debug.LogError("SpinLock could not be captured for dispose!");
                 m_LockHolder.DisposeRefToDefault();
             }
             else
-            {
                 UnityEngine.Debug.LogError("SpinLock was not created, but you're disposing it!");
-            }
         }
 
         /// <summary> Check lock status without interfering or blocking </summary>
         public bool Locked => Interlocked.Read(ref m_LockHolder.ValueRef) != 0;
 
-        /// <summary> Use the lock in a using statement/block. Implicitly casts to bool for clean checking. </summary>
-        public BurstSpinLockScoped Scoped(float timeoutSeconds = 2f) => new BurstSpinLockScoped(this, timeoutSeconds);
+        /// <summary> Use the lock in a using statement/block. Implicitly casts to bool for clean checking. <br/>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
+        public BurstSpinLockScoped Scoped(float timeoutSeconds = DefaultTimeout) => new(this, timeoutSeconds);
         
         [Conditional("DEBUG_ADDITIONAL_CHECKS")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void CheckIfLockCreated()
         {
-            if (!IsCreatedAndValid)
+            if (!IsCreated)
                 throw new Exception("Lock wasn't created, but you're accessing it");
         }
 
-        /// <summary> Try to lock. Blocking until timeout or acquisition. </summary>
+        /// <summary> Try to lock. Blocking until timeout or acquisition. <br/>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryEnter(float timeoutSeconds)
         {
-            CheckIfLockCreated();
-
 #if MARK_THREAD_OWNERS
             var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
             BurstSpinLockCheckFunctions.CheckForRecursiveLock(threadId, ref lockVar);
@@ -100,8 +101,6 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Exit()
         {
-            CheckIfLockCreated();
-
             ref long lockVar = ref m_LockHolder.ValueRef;
             // TODO: Enhance ?
             BurstSpinLockCheckFunctions.CheckWeCanExit(ref lockVar);
@@ -113,19 +112,20 @@ namespace VLib
     public struct BurstSpinLockScoped : IDisposable
     {
         BurstSpinLock spinLock;
+
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
-        public bool Succeeded { get; }
-        public static implicit operator bool(BurstSpinLockScoped scoped) => scoped.Succeeded;
+        [MarshalAs(UnmanagedType.U1)] public readonly bool succeeded;
+        public static implicit operator bool(BurstSpinLockScoped scoped) => scoped.succeeded;
 
         public BurstSpinLockScoped(BurstSpinLock spinLock, float timeoutSeconds)
         {
             this.spinLock = spinLock;
-            Succeeded = spinLock.TryEnter(timeoutSeconds);
+            succeeded = spinLock.TryEnter(timeoutSeconds);
         }
 
         public void Dispose()
         {
-            if (Succeeded)
+            if (succeeded)
                 spinLock.Exit();
         }
 

@@ -75,7 +75,7 @@ namespace VLib
             }
         }
 
-        public int Count()
+        public int CountRecyclable()
         {
             this.ConditionalCheckIsCreated();
             using var lockHold = locker.ScopedAtomicLock();
@@ -164,6 +164,14 @@ namespace VLib
             // Push once more past the claimed index
             if (nextIndex <= index)
                 ++nextIndex;
+        }
+
+        public void ResetClear()
+        {
+            this.ConditionalCheckIsCreated();
+            using var lockHold = locker.ScopedAtomicLock();
+            recyclables.Clear();
+            nextIndex = 0;
         }
     }
 }

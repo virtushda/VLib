@@ -15,14 +15,14 @@ namespace VLib
 #if EXTRA_SAFE_MODE
         // Use a buffered ref (stores a copy of the pointer offset by a constant) to detect possible cases where this value type is pointing at garbage memory.
         // The pointer may not be null in such a case, but will be pointing to a random position in memory and can cause a very low-level crash.
-        readonly VUnsafeBufferedRef<T> defensivePointer;
-        readonly T* tPtr => defensivePointer.TPtr;
+        readonly VUnsafeBufferedPtr defensivePointer;
+        readonly T* tPtr => (T*) defensivePointer.Ptr;
 #else
         readonly T* tPtr;
 #endif
         
 #if EXTRA_SAFE_MODE
-        public bool IsCreated => defensivePointer.IsValid;
+        public bool IsCreated => defensivePointer.IsCreated;
 #else
         public bool IsCreated => tPtr != null;
 #endif
@@ -65,7 +65,7 @@ namespace VLib
         {
             this.listIndex = listIndex;
 #if EXTRA_SAFE_MODE
-            defensivePointer = new VUnsafeBufferedRef<T>(tPtr);
+            defensivePointer = new VUnsafeBufferedPtr(tPtr);
 #else
             this.tPtr = tPtr;
 #endif

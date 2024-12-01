@@ -24,7 +24,7 @@ namespace VLib
         BurstSpinLockReadWrite burstLock;
         public readonly BurstSpinLockReadWrite BurstLock => burstLock;
         
-        public readonly bool IsCreated => vListPtr.IsValid && vListPtr.ValueRef.IsCreated && BurstLock.IsCreatedAndValid;
+        public readonly bool IsCreated => vListPtr.IsCreated && vListPtr.ValueRef.IsCreated && BurstLock.IsCreated;
         
         public readonly ref UnsafeList<T> ListRef => ref vListPtr.ValueRef;
 
@@ -48,6 +48,14 @@ namespace VLib
             
             burstLock = new BurstSpinLockReadWrite(allocator);
         }
+        
+        public ParallelUnsafeList(UnsafeList<T> list, Allocator allocator)
+        {
+            // Store the list in a buffered ref to detect memory corruption and facilitate struct copy safety
+            vListPtr = new VUnsafeBufferedRef<UnsafeList<T>>(list, allocator);
+            
+            burstLock = new BurstSpinLockReadWrite(allocator);
+        }
 
         /// <summary> Make sure you don't hold onto the disposed struct! </summary>
         public void DisposeUnsafe()
@@ -55,7 +63,7 @@ namespace VLib
             if (burstLock.LockedAny)
                 throw new LockRecursionException("ParallelUnsafeList trying to dispose while an exclusive lock is held!");
             
-            if (vListPtr.IsValid)
+            if (vListPtr.IsCreated)
             {
                 // Dispose list
                 vListPtr.ValueRef.Dispose();
@@ -86,19 +94,18 @@ namespace VLib
         public readonly bool IsIndexValidSafe(int index)
         {
             using var scopeLock = BurstLock.ScopedReadLock(.25f);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
             {
                 Debug.LogError("Failed to acquire read lock!");
                 return false;
             }
-
             return IsIndexValidUnsafe(index);
         }
         
         public readonly bool CountSafe(out int count)
         {
             using var scopeLock = BurstLock.ScopedReadLock(.25f);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
             {
                 count = 0;
                 return false;
@@ -110,7 +117,7 @@ namespace VLib
         public readonly bool CapacitySafe(out int capacity)
         {
             using var scopeLock = BurstLock.ScopedReadLock(.25f);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
             {
                 capacity = 0;
                 return false;
@@ -122,7 +129,7 @@ namespace VLib
         public bool ClearSafe(float timeout = .25f)
         {
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeout);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
                 return false;
             ListRef.Clear();
             return true;
@@ -131,7 +138,7 @@ namespace VLib
         public readonly bool ReadSafe(int index, out T value, float timeout = .25f)
         {
             using var scopeLock = BurstLock.ScopedReadLock(timeout);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
             {
                 value = default;
                 return false;
@@ -165,7 +172,7 @@ namespace VLib
         public bool WriteSafe(int index, T value, float timeOut = 0.25f)
         {
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeOut);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
                 return false;
             ref var listRef = ref ListRef;
             if (index < 0 || index >= listRef.Length)
@@ -186,7 +193,7 @@ namespace VLib
         public bool AddSafe(T value, float timeOut = 0.25f)
         {
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeOut);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
                 return false;
             ListRef.Add(value);
             return true;
@@ -195,7 +202,7 @@ namespace VLib
         public bool RemoveAtSafe(int index, float timeOut = 0.25f)
         {
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeOut);
-            if (!scopeLock.Succeeded)
+            if (!scopeLock.succeeded)
                 return false;
             ListRef.RemoveAt(index);
             return true;
@@ -384,12 +391,10 @@ namespace VLib
             /// <exception cref="NotImplementedException">Method is not implemented.</exception>
             IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
         }
-        
-        public static implicit operator ScopedParallelReader(ParallelUnsafeList<T> list) => list.GetScopedParallelReader(0.25f);
 
         /// <summary>Locks the collection and returns a disposable struct that can be used to repeatedly access the collection before releasing the lock</summary>
         /// <example>using var listReader = list.GetScopedParallelReader()</example>
-        public readonly ScopedParallelReader GetScopedParallelReader(float timeout = 0.25f)
+        public readonly ScopedParallelReader GetScopedParallelReader(float timeout = BurstSpinLock.DefaultTimeout)
         {
             this.ConditionalCheckIsCreated();
             // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
@@ -404,7 +409,7 @@ namespace VLib
             private ParallelUnsafeList<T> list;
             private bool locked;
             
-            public ScopedParallelReader(ParallelUnsafeList<T> list, float timeout = 0.25f)
+            public ScopedParallelReader(ParallelUnsafeList<T> list, float timeout = BurstSpinLock.DefaultTimeout)
             {
                 this.list = list;
                 
@@ -431,7 +436,7 @@ namespace VLib
                 return false;
             }
 
-            public static implicit operator bool(ScopedParallelReader reader) => reader.locked;
+            public static implicit operator bool(ScopedParallelReader reader) => reader.GetIsValid();
 
             /*/// <summary> The internal buffer of the list. </summary>
             public readonly T* Ptr => list.ListRef.Ptr;*/
@@ -449,7 +454,6 @@ namespace VLib
             public ref T ElementAt(int index)
             {
                 list.ConditionalCheckIsCreated();
-                VCollectionUtils.ConditionalCheckIndexValid(index, list.LengthUnsafe);
                 return ref list.ListRef.ElementAt(index);
             }
 
@@ -464,14 +468,14 @@ namespace VLib
             /// </summary>
             /// <returns>Throws NotImplementedException.</returns>
             /// <exception cref="NotImplementedException">Method is not implemented.</exception>
-            IEnumerator IEnumerable.GetEnumerator() => throw new NotImplementedException();
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
             /// <summary>
             /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
             /// </summary>
             /// <returns>Throws NotImplementedException.</returns>
             /// <exception cref="NotImplementedException">Method is not implemented.</exception>
-            IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
+            IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         }
 
         #endregion

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using Unity.Collections.LowLevel.Unsafe;
 using VLib.Libraries.VLib.Unsafe.Utility;
 
 namespace VLib
@@ -11,6 +12,7 @@ namespace VLib
         where T : unmanaged
     {
         // Data
+        [NativeDisableUnsafePtrRestriction]
         unsafe T* ptr;
         // Security
         readonly VSafetyHandle safetyHandle;
@@ -43,24 +45,28 @@ namespace VLib
                 return ref ValueRefUnsafe;
             }
         }
-
-        /*public readonly unsafe T* UnsafeValuePtr
-        {
-            get
-            {
-                safetyHandle.ConditionalCheckValid();
-                return ptr;
-            }
-        }*/
         
         readonly unsafe ref T ValueRefUnsafe => ref *ptr;
 
         public unsafe SafePtr(T* ptr)
         {
-            BurstAssert.TrueCheap(ptr != null);
+            VCollectionUtils.CheckPtrNonNull(ptr);
             this.ptr = ptr;
             safetyHandle = VSafetyHandle.Create();
         }
+
+        /// <summary> Construct a safe ptr directly from an existing pointer and safety handle. </summary>
+        public unsafe SafePtr(T* ptr, VSafetyHandle safetyHandle)
+        {
+            // Pointer validity state much match safety handle validity state
+            BurstAssert.TrueCheap(ptr != null == safetyHandle.IsValid);
+            //VCollectionUtils.CheckPtrNonNull(ptr);
+            //safetyHandle.ConditionalCheckValid();
+            this.ptr = ptr;
+            this.safetyHandle = safetyHandle;
+        }
+
+        public static unsafe SafePtr<T> Create(ref T reference) => new((T*) UnsafeUtility.AddressOf(ref reference));
 
         /// <summary> This disposes the reference for ALL holders. If you want to invalidate your reference only, just set it to default. </summary>
         public void Dispose() => TryDispose();

@@ -9,6 +9,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Unity.Burst;
 using Unity.Collections;
@@ -26,7 +27,7 @@ namespace VLib
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
-    public unsafe struct BurstSpinLockReadWrite
+    public struct BurstSpinLockReadWrite
     {
         private const int MemorySize = 16; // * sizeof(long) == 128 byte
         private const int LockLocation = 0;
@@ -36,8 +37,7 @@ namespace VLib
         [NativeDisableUnsafePtrRestriction]
         private VUnsafeBufferedRef<UnsafeList<long>> m_LockHolder;
 
-        UnsafeList<long>* m_Locked => m_LockHolder.TPtr;
-        UnsafeList<long>* m_LockedUnsafe => m_LockHolder.TPtrNoSafety;
+        readonly ref UnsafeList<long> m_Locked => ref m_LockHolder.ValueRef;
 
         /// <param name="allocator">allocator to use for internal memory allocation. Usually should be Allocator.Persistent</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -47,22 +47,20 @@ namespace VLib
             var lockBuffer = new UnsafeList<long>(MemorySize, allocator);
             m_LockHolder = new VUnsafeBufferedRef<UnsafeList<long>>(lockBuffer, allocator);
 
-            var lockedCache = m_Locked;
+            ref var lockedCache = ref m_Locked;
             for (var i = 0; i < MemorySize; i++)
-            {
-                lockedCache->AddNoResize(0);
-            }
+                lockedCache.AddNoResize(0);
         }
 
         /// <summary> Dispose this spin lock. 'Unsafe' because the caller could now be holding a disposed lock reference, and it needs to be 'default'ed </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void DisposeUnsafe()
         {
-            if (IsCreatedAndValid)
+            if (IsCreated)
             {
                 if (!EnterExclusive(1))
                     Debug.LogError("Failed to dispose BurstSpinLockReadWrite, it is still locked after 1 second");
-                m_Locked->Dispose();
+                m_Locked.Dispose();
                 m_LockHolder.DisposeRefToDefault();
             }
             else
@@ -71,36 +69,34 @@ namespace VLib
             }
         }
 
-        public bool LockedExclusive => Interlocked.Read(ref m_Locked->ElementAt(LockLocation)) != 0;
-        public bool LockedForRead => Interlocked.Read(ref m_Locked->ElementAt(ReadersLocation)) != 0;
-        public bool LockedAny => LockedExclusive || LockedForRead;
+        public readonly bool LockedExclusive => Interlocked.Read(ref m_Locked.ElementAt(LockLocation)) != 0;
+        public readonly bool LockedForRead => Interlocked.Read(ref m_Locked.ElementAt(ReadersLocation)) != 0;
+        public readonly bool LockedAny => LockedExclusive || LockedForRead;
         
         /// <summary> Checks locked buffer length as well to detect corruption </summary>
-        public bool IsCreatedAndValid => m_LockHolder.IsValid/* && m_Locked->IsCreated && m_Locked->Length == MemorySize && burstTimerRef.IsCreated*/;
+        public readonly bool IsCreated => m_LockHolder.IsCreated;
 
-        public long Id => (long) m_Locked->Ptr;
+        public unsafe long Id => (long) m_Locked.Ptr;
 
         [Conditional("DEBUG_ADDITIONAL_CHECKS")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void CheckIfLockCreated()
+        readonly void CheckIfLockCreated()
         {
             // Check the burst timer as well.. found a situation where the m_locked list thought it was created but it's allocator was invalid and capacity 0...
-            if (!IsCreatedAndValid)
+            if (!IsCreated)
                 throw new Exception("RWLock wasn't created, but you're accessing it");
         }
 
-        /// <summary> Lock Exclusive. Will block if cannot lock immediately </summary>
+        /// <summary> Lock Exclusive. Will block if cannot lock immediately. <br/>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool EnterExclusive(float timeoutSeconds = .25f)
+        public bool EnterExclusive(float timeoutSeconds = BurstSpinLock.DefaultTimeout)
         {
-            CheckIfLockCreated();
-
-            // Safety checked in above conditional method, use safety-less stuff from here on
             // Cache Ptr
-            var m_LockedUnsafePtr = m_LockedUnsafe;
+            var m_LockedUnsafePtr = m_Locked;
             return BurstSpinLockReadWriteFunctions.TryEnterExclusiveBlocking(
-                ref m_LockedUnsafePtr->ElementAt(LockLocation),
-                ref m_LockedUnsafePtr->ElementAt(ReadersLocation),
+                ref m_LockedUnsafePtr.ElementAt(LockLocation),
+                ref m_LockedUnsafePtr.ElementAt(ReadersLocation),
                 timeoutSeconds);
         }
 
@@ -109,55 +105,44 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryEnterExclusive()
         {
-            CheckIfLockCreated();
-
-            return BurstSpinLockReadWriteFunctions.TryEnterExclusive(ref m_Locked->ElementAt(LockLocation), ref m_Locked->ElementAt(ReadersLocation));
+            ref var lockRef = ref m_Locked;
+            return BurstSpinLockReadWriteFunctions.TryEnterExclusive(ref lockRef.ElementAt(LockLocation), ref lockRef.ElementAt(ReadersLocation));
         }
 
         /// <summary> Unlock </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ExitExclusive()
-        {
-            CheckIfLockCreated();
+        public void ExitExclusive() => BurstSpinLockReadWriteFunctions.ExitExclusive(ref m_Locked.ElementAt(LockLocation));
 
-            BurstSpinLockReadWriteFunctions.ExitExclusive(ref m_Locked->ElementAt(LockLocation));
-        }
-
-        /// <summary>
-        /// Lock for Read. Will block if exclusive is locked
-        /// </summary>
+        /// <summary> Lock for Read. Will block if exclusive is locked <br/>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool EnterRead(float timeoutSeconds = .25f)
+        public bool EnterRead(float timeoutSeconds = BurstSpinLock.DefaultTimeout)
         {
-            CheckIfLockCreated();
-
-            // Above check handles safety, use safety-less stuff from here on
+            ref var lockRef = ref m_Locked;
             return BurstSpinLockReadWriteFunctions.TryEnterReadBlocking(
-                ref m_LockedUnsafe->ElementAt(LockLocation),
-                ref m_LockedUnsafe->ElementAt(ReadersLocation),
+                ref lockRef.ElementAt(LockLocation),
+                ref lockRef.ElementAt(ReadersLocation),
                 timeoutSeconds);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ExitRead()
-        {
-            CheckIfLockCreated();
+        public void ExitRead() => BurstSpinLockReadWriteFunctions.ExitRead(ref m_Locked.ElementAt(ReadersLocation));
 
-            // Above check handles safety, use safety-less stuff from here on
-            BurstSpinLockReadWriteFunctions.ExitRead(ref m_LockedUnsafe->ElementAt(ReadersLocation));
-        }
+        /// <summary> Lock and return an IDisposable struct. <br/>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
+        public BurstScopedExclusiveLock ScopedExclusiveLock(float timeoutSeconds = BurstSpinLock.DefaultTimeout) => new(this, timeoutSeconds);
         
-        public BurstScopedExclusiveLock ScopedExclusiveLock(float timeoutSeconds = 1) => new(this, timeoutSeconds);
-        
-        public BurstScopedReadLock ScopedReadLock(float timeoutSeconds = 1) => new(this, timeoutSeconds);
+        /// <summary> Lock and return an IDisposable struct. <br/>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
+        public BurstScopedReadLock ScopedReadLock(float timeoutSeconds = BurstSpinLock.DefaultTimeout) => new(this, timeoutSeconds);
 
-        public JobHandle StartLockExclusiveJob(float timeoutSeconds = 1, JobHandle inDeps = default) => new LockExclusiveJob(this, timeoutSeconds).Schedule(inDeps);
+        public JobHandle StartLockExclusiveJob(float timeoutSeconds = BurstSpinLock.DefaultTimeout, JobHandle inDeps = default) => new LockExclusiveJob(this, timeoutSeconds).Schedule(inDeps);
         
-        public JobHandle StartUnlockExclusiveJob(float timeoutSeconds = 1, JobHandle inDeps = default) => new UnlockExclusiveJob(this, timeoutSeconds).Schedule(inDeps);
+        public JobHandle StartUnlockExclusiveJob(JobHandle inDeps = default) => new UnlockExclusiveJob(this).Schedule(inDeps);
         
-        public JobHandle StartLockReadJob(float timeoutSeconds = 1, JobHandle inDeps = default) => new LockReadJob(this, timeoutSeconds).Schedule(inDeps);
+        public JobHandle StartLockReadJob(float timeoutSeconds = BurstSpinLock.DefaultTimeout, JobHandle inDeps = default) => new LockReadJob(this, timeoutSeconds).Schedule(inDeps);
         
-        public JobHandle StartUnlockReadJob(float timeoutSeconds = 1, JobHandle inDeps = default) => new UnlockReadJob(this, timeoutSeconds).Schedule(inDeps);
+        public JobHandle StartUnlockReadJob(JobHandle inDeps = default) => new UnlockReadJob(this).Schedule(inDeps);
 
         [BurstCompile]
         public struct LockExclusiveJob : IJob
@@ -178,13 +163,8 @@ namespace VLib
         public struct UnlockExclusiveJob : IJob
         {
             BurstSpinLockReadWrite theLock;
-            float timeout;
             
-            public UnlockExclusiveJob(BurstSpinLockReadWrite theLock, float timeout)
-            {
-                this.theLock = theLock;
-                this.timeout = timeout;
-            }
+            public UnlockExclusiveJob(BurstSpinLockReadWrite theLock) => this.theLock = theLock;
 
             public void Execute() => theLock.ExitExclusive();
         }
@@ -208,26 +188,21 @@ namespace VLib
         public struct UnlockReadJob : IJob
         {
             BurstSpinLockReadWrite theLock;
-            float timeout;
             
-            public UnlockReadJob(BurstSpinLockReadWrite theLock, float timeout)
-            {
-                this.theLock = theLock;
-                this.timeout = timeout;
-            }
+            public UnlockReadJob(BurstSpinLockReadWrite theLock) => this.theLock = theLock;
 
             public void Execute() => theLock.ExitRead();
         }
         
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public void ConditionalCheckReadLockHeld()
+        public readonly void ConditionalCheckReadLockHeld()
         {
             if (!LockedForRead)
                 throw new InvalidOperationException("Read lock must be held!");
         }
         
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public void ConditionalCheckWriteLockHeld()
+        public readonly void ConditionalCheckWriteLockHeld()
         {
             if (!LockedExclusive)
                 throw new InvalidOperationException("Write lock must be held!");
@@ -242,18 +217,19 @@ namespace VLib
     {
         private BurstSpinLockReadWrite m_parentLock;
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
-        public bool Succeeded { get; }
-        public static implicit operator bool(BurstScopedExclusiveLock d) => d.Succeeded;
+        [MarshalAs(UnmanagedType.U1)] public readonly bool succeeded;
+        public static implicit operator bool(BurstScopedExclusiveLock d) => d.succeeded;
         
-        public bool IsCreated => m_parentLock.IsCreatedAndValid;
+        public bool IsCreated => m_parentLock.IsCreated;
 
         /// <summary> Creates ScopedReadLock and locks SpinLockReadWrite in exclusive mode </summary>
         /// <param name="sl">SpinLock to lock</param>
+        /// <param name="timeoutSeconds">Timeout in seconds</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public BurstScopedExclusiveLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = 1)
+        public BurstScopedExclusiveLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = BurstSpinLock.DefaultTimeout)
         {
             m_parentLock = sl;
-            if (!(Succeeded = m_parentLock.EnterExclusive(timeoutSeconds)))
+            if (!(succeeded = m_parentLock.EnterExclusive(timeoutSeconds)))
                 Debug.LogError("Failed to acquire exclusive lock!");
         }
 
@@ -261,7 +237,7 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose()
         {
-            if (Succeeded)
+            if (succeeded)
                 m_parentLock.ExitExclusive();
         }
     }
@@ -275,18 +251,19 @@ namespace VLib
         private BurstSpinLockReadWrite m_parentLock;
 
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
-        public bool Succeeded { get; }
-        public static implicit operator bool(BurstScopedReadLock d) => d.Succeeded;
+        [MarshalAs(UnmanagedType.U1)] public readonly bool succeeded;
+        public static implicit operator bool(BurstScopedReadLock d) => d.succeeded;
 
-        public bool IsCreated => m_parentLock.IsCreatedAndValid;
-        
+        public bool IsCreated => m_parentLock.IsCreated;
+
         /// <summary> Creates ScopedReadLock and locks SpinLockReadWrite in read mode </summary>
         /// <param name="sl">SpinLock to lock</param>
+        /// <param name="timeoutSeconds">Timeout in seconds</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public BurstScopedReadLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = 1)
+        public BurstScopedReadLock(in BurstSpinLockReadWrite sl, float timeoutSeconds = BurstSpinLock.DefaultTimeout)
         {
             m_parentLock = sl;
-            if (!(Succeeded = m_parentLock.EnterRead(timeoutSeconds)))
+            if (!(succeeded = m_parentLock.EnterRead(timeoutSeconds)))
                 Debug.LogError("Failed to acquire read lock!");
         }
 
@@ -294,7 +271,7 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose()
         {
-            if (Succeeded)
+            if (succeeded)
                 m_parentLock.ExitRead();
         }
     }

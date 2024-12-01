@@ -13,13 +13,13 @@ namespace VLib
 {
     public static class ITrackedJobExt
     {
-        static readonly SimpleListPool<TrackedDependency> ListPool = new SimpleListPool<TrackedDependency>(4, 8);
+        static readonly AutoConcurrentListPool<TrackedDependency> ListPool = new AutoConcurrentListPool<TrackedDependency>(4, 8);
         
         /// <summary> Auto grabs the right type of list from a pool. </summary>
         public static List<TrackedDependency> GrabDepsTrackingList<T>(ref this T tracked)
             where T : struct, ITrackedJob
         {
-            return ListPool.Fetch(); // ListPool<TrackedDependency>.Get(); Unity's list pool is slow as hell
+            return ListPool.Depool(); // ListPool<TrackedDependency>.Get(); Unity's list pool is slow as hell
         }
         
         public static void ReleaseDepsTrackingList<T>(ref this T tracked, List<TrackedDependency> list)

@@ -1,21 +1,22 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Jobs;
+using UnityEngine.Profiling;
 using VLib.Threading;
 
 namespace VLib
 {
     public static class TrackedCollectionManager
     {
-        static readonly SimpleListPool<ulong> idListPool = new(4, 8);
+        static readonly AutoListPool<ulong> idListPool = new(4, 8);
         static readonly Dictionary<ulong, CollectionHandles> IDToHandlesMap = new();
 
         struct CollectionHandles
         {
             /// <summary> The latest job in the chain to read </summary>
-            JobHandle? readHandle;
+            JobHandle readHandle;
             /// <summary> The latest job in the chain to write to the data </summary>
-            JobHandle? writeHandle;
+            JobHandle writeHandle;
             
             public JobHandle ReadHandle
             {
@@ -29,35 +30,23 @@ namespace VLib
                 set => Setter(ref writeHandle, value);
             }
             
-            public JobHandle ReadHandleDirect => readHandle ?? default;
-            public JobHandle WriteHandleDirect => writeHandle ?? default;
+            public JobHandle ReadHandleDirect => readHandle;
+            public JobHandle WriteHandleDirect => writeHandle;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            JobHandle Getter(ref JobHandle? handleHolder)
+            JobHandle Getter(ref JobHandle handleHolder)
             {
-                if (handleHolder.HasValue)
+                // Try complete to keep things clean
+                if (handleHolder.IsCompleted)
                 {
-                    var handle = handleHolder.Value;
-                    // Try complete to keep things clean
-                    if (handle.IsCompleted)
-                    {
-                        handle.Complete();
-                        handleHolder = null;
-                    }
-                    else
-                        return handle;
+                    handleHolder.Complete();
+                    handleHolder = default;
                 }
-                return default;
+                return handleHolder;
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            void Setter(ref JobHandle? handleHolder, in JobHandle value)
-            {
-                if (handleHolder.HasValue)
-                    handleHolder = JobHandle.CombineDependencies(handleHolder.Value, value);
-                else
-                    handleHolder = value;
-            }
+            void Setter(ref JobHandle handleHolder, in JobHandle value) => handleHolder = JobHandle.CombineDependencies(handleHolder, value);
         }
 
         /// <summary> NOT THREAD SAFE </summary>
@@ -80,6 +69,7 @@ namespace VLib
         public static void SetDependencyHandleMainThread(ulong id, bool writeAccess, JobHandle jobHandle)
         {
             MainThread.AssertMainThreadConditional();
+            Profiler.BeginSample(nameof(SetDependencyHandleMainThread));
             if (!IDToHandlesMap.TryGetValue(id, out var handles))
                 handles = new CollectionHandles();
             
@@ -89,6 +79,7 @@ namespace VLib
                 handles.ReadHandle = jobHandle;
             
             IDToHandlesMap[id] = handles;
+            Profiler.EndSample();
         }
 
         /// <summary> Calls <see cref="GetDependencyHandleMainThread(long,bool)"/> on each ID in the list and combines all the resulting handles. </summary>
@@ -112,7 +103,7 @@ namespace VLib
             }
         }
 
-        internal static List<ulong> GrabIDListFromPool() => idListPool.Fetch();
+        internal static List<ulong> GrabIDListFromPool() => idListPool.Depool();
 
         /// <summary> Will complete any jobs dependent on the tracked structures. Consumes the list and returns it to an internal pool. </summary>
         public static void CompleteAllJobsFor(List<ulong> ids, bool sendListToUnityListPool)

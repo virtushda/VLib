@@ -94,6 +94,14 @@ namespace VLib
             set { }
         }
 
+        public void GetTransformed(in AffineTransform transform, out TranslationRotation posRotTransformed)
+        {
+            posRotTransformed = this;
+            posRotTransformed.PositionNative = math.transform(transform, posRotTransformed.PositionNative);
+            var transformRot = new quaternion(transform.rs);
+            posRotTransformed.RotationNative = math.mul(transformRot, posRotTransformed.RotationNative);
+        }
+
         public bool Equals(TranslationRotation other) => position.Equals(other.position) && rotation.Equals(other.rotation);
         public override bool Equals(object obj) => obj is TranslationRotation other && Equals(other);
         public override int GetHashCode() => HashCode.Combine(position, rotation);
@@ -102,7 +110,10 @@ namespace VLib
 
         public static implicit operator TranslationRotation((float3 pos, quaternion rot) tr) => new (tr.pos, tr.rot);
         public static implicit operator TranslationRotation((float3 pos, quaternion? rot) tr) => new (tr.pos, tr.rot ?? default);
-        public static implicit operator TranslationRotation(float3 pos) => new (pos);
+        public static explicit operator TranslationRotation(float3 pos) => new (pos);
+        public static explicit operator TranslationRotation(Vector3 pos) => new (pos);
         public static implicit operator TranslationRotation(TranslationFacing tf) => new (tf.PositionNative, tf.RotationNative);
+        public static implicit operator float3 (TranslationRotation tr) => tr.PositionNative;
+        public static implicit operator quaternion (TranslationRotation tr) => tr.RotationNative;
     }
 }

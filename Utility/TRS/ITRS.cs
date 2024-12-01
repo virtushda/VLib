@@ -68,6 +68,7 @@ namespace VLib
         public static Vector3 LocalDirToWorld<T>(this T trs, Vector3 direction)
             where T : unmanaged, ITRS => trs.Rotation * direction;
 
+        /// <summary> Not highly optimized, a convenience extension. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T MultWith<T>(this T trs, float4x4 matrix)
             where T : unmanaged, ITRS
@@ -152,11 +153,17 @@ namespace VLib
             return trs;
         }
 
+        /// <summary> Checks that a quaternion is a 'unit quaternion'. Should fail on 'default', 'NAN' as well. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsValidRot(this quaternion q) => !q.Equals(default) || math.any(math.isnan(q.value));
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsValidRot(in this quaternion q)
+        {
+            const float tolerance = 1e-6f;
+            return math.abs(math.dot(q.value, q.value) - 1.0f) < tolerance;
+        }
+        //public static bool IsValidRot(in this quaternion q) => !q.Equals(default) || math.any(math.isnan(q.value));
         
-        public static bool IsValidRot(this Quaternion q) => ((quaternion) q).IsValidRot();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsValidRot(in this Quaternion q) => ((quaternion) q).IsValidRot();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsValidRot<T>(this T trs)

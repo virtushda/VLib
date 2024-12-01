@@ -11,13 +11,14 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
+using VLib.Libraries.VLib.Unsafe.Utility;
 using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
     /// <summary> This structure allocates a <see cref="VUnsafeRef"/> and uses the <see cref="VSafetyHandle"/> to ensure that disposal is recognized by all copies. <br/>
     /// This can only be used in play mode, but is able to act like a "native class object". </summary>
-    public unsafe struct RefStruct<T> : IDisposable, IEquatable<RefStruct<T>>, IComparable<RefStruct<T>>
+    public struct RefStruct<T> : IDisposable, IEquatable<RefStruct<T>>, IComparable<RefStruct<T>>
         where T : unmanaged
     {
         // Data
@@ -54,7 +55,7 @@ namespace VLib
             }
         }
 
-        public readonly T* ValuePtr
+        public readonly unsafe T* ValuePtr
         {
             get
             {
@@ -98,7 +99,7 @@ namespace VLib
             return false;
         }
 
-        public bool TryGetValue(out T value)
+        public readonly bool TryGetValue(out T value)
         {
             if (!IsCreated)
             {
@@ -115,24 +116,16 @@ namespace VLib
             if (!IsCreated)
             {
                 success = false;
-                return ref UnsafeUtility.AsRef<T>(null);
+                return ref VUnsafeUtil.NullRef<T>();
             }
 
             success = true;
             return ref refData.ValueRef;
         }
 
-        public readonly bool TryGetPtr(out T* ptr)
-        {
-            if (!IsCreated)
-            {
-                ptr = null;
-                return false;
-            }
+        public readonly ref readonly T TryGetReadOnlyRef(out bool success) => ref TryGetRef(out success);
 
-            ptr = refData.TPtr;
-            return true;
-        }
+        public readonly unsafe SafePtr<T> AsSafePtr() => new SafePtr<T>(ValuePtr, safetyHandle);
 
         public override string ToString() => $"RefStruct|{safetyHandle} of type {typeof(T)}";
 

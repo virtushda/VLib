@@ -16,9 +16,9 @@ namespace VLib
         public static unsafe void MemcpyTyped<T>(T* srcPtr, int srcIndex, T* dstPtr, int dstIndex, int length)
             where T : unmanaged
         {
-            void* srcPtrVoid = srcPtr + srcIndex;
-            void* dstPtrVoid = dstPtr + dstIndex;
-            UnsafeUtility.MemCpy(dstPtrVoid, srcPtrVoid, length * UnsafeUtility.SizeOf<T>());
+            var source = srcPtr + srcIndex;
+            var destination = dstPtr + dstIndex;
+            UnsafeUtility.MemCpy(destination, source, length * UnsafeUtility.SizeOf<T>());
         }
         
         #endregion
@@ -80,23 +80,41 @@ namespace VLib
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void ConditionalCheckRangeValid(int start, int count, int length)
+        public static void ConditionalCheckRangeValid(int start, int count, int collectionLength)
         {
             if (start < 0)
                 throw new ArgumentOutOfRangeException(nameof(start), "Start index must be >= 0");
             if (count < 0)
                 throw new ArgumentOutOfRangeException(nameof(count), "Count must be >= 0");
-            if (start + count > length)
+            if (start + count > collectionLength)
                 throw new ArgumentOutOfRangeException(nameof(count), "Start index + count must be <= length");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckIsCreated<T>(this NativeArray<T> array)
-            where T : unmanaged
+            where T : struct
         {
             if (!array.IsCreated)
-                throw new InvalidOperationException("UnsafeList is not created.");
+                throw new InvalidOperationException("NativeArray is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T>(this NativeArray<T>.ReadOnly array)
+            where T : struct
+        {
+            if (!array.IsCreated)
+                throw new InvalidOperationException("NativeArray<T>.ReadOnly is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T>(this NativeList<T> list)
+            where T : unmanaged
+        {
+            if (!list.IsCreated)
+                throw new InvalidOperationException("NativeList is not created.");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -106,6 +124,82 @@ namespace VLib
         {
             if (!list.IsCreated)
                 throw new InvalidOperationException("UnsafeList is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T>(this NativeHashSet<T> set)
+            where T : unmanaged, IEquatable<T>
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("NativeHashSet is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T>(this UnsafeHashSet<T> set)
+            where T : unmanaged, IEquatable<T>
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("UnsafeHashSet is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T, U>(this NativeHashMap<T, U> set)
+            where T : unmanaged, IEquatable<T>
+            where U : unmanaged
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("NativeHashMap is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T, U>(this UnsafeHashMap<T, U> set)
+            where T : unmanaged, IEquatable<T>
+            where U : unmanaged
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("UnsafeHashMap is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T>(this NativeParallelHashSet<T> set)
+            where T : unmanaged, IEquatable<T>
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("NativeParallelHashSet is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T>(this UnsafeParallelHashSet<T> set)
+            where T : unmanaged, IEquatable<T>
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("UnsafeParallelHashSet is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T, U>(this NativeParallelHashMap<T, U> set)
+            where T : unmanaged, IEquatable<T>
+            where U : unmanaged
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("NativeParallelHashMap is not created.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckIsCreated<T, U>(this UnsafeParallelHashMap<T, U> set)
+            where T : unmanaged, IEquatable<T>
+            where U : unmanaged
+        {
+            if (!set.IsCreated)
+                throw new InvalidOperationException("UnsafeParallelHashMap is not created.");
         }
 
         #endregion

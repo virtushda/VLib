@@ -24,10 +24,10 @@ namespace VLib.Threading
         /// <param name="allowExecutingInJob"> By default, false is returned if this is called from within a job. Pass true to allow a job running on the main thread to return true. </param>
         public static bool OnMain(bool allowExecutingInJob = false)
         {
+            Profiler.BeginSample("Check OnMain");
             bool isMainThread = mainThreadId == Thread.CurrentThread.ManagedThreadId && (!JobsUtility.IsExecutingJob || allowExecutingInJob);
 #if PROVE_MAIN_THREAD
             // Prove it in editor by doing something cheap on the main thread.
-            Profiler.BeginSample("Main thread proof");
             if (isMainThread)
             {
                 try
@@ -41,8 +41,8 @@ namespace VLib.Threading
                     isMainThread = false;
                 }
             }
-            Profiler.EndSample();
 #endif
+            Profiler.EndSample();
             return isMainThread;
         }
 

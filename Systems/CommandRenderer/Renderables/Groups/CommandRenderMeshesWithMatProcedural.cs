@@ -28,12 +28,12 @@ namespace VLib
         Dictionary<TTracker, List<CmdRenderProcInstanceTracker>> instanceMap;
         public Dictionary<TTracker, List<CmdRenderProcInstanceTracker>> InstanceMap { get => instanceMap; }
 
-        SimpleListPool<CmdRenderProcInstanceTracker> instanceTrackerListPool;
+        AutoConcurrentListPool<CmdRenderProcInstanceTracker> instanceTrackerListPool;
 
         public CommandRenderMeshesWithMatProcedural() : base()
         {
             this.instanceMap = new Dictionary<TTracker, List<CmdRenderProcInstanceTracker>>(8);
-            instanceTrackerListPool = new SimpleListPool<CmdRenderProcInstanceTracker>(16, 8);
+            instanceTrackerListPool = new AutoConcurrentListPool<CmdRenderProcInstanceTracker>(16, 8);
         }
 
         public void AddInstanceTracked<TPropType>(TTracker tracker, Mesh mesh, TPropType propStruct)
@@ -52,7 +52,7 @@ namespace VLib
                 //Also pool lists now
                 if (!instanceMap.TryGetValue(tracker, out var instanceTrackers))
                 {
-                    instanceTrackers = instanceTrackerListPool.Fetch();
+                    instanceTrackers = instanceTrackerListPool.Depool();
                     instanceMap.Add(tracker, instanceTrackers);
                 }
 
@@ -81,7 +81,7 @@ namespace VLib
                 //Also pool lists now
                 if (!instanceMap.TryGetValue(tracker, out var instanceTrackers))
                 {
-                    instanceTrackers = instanceTrackerListPool.Fetch();
+                    instanceTrackers = instanceTrackerListPool.Depool();
                     instanceMap.Add(tracker, instanceTrackers);
                 }
 

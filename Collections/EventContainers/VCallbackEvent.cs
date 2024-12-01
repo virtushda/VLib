@@ -7,7 +7,7 @@ namespace VLib
     /// <summary> A typed event container with a callback that is invoked per-invocation. </summary>
     public class VCallbackEvent<TIn, TOut>
     {
-        private static readonly ThreadSafePoolParameterless<List<Func<TIn, TOut>>> listPool = new();
+        static readonly ConcurrentVPoolParameterless<List<Func<TIn, TOut>>> ListPool = new();
         
         public static VCallbackEvent<TIn, TOut> operator +(VCallbackEvent<TIn, TOut> eventContainer, Func<TIn, TOut> action)
         {
@@ -70,7 +70,7 @@ namespace VLib
                 return false;
             
             InvocationList.Clear();
-            listPool.Repool(InvocationList);
+            ListPool.Repool(InvocationList);
             InvocationList = null;
             return true;
         }
@@ -100,6 +100,6 @@ namespace VLib
             return true;
         }
 
-        private void EnsureList() => InvocationList ??= listPool.Fetch();
+        void EnsureList() => InvocationList ??= ListPool.Depool();
     }
 }

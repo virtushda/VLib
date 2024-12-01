@@ -1,6 +1,8 @@
 ﻿using System;
 using Drawing;
 using Unity.Mathematics;
+using VLib.Licensed;
+using static Unity.Mathematics.math;
 
 namespace VLib
 {
@@ -350,6 +352,8 @@ namespace VLib
             var u = 1.0f - v - w;
             return new(u, v, w);
         }
+
+        public readonly float3 ClosestPoint(in float3 point) => FromEmbree.ClosestPointTriangle(point, a, b, c);
 
         public readonly void DrawAline(CommandBuilder drawer, UnityEngine.Color color)
         {

@@ -58,7 +58,7 @@ namespace VLib
         /// <param name="speed"></param>
         /// <param name="timeDotTime"></param>
         /// <returns>True IF tracker believe progression is 'stuck'.</returns>
-        public bool UpdateTrack(float3 position, float3 newTarget, float speed, float timeDotTime)
+        public bool UpdateTrackCheckStuck(float3 position, float3 newTarget, float speed, float timeDotTime)
         {
             // Reset if target change, this is a static target tracker
             if (math.any(target != newTarget))

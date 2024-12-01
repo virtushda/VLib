@@ -6,12 +6,12 @@ using VLib;
 
 namespace Libraries.VLib.Tests
 {
-    public class VUnsafeBufferListTests
+    public class VUnsafeBufferArrayTests
     {
         [Test]
         public void VUnsafeBufferListTestsSimplePasses()
         {
-            var list = new VUnsafeBufferList<float>(512, true, Allocator.Persistent);
+            var list = new VUnsafeBufferArray<float>(512, true, Allocator.Persistent);
             
             // Setup some values
             for (int i = 0; i < 128; i++)

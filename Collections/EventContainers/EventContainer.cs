@@ -5,8 +5,7 @@ namespace VLib
 {
     public class EventContainer
     {
-        //private static readonly SimpleListPool<Action> listPool = new(8, 4);
-        private static readonly ThreadSafePoolParameterless<List<Action>> listPool = new();
+        static readonly ConcurrentVPoolParameterless<List<Action>> ListPool = new();
         
         public static EventContainer operator +(EventContainer eventContainer, Action action)
         {
@@ -41,7 +40,7 @@ namespace VLib
                 return false;
             
             InvocationList.Clear();
-            listPool.Repool(InvocationList);
+            ListPool.Repool(InvocationList);
             InvocationList = null;
             return true;
         }
@@ -73,12 +72,12 @@ namespace VLib
             return true;
         }
 
-        private void EnsureList() => InvocationList ??= listPool.Fetch();
+        void EnsureList() => InvocationList ??= ListPool.Depool();
     }
     
     public class EventContainer<T>
     {
-        private static readonly ThreadSafePoolParameterless<List<Action<T>>> listPool = new();
+        static readonly ConcurrentVPoolParameterless<List<Action<T>>> ListPool = new();
         
         public static EventContainer<T> operator +(EventContainer<T> eventContainer, Action<T> action)
         {
@@ -113,7 +112,7 @@ namespace VLib
                 return false;
             
             InvocationList.Clear();
-            listPool.Repool(InvocationList);
+            ListPool.Repool(InvocationList);
             InvocationList = null;
             return true;
         }
@@ -145,6 +144,6 @@ namespace VLib
             return true;
         }
 
-        private void EnsureList() => InvocationList ??= listPool.Fetch();
+        void EnsureList() => InvocationList ??= ListPool.Depool();
     }
 }

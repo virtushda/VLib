@@ -10,7 +10,7 @@ namespace VLib.UnsafeListSlicing
 {
     /// <summary> Lets you read/write a portion of a list with no copy. This must be used with caution, the main list safety will be checked.
     /// This acts like a list with a limited capacity as it constrains all operations within the slice. </summary>
-    public unsafe struct VUnsafeListSlice<T> : IVLibUnsafeContainer, IReadOnlyList<T>, IDisposable
+    public struct VUnsafeListSlice<T> : IVLibUnsafeContainer, IReadOnlyList<T>, IDisposable
         where T : unmanaged
     {
         VUnsafeList<T> mainList;
@@ -58,7 +58,7 @@ namespace VLib.UnsafeListSlicing
                                                      "If you are using a method which MAY change the capacity, ensure you are staying within capacity.");
         }
 
-        public readonly void* GetUnsafePtr() => (T*)mainList.GetUnsafePtr() + sliceStartIndex;
+        public readonly unsafe void* GetUnsafePtr() => ((T*) mainList.GetUnsafePtr()) + sliceStartIndex;
 
         /// <summary> Get AND Set are usable without length allocation. </summary>
         public T this[int index]
@@ -158,8 +158,12 @@ namespace VLib.UnsafeListSlicing
                 return false;
 
             var start = sliceStartIndex + lengthRef;
-            
-            UnsafeUtility.MemCpy(mainList.listData->Ptr + start, values.Ptr, count * sizeof(T));
+
+            unsafe
+            {
+                UnsafeUtility.MemCpy(mainList.ListData.Ptr + start, values.Ptr, count * sizeof(T)); // Implicitly checks IsCreated
+            }
+
             lengthRef += count;
             return true;
         }
@@ -172,7 +176,10 @@ namespace VLib.UnsafeListSlicing
             CheckSliceIndex(index);
             var start = sliceStartIndex + index;
             var end = sliceStartIndex + LengthInternalRef;
-            UnsafeUtility.MemMove(mainList.listData->Ptr + start, mainList.listData->Ptr + start + 1, (end - start - 1) * sizeof(T));
+            unsafe
+            {
+                UnsafeUtility.MemMove(mainList.ListData.Ptr + start, mainList.ListData.Ptr + start + 1, (end - start - 1) * sizeof(T));
+            }
             LengthInternalRef--;
         }
 

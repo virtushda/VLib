@@ -1,8 +1,11 @@
-﻿using System.Threading;
+﻿using System.Diagnostics;
+using System.Threading;
 using Unity.Burst;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 using VLib.Utility;
+using Debug = UnityEngine.Debug;
 
 namespace VLib.Systems
 {
@@ -27,10 +30,15 @@ namespace VLib.Systems
             public float smoothDeltaTime;
             public float unscaledDeltaTime;
             public int frameCount;
+            public float maximumDeltaTime;
+
+            /// <summary> <inheritdoc cref="externallyUpdatedUnscaledTime"/> <br/>
+            /// This version is constrained by maximumDeltaTime. </summary>
+            public double externallyUpdatedTime;
 
             /// <summary> This uses a background thread to constantly inject an updated time. Allows intra-frame timing. <br/>
             /// Regular time properties are not updated intra-frame, and are only updated at the start of the frame. </summary>
-            public double externallyUpdatedTime;
+            public double externallyUpdatedUnscaledTime;
 
             public void SetFromMain()
             {
@@ -42,11 +50,17 @@ namespace VLib.Systems
                 smoothDeltaTime = Time.smoothDeltaTime;
                 unscaledDeltaTime = Time.unscaledDeltaTime;
                 frameCount = Time.frameCount;
+                maximumDeltaTime = Time.maximumDeltaTime;
 
                 currentTimeScale = Time.timeScale;
             }
 
-            public void SetExternal(double timeFromExternal) => externallyUpdatedTime = timeFromExternal;
+            public void SetExternal(double timeFromExternalUnscaled)
+            {
+                // Constrain growth by maximumDeltaTime
+                externallyUpdatedTime = math.min(timeFromExternalUnscaled, externallyUpdatedTime + maximumDeltaTime);
+                externallyUpdatedUnscaledTime = timeFromExternalUnscaled;
+            }
         }
         
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -68,32 +82,30 @@ namespace VLib.Systems
                     timeBackgroundUpdateThread = null;
                 }
             }
+
+            timeNative.Data = default;
             
             // Start the background thread
             timeBackgroundUpdateThread = new Thread(() =>
             {
+                var stopwatch = ValueStopwatch.StartNew();
+                
                 while (true)
                 {
-                    var stopwatch = ValueStopwatch.StartNew();
-                    //var spinwait = new SpinWait();
-                
-                    while (true)
-                    {
-                        Profiler.BeginThreadProfiling("VTimeExternalTime", "VTimeExternalTime");
-                        // Update time
-                        timeNative.Data.SetExternal(stopwatch.Elapsed.TotalSeconds);
+                    Profiler.BeginThreadProfiling("VTimeExternalTime", "VTimeExternalTime");
+                    
+                    // Update time
+                    timeNative.Data.SetExternal(stopwatch.Elapsed.TotalSeconds);
                         
-                        // New wait, just sleep, should be often enough for intra-frame, around 1ms
-                        Thread.Sleep(1);
+                    // New wait, just sleep, should be often enough for intra-frame, around 1ms
+                    Thread.Sleep(1);
                         
-                        // Old wait, vastly more precise, probably overkill!
-                        // Spinwait until the next frame
-                        /*if (spinwait.NextSpinWillYield)
-                            spinwait.Reset();
-                        spinwait.SpinOnce();*/
-                        Profiler.EndThreadProfiling();
-                    }
-                
+                    // Old wait, vastly more precise, probably overkill!
+                    // Spinwait until the next frame
+                    /*if (spinwait.NextSpinWillYield)
+                        spinwait.Reset();
+                    spinwait.SpinOnce();*/
+                    Profiler.EndThreadProfiling();
                 }
             });
             timeBackgroundUpdateThread.Start();

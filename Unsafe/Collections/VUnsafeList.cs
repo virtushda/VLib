@@ -10,6 +10,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using VLib.Libraries.VLib.Unsafe.Utility;
 using VLib.UnsafeListSlicing;
 
 namespace VLib
@@ -24,11 +25,22 @@ namespace VLib
     //[DebuggerDisplay("Length = {m_ListData == null ? default : m_ListData->Length}, Capacity = {m_ListData == null ? default : m_ListData->Capacity}")]
     //[DebuggerTypeProxy(typeof(NativeListDebugView<>))]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
-    public unsafe struct VUnsafeList<T> : IVLibUnsafeContainer, IDisposable /*INativeDisposable*/, INativeList<T>, IEnumerable<T>, IReadOnlyList<T> // Used by collection initializers.
+    public struct VUnsafeList<T> : IVLibUnsafeContainer, IDisposable /*INativeDisposable*/, INativeList<T>, IEnumerable<T>, IReadOnlyList<T> // Used by collection initializers.
         where T : unmanaged
     {
-        [NativeDisableUnsafePtrRestriction] public UnsafeList<T>* listData;
-        public readonly ref UnsafeList<T> ListData => ref *listData;
+        [NativeDisableUnsafePtrRestriction] unsafe UnsafeList<T>* listData;
+        public readonly unsafe ref UnsafeList<T> ListData
+        {
+            get
+            {
+                ConditionalCheckIsCreated();
+                return ref *listData;
+            }
+        }
+
+        public readonly unsafe ref UnsafeList<T> ListDataUnsafe => ref *listData;
+        
+        public readonly unsafe void* GetUnsafePtr() => ListDataUnsafe.Ptr;
 
         /// <summary> Initializes and returns a VUnsafeList with a capacity of one. </summary>
         /// <param name="allocator">The allocator to use.</param>
@@ -46,7 +58,7 @@ namespace VLib
         }
 
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(AllocatorManager.AllocatorHandle)})]
-        internal void Initialize(int initialCapacity, Allocator allocator, NativeArrayOptions options = NativeArrayOptions.UninitializedMemory)
+        internal unsafe void Initialize(int initialCapacity, Allocator allocator, NativeArrayOptions options = NativeArrayOptions.UninitializedMemory)
         {
             var totalSize = sizeof(T) * (long) initialCapacity;
             listData = UnsafeList<T>.Create(initialCapacity, allocator, NativeArrayOptions.UninitializedMemory);
@@ -58,16 +70,16 @@ namespace VLib
             if (!IsCreated)
                 throw new InvalidOperationException("VUnsafeList has not been allocated or has been deallocated.");
         }
-
         public readonly bool IndexValid(int index)
         {
+            // ConditionalCheckIsCreated(); // Length property checks this already
             return index < Length && index >= 0;
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public readonly void ConditionalAssertIndexValid(int index)
         {
-            ConditionalCheckIsCreated();
+            // IndexValid checks IsCreated
             if (!IndexValid(index))
                 throw new IndexOutOfRangeException($"Index {index} is out of range in VUnsafeList of '{Length}' Length.");
         }
@@ -79,18 +91,10 @@ namespace VLib
         public T this[int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get
-            {
-                ConditionalAssertIndexValid(index);
-                return (*listData)[index];
-            }
+            readonly get => ListData[index];
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            set
-            {
-                ConditionalAssertIndexValid(index);
-                (*listData)[index] = value;
-            }
+            set => ListData[index] = value;
         }
 
         /// <summary>
@@ -99,17 +103,9 @@ namespace VLib
         /// <param name="index">An index.</param>
         /// <returns>A reference to the element at the index.</returns>
         /// <exception cref="IndexOutOfRangeException">Thrown if index is out of bounds.</exception>
-        public readonly ref T ElementAt(int index)
-        {
-            ConditionalAssertIndexValid(index);
-            return ref listData->ElementAt(index);
-        }
-        
-        public readonly ref readonly T ElementAtReadOnly(int index)
-        {
-            ConditionalAssertIndexValid(index);
-            return ref listData->ElementAt(index);
-        }
+        public readonly ref T ElementAt(int index) => ref ListData.ElementAt(index);
+
+        public readonly ref readonly T ElementAtReadOnly(int index) => ref ListData.ElementAt(index);
 
         /// <summary> The count of elements. </summary>
         /// <value>The current count of elements. Always less than or equal to the capacity.</value>
@@ -119,18 +115,11 @@ namespace VLib
         public int Length
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get
-            {
-                ConditionalCheckIsCreated();
-                return listData->Length;
-            }
-
-            set
-            {
-                ConditionalCheckIsCreated();
-                listData->Resize(value, NativeArrayOptions.ClearMemory);
-            }
+            readonly get => ListData.Length;
+            set => ListData.Resize(value, NativeArrayOptions.ClearMemory);
         }
+
+        ref int LengthRef => ref ListData.m_length;
 
         public readonly int Count => Length;
 
@@ -143,27 +132,9 @@ namespace VLib
         public int Capacity
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get
-            {
-                ConditionalCheckIsCreated();
-                return listData->Capacity;
-            }
-
-            set
-            {
-                ConditionalCheckIsCreated();
-                listData->Capacity = value;
-            }
+            readonly get => ListData.Capacity;
+            set => ListData.Capacity = value;
         }
-
-        public readonly void* GetUnsafePtr() => listData->Ptr;
-        
-        // Just use ElementAt
-        /*public ref T GetRef(int index)
-        {
-            ConditionalAssertIndexValid(index);
-            return ref ElementAt(index);
-        }*/
 
         public readonly bool TryGetValue(int index, out T value)
         {
@@ -182,7 +153,7 @@ namespace VLib
             success = IndexValid(index);
             if (success)
                 return ref ElementAt(index);
-            return ref UnsafeUtility.AsRef<T>(default);
+            return ref VUnsafeUtil.NullRef<T>();
         }
 
         public readonly ref readonly T TryGetRefReadOnly(int index, out bool success)
@@ -190,10 +161,10 @@ namespace VLib
             success = IndexValid(index);
             if (success)
                 return ref ElementAtReadOnly(index);
-            return ref UnsafeUtility.AsRef<T>(default);
+            return ref VUnsafeUtil.NullRef<T>();
         }
 
-        public readonly bool TryGetElementPtr(int index, out T* valuePtr)
+        /*public readonly bool TryGetElementPtr(int index, out T* valuePtr)
         {
             valuePtr = null;
             if (!IndexValid(index))
@@ -201,28 +172,23 @@ namespace VLib
             
             valuePtr = listData->Ptr + index;
             return true;
-        }
+        }*/
 
         /// <summary> Appends an element to the end of this list. </summary>
         /// <param name="value">The value to add to the end of this list.</param>
         /// <remarks> Length is incremented by 1. Will not increase the capacity. </remarks>
         /// <exception cref="InvalidOperationException">Thrown if incrementing the length would exceed the capacity.</exception>
-        public void AddNoResize(T value)
-        {
-            ConditionalCheckIsCreated();
-            listData->AddNoResize(value);
-        }
+        public void AddNoResize(T value) => ListData.AddNoResize(value);
 
         /// <summary> Appends elements from a buffer to the end of this list. </summary>
         /// <param name="ptr">The buffer to copy from.</param>
         /// <param name="count">The number of elements to copy from the buffer.</param>
         /// <remarks> Length is increased by the count. Will not increase the capacity. </remarks>
         /// <exception cref="InvalidOperationException">Thrown if the increased length would exceed the capacity.</exception>
-        public void AddRangeNoResize(void* ptr, int count)
+        public unsafe void AddRangeNoResize(void* ptr, int count)
         {
-            ConditionalCheckIsCreated();
             ConditionalCheckArgPositive(count);
-            listData->AddRangeNoResize(ptr, count);
+            ListData.AddRangeNoResize(ptr, count);
         }
 
         /// <summary>
@@ -233,11 +199,7 @@ namespace VLib
         /// Length is increased by the length of the other list. Will not increase the capacity.
         /// </remarks>
         /// <exception cref="InvalidOperationException">Thrown if the increased length would exceed the capacity.</exception>
-        public void AddRangeNoResize(NativeList<T> list)
-        {
-            ConditionalCheckIsCreated();
-            listData->AddRangeNoResize(*listData);
-        }
+        public unsafe void AddRangeNoResize(NativeList<T> list) => ListData.AddRangeNoResize(*list.GetUnsafeList());
 
         /// <summary>
         /// Appends an element to the end of this list.
@@ -246,11 +208,7 @@ namespace VLib
         /// <remarks>
         /// Length is incremented by 1. If necessary, the capacity is increased.
         /// </remarks>
-        public void Add(in T value)
-        {
-            ConditionalCheckIsCreated();
-            listData->Add(in value);
-        }
+        public void Add(in T value) => ListData.Add(in value);
 
         /// <summary>
         /// Appends the elements of an array to the end of this list.
@@ -260,22 +218,16 @@ namespace VLib
         /// Length is increased by the number of new elements. Does not increase the capacity.
         /// </remarks>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if the increased length would exceed the capacity.</exception>
-        public void AddRange(NativeArray<T> array)
-        {
-            ConditionalCheckIsCreated();
-            AddRange(array.GetUnsafeReadOnlyPtr(), array.Length);
-        }
-        
-        public void AddRange(VUnsafeList<T> otherList, int startIndex = 0, int count = 0)
+        public unsafe void AddRange(NativeArray<T> array) => AddRange(array.GetUnsafeReadOnlyPtr(), array.Length); // Call checks is created
+
+        public unsafe void AddRange(VUnsafeList<T> otherList, int startIndex = 0, int count = 0)
         {
             if (count <= 0)
-                count = otherList.Length - startIndex;
+                count = otherList.Length - startIndex; // This line checks other list is created implicitly
             
-            ConditionalCheckIsCreated();
-            otherList.ConditionalCheckIsCreated();
             otherList.ConditionalCheckRange(startIndex, count);
             
-            listData->AddRange(otherList.listData->Ptr + startIndex, count);
+            ListData.AddRange(otherList.ListData.Ptr + startIndex, count); // This line check this list is created implicitly
         }
 
         /// <summary>
@@ -284,11 +236,10 @@ namespace VLib
         /// <param name="ptr">The buffer to copy from.</param>
         /// <param name="count">The number of elements to copy from the buffer.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if count is negative.</exception>
-        public void AddRange(void* ptr, int count)
+        public unsafe void AddRange(void* ptr, int count)
         {
-            ConditionalCheckIsCreated();
             ConditionalCheckArgPositive(count);
-            listData->AddRange(ptr, count);
+            ListData.AddRange(ptr, count); // This line checks this list is created implicitly
         }
 
         /// <summary>
@@ -302,9 +253,8 @@ namespace VLib
         /// <exception cref="ArgumentOutOfRangeException">Thrown if count is negative.</exception>
         public void AddReplicate(in T value, int count)
         {
-            ConditionalCheckIsCreated();
             ConditionalCheckArgPositive(count);
-            listData->AddReplicate(in value, count);
+            ListData.AddReplicate(in value, count);
         }
 
         /// <summary>
@@ -325,11 +275,7 @@ namespace VLib
         /// <param name="end">The index where the first shifted element will end up.</param>
         /// <exception cref="ArgumentException">Thrown if `end &lt; begin`.</exception>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `begin` or `end` are out of bounds.</exception>
-        public void InsertRangeWithBeginEnd(int begin, int end)
-        {
-            ConditionalCheckIsCreated();
-            listData->InsertRangeWithBeginEnd(begin, end);
-        }
+        public void InsertRangeWithBeginEnd(int begin, int end) => ListData.InsertRangeWithBeginEnd(begin, end); // Implicitly checks is created
 
         /// <summary>
         /// Shifts elements toward the end of this list, increasing its length.
@@ -354,7 +300,7 @@ namespace VLib
         public void Insert(int index, T value)
         {
             InsertRangeWithBeginEnd(index, index + 1);
-            (*listData)[index] = value;
+            ListData[index] = value;
         }
 
         /// <summary>
@@ -363,11 +309,7 @@ namespace VLib
         /// <remarks>Useful as a cheap way to remove an element from this list when you don't care about preserving order.</remarks>
         /// <param name="index">The index to overwrite with the last element.</param>
         /// <exception cref="IndexOutOfRangeException">Thrown if `index` is out of bounds.</exception>
-        public void RemoveAtSwapBack(int index)
-        {
-            ConditionalCheckIsCreated();
-            listData->RemoveAtSwapBack(index);
-        }
+        public void RemoveAtSwapBack(int index) => ListData.RemoveAtSwapBack(index); // Implicitly checks is created
 
         /// <summary> Copies the last *N* elements of this list to a range in this list. Decrements the length by *N*. </summary>
         /// <remarks>
@@ -379,11 +321,7 @@ namespace VLib
         /// <param name="count">The number of elements to copy and remove.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `index` is out of bounds, `count` is negative,
         /// or `index + count` exceeds the length.</exception>
-        public void RemoveRangeSwapBack(int index, int count)
-        {
-            ConditionalCheckIsCreated();
-            listData->RemoveRangeSwapBack(index, count);
-        }
+        public void RemoveRangeSwapBack(int index, int count) => ListData.RemoveRangeSwapBack(index, count); // Implicitly checks is created
 
         /// <summary>
         /// Removes the element at an index, shifting everything above it down by one. Decrements the length by 1.
@@ -393,11 +331,7 @@ namespace VLib
         /// If you don't care about preserving the order of the elements, <see cref="RemoveAtSwapBack(int)"/> is a more efficient way to remove elements.
         /// </remarks>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `index` is out of bounds.</exception>
-        public void RemoveAt(int index)
-        {
-            ConditionalAssertIndexValid(index);
-            listData->RemoveAt(index);
-        }
+        public void RemoveAt(int index) => ListData.RemoveAt(index); // Implicitly checks is created and unsafelist call checks index
 
         /// <summary>
         /// Removes *N* elements in a range, shifting everything above the range down by *N*. Decrements the length by *N*.
@@ -410,18 +344,15 @@ namespace VLib
         /// </remarks>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if `index` is out of bounds, `count` is negative,
         /// or `index + count` exceeds the length.</exception>
-        public void RemoveRange(int index, int count)
-        {
-            ConditionalCheckIsCreated();
-            listData->RemoveRange(index, count);
-        }
+        public void RemoveRange(int index, int count) => ListData.RemoveRange(index, count); // Implicitly checks is created and unsafelist call checks index
 
         /// <summary> Linear search removal. Not efficient with large collections. </summary>
         public bool Remove<U>(U valueToRemove)
             where U : unmanaged, IEquatable<T>, IEquatable<U>
         {
-            var list = *listData;
-            for (var i = 0; i < list.Length; i++)
+            ref var list = ref ListData;
+            var length = list.Length;
+            for (var i = 0; i < length; i++)
             {
                 var value = list[i];
                 if (value.Equals(valueToRemove))
@@ -430,15 +361,13 @@ namespace VLib
                     return true;
                 }
             }
-
             return false;
         }
 
         /// <summary> Try to remove and return a value from the end of the list. False if list is empty. Calling on an uncreated list will throw. </summary>
         public bool TryPopLastElement(out T value)
         {
-            ConditionalCheckIsCreated();
-            var lastIndex = Length - 1;
+            var lastIndex = Length - 1; // Implicitly checks is created
             if (lastIndex < 0)
             {
                 value = default;
@@ -451,10 +380,10 @@ namespace VLib
             return true;
         }
 
-        public void WriteValueToRange(T valueCopy, int startIndex, int count)
+        public unsafe void WriteValueToRange(T valueCopy, int startIndex, int count)
         {
             ConditionalCheckRange(startIndex, count);
-            UnsafeUtility.MemCpyReplicate(listData->Ptr + startIndex, &valueCopy, sizeof(T), count);
+            UnsafeUtility.MemCpyReplicate(ListData.Ptr + startIndex, &valueCopy, sizeof(T), count);
         }
 
         /// <summary>
@@ -464,21 +393,21 @@ namespace VLib
         public readonly bool IsEmpty
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => listData == null || listData->Length == 0;
+            get => !IsCreated || ListData.Length == 0;
         }
 
         /// <summary>
         /// Whether this list has been allocated (and not yet deallocated).
         /// </summary>
         /// <value>True if this list has been allocated (and not yet deallocated).</value>
-        public readonly bool IsCreated
+        public readonly unsafe bool IsCreated
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => listData != null;
         }
 
         /// <summary> Releases all resources. </summary>
-        public void Dispose()
+        public unsafe void Dispose()
         {
             if (!IsCreated)
                 return;
@@ -512,30 +441,14 @@ namespace VLib
 
         /// <summary> Sets the length to 0. </summary>
         /// <remarks> Does not change the capacity. </remarks>
-        public void Clear()
-        {
-            ConditionalCheckIsCreated();
-            listData->Clear();
-        }
-
-        /// <summary>
-        /// **Obsolete.** Use <see cref="AsArray"/> method to do explicit cast instead.
-        /// </summary>
-        /// <remarks>
-        /// Returns a native array that aliases the content of a list.
-        /// </remarks>
-        /// <param name="nativeList">The list to alias.</param>
-        /// <returns>A native array that aliases the content of the list.</returns>
-        /*[Obsolete("Implicit cast from `NativeList<T>` to `NativeArray<T>` has been deprecated; Use '.AsArray()' method to do explicit cast instead.", false)]
-        public static implicit operator NativeArray<T>(VUnsafeList<T> list) => list.AsArray();*/
+        public void Clear() => ListData.Clear();
 
         /// <summary> Returns a native array that aliases the content of this list. </summary>
         /// <returns> A native array that aliases the content of this list. <br/>
         /// The returned native array will not have a safety handle, if that is an issue use <see cref="AsArrayView"/> instead! </returns>
-        public readonly NativeArray<T> AsArray()
+        public readonly unsafe NativeArray<T> AsArray()
         {
-            ConditionalCheckIsCreated();
-            return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(listData->Ptr, listData->Length, Allocator.None);
+            return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(ListData.Ptr, ListDataUnsafe.Length, Allocator.None); // Implicitly checks is created
         }
 
         /// <summary> Handles the atomic safety handle... </summary>
@@ -570,14 +483,14 @@ namespace VLib
         /// <summary> A version of <see cref="AsArray"/> that handles the atomic safety handle... Must be disposed to release the safety handle. </summary>
         public NativeArrayView AsArrayView() => new NativeArrayView(this);
         
-        public NativeArray<T> AsArrayCustomReadonly(int size)
+        public unsafe NativeArray<T> AsArrayCustomReadonly(int size)
         {
             if (size < 0 || size > Capacity)
             {
                 UnityEngine.Debug.LogError($"Size {size} is invalid for list with capacity {Capacity}");
                 size = math.clamp(size, 0, Capacity);
             }
-            return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(listData->Ptr, size, Allocator.None);
+            return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(ListData.Ptr, size, Allocator.None);
         }
 
         /*/// <summary>
@@ -694,9 +607,6 @@ namespace VLib
         {
             other.ConditionalCheckIsCreated();
             VCollectionUtils.CopyFromTo(other.AsUnsafeList(NativeSafety.ReadOnly), this);
-            
-            /*ConditionalAssertIsCreated();
-            listData->CopyFrom(other);*/
         }
 
         /// <summary>
@@ -707,33 +617,29 @@ namespace VLib
         {
             other.ConditionalCheckIsCreated();
             VCollectionUtils.CopyFromTo(other, this);
-            
-            /*ConditionalAssertIsCreated();
-            listData->CopyFrom(other);*/
         }
 
         /// <summary>
         /// Copies all elements of specified container to this container.
         /// </summary>
         /// <param name="other">An container to copy into this container.</param>
-        public void CopyFrom(in VUnsafeList<T> other) => CopyFrom(*other.listData);
+        public void CopyFrom(in VUnsafeList<T> other) => CopyFrom(other.ListDataUnsafe);
 
         /// <summary>
         /// Copies all elements of specified container to this container.
         /// </summary>
         /// <param name="other">An container to copy into this container.</param>
-        public void CopyFrom(ref NativeList<T> other)
+        public unsafe void CopyFrom(ref NativeList<T> other)
         {
-            var unsafeList = other.GetUnsafeList();
-            VCollectionUtils.CheckPtrNonNull(unsafeList);
-            CopyFrom(*unsafeList);
+            var otherUnsafe = other.GetUnsafeList();
+            VCollectionUtils.CheckPtrNonNull(otherUnsafe);
+            CopyFrom(*otherUnsafe);
         }
 
         /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
         public void CopyToNoAdd(VUnsafeList<T> dest, int sourceStart = 0, int destStart = 0, int count = 0)
         {
-            dest.ConditionalCheckIsCreated();
-            CopyToNoAdd(*dest.listData, sourceStart, destStart, count);
+            CopyToNoAdd(dest.ListData, sourceStart, destStart, count); // Implicitly checks is created
         }
 
         /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
@@ -743,8 +649,11 @@ namespace VLib
         }
         
         /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
-        public void CopyFromAsArray(VUnsafeList<T> source, int sourceStart = 0, int destStart = 0, int count = 0) => CopyFromAsArray(*source.listData, sourceStart, destStart, count);
-        
+        public void CopyFromAsArray(VUnsafeList<T> source, int sourceStart = 0, int destStart = 0, int count = 0)
+        {
+            CopyFromAsArray(source.ListDataUnsafe, sourceStart, destStart, count); // Call internally checks is created
+        }
+
         /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
         public void CopyFromAsArray(UnsafeList<T> source, int sourceStart = 0, int destStart = 0, int count = 0)
         {
@@ -756,11 +665,7 @@ namespace VLib
         /// </summary>
         /// <param name="length">The new length of this list.</param>
         /// <param name="options">Whether to clear any newly allocated bytes to all zeroes.</param>
-        public void Resize(int length, NativeArrayOptions options)
-        {
-            ConditionalCheckIsCreated();
-            listData->Resize(length, options);
-        }
+        public void Resize(int length, NativeArrayOptions options) => ListData.Resize(length, options); // Implicitly checks is created
 
         /// <summary>
         /// Sets the length of this list, increasing the capacity if necessary.
@@ -773,20 +678,12 @@ namespace VLib
         /// Sets the capacity.
         /// </summary>
         /// <param name="capacity">The new capacity.</param>
-        public void SetCapacity(int capacity)
-        {
-            ConditionalCheckIsCreated();
-            listData->SetCapacity(capacity);
-        }
+        public void SetCapacity(int capacity) => ListData.SetCapacity(capacity); // Implicitly checks is created
 
         /// <summary>
         /// Sets the capacity to match the length.
         /// </summary>
-        public void TrimExcess()
-        {
-            ConditionalCheckIsCreated();
-            listData->TrimExcess();
-        }
+        public void TrimExcess() => ListData.TrimExcess(); // Implicitly checks is created
 
         // wtf is a "parallel reader"?
         /*/// <summary>
@@ -809,7 +706,7 @@ namespace VLib
         /// Returns an enumerator over the elements of this list.
         /// </summary>
         /// <returns>An enumerator over the elements of this list.</returns>
-        public Enumerator GetEnumerator() => new Enumerator { m_Ptr = listData->Ptr, m_Length = Length, m_Index = -1 };
+        public unsafe Enumerator GetEnumerator() => new Enumerator { sourceList = this, m_Index = -1 };
 
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
@@ -834,8 +731,7 @@ namespace VLib
         /// </remarks>
         public struct Enumerator : IEnumerator<T>
         {
-            internal T* m_Ptr;
-            internal int m_Length;
+            internal VUnsafeList<T> sourceList;
             internal int m_Index;
 
             /// <summary>
@@ -851,7 +747,7 @@ namespace VLib
             /// </remarks>
             /// <returns>True if `Current` is valid to read after the call.</returns>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public bool MoveNext() => ++m_Index < m_Length;
+            public bool MoveNext() => ++m_Index < sourceList.Length;
 
             /// <summary>
             /// Resets the enumerator to its initial state.
@@ -865,7 +761,7 @@ namespace VLib
             public T Current
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => m_Ptr[m_Index];
+                get => sourceList[m_Index];
             }
 
             object IEnumerator.Current => Current;
@@ -879,10 +775,7 @@ namespace VLib
         /// Returns a parallel writer of this list.
         /// </summary>
         /// <returns>A parallel writer of this list.</returns>
-        public ParallelWriter AsParallelWriter()
-        {
-            return new ParallelWriter(listData);
-        }
+        public ParallelWriter AsParallelWriter() => new ParallelWriter(this);
 
         /// <summary>
         /// A parallel writer for a VUnsafeList.
@@ -895,26 +788,15 @@ namespace VLib
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
         public struct ParallelWriter
         {
-            // TODO: Eliminate pointer usage
-            
-            /// <summary>
-            /// The data of the list.
-            /// </summary>
-            public readonly void* Ptr
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => ListData->Ptr;
-            }
-
             /// <summary>
             /// The internal unsafe list.
             /// </summary>
             /// <value>The internal unsafe list.</value>
-            [NativeDisableUnsafePtrRestriction] public UnsafeList<T>* ListData;
+            VUnsafeList<T> list;
 
-            public bool IsCreated => ListData != null && ListData->IsCreated;
+            public readonly bool IsCreated => list.IsCreated;
 
-            internal ParallelWriter(UnsafeList<T>* listData) => ListData = listData;
+            internal ParallelWriter(VUnsafeList<T> listData) => list = listData;
 
             /// <summary>
             /// Appends an element to the end of this list.
@@ -924,13 +806,12 @@ namespace VLib
             /// Increments the length by 1 unless doing so would exceed the current capacity.
             /// </remarks>
             /// <exception cref="InvalidOperationException">Thrown if adding an element would exceed the capacity.</exception>
-            public void AddNoResize(T value)
+            public unsafe void AddNoResize(T value)
             {
-                CheckIsCreated();
-                var idx = Interlocked.Increment(ref ListData->m_length) - 1;
-                CheckSufficientCapacity(ListData->Capacity, idx + 1);
+                var idx = Interlocked.Increment(ref list.LengthRef) - 1; // Implicitly checks is created
+                CheckSufficientCapacity(list.Capacity, idx + 1);
 
-                UnsafeUtility.WriteArrayElement(ListData->Ptr, idx, value);
+                UnsafeUtility.WriteArrayElement(list.ListDataUnsafe.Ptr, idx, value);
             }
 
             /// <summary>
@@ -942,31 +823,27 @@ namespace VLib
             /// Increments the length by `count` unless doing so would exceed the current capacity.
             /// </remarks>
             /// <exception cref="InvalidOperationException">Thrown if adding the elements would exceed the capacity.</exception>
-            public void AddRangeNoResize(void* ptr, int count)
+            public unsafe void AddRangeNoResize(void* ptr, int count)
             {
                 ConditionalCheckArgPositive(count);
-                CheckIsCreated();
                 
-                var idx = Interlocked.Add(ref ListData->m_length, count) - count;
-                CheckSufficientCapacity(ListData->Capacity, idx + count);
+                var idx = Interlocked.Add(ref list.LengthRef, count) - count; // Implicitly checks is created
+                CheckSufficientCapacity(list.Capacity, idx + count);
 
                 var sizeOf = sizeof(T);
-                void* dst = ((byte*)ListData->Ptr) + idx * sizeOf;
+                void* dst = ((byte*)list.ListDataUnsafe.Ptr) + idx * sizeOf;
                 UnsafeUtility.MemCpy(dst, ptr, count * sizeOf);
             }
 
             /// <summary>
             /// Appends the elements of another list to the end of this list.
             /// </summary>
-            /// <param name="list">The other list to copy from.</param>
+            /// <param name="incomingList">The other list to copy from.</param>
             /// <remarks>
             /// Increments the length of this list by the length of the other list unless doing so would exceed the current capacity.
             /// </remarks>
             /// <exception cref="InvalidOperationException">Thrown if adding the elements would exceed the capacity.</exception>
-            public void AddRangeNoResize(UnsafeList<T> list)
-            {
-                AddRangeNoResize(list.Ptr, list.Length);
-            }
+            public unsafe void AddRangeNoResize(UnsafeList<T> incomingList) => AddRangeNoResize(incomingList.Ptr, incomingList.Length);
 
             /*/// <summary>
             /// Appends the elements of another list to the end of this list.
@@ -1032,7 +909,7 @@ namespace VLib
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        void CheckHandleMatches(AllocatorManager.AllocatorHandle handle)
+        unsafe void CheckHandleMatches(AllocatorManager.AllocatorHandle handle)
         {
             if (listData == null)
                 throw new ArgumentOutOfRangeException($"Allocator handle {handle} can't match because container is not initialized.");
@@ -1063,9 +940,6 @@ namespace VLib
             : IReadOnlyList<T>
         {
             readonly VUnsafeList<T> list;
-            
-            /// <summary> The internal buffer of the list. </summary>
-            T* Ptr => list.listData->Ptr;
 
             /// <summary> The number of elements. </summary>
             public int Length => list.Length;
@@ -1097,21 +971,21 @@ namespace VLib
             /// Returns an enumerator over the elements of the list.
             /// </summary>
             /// <returns>An enumerator over the elements of the list.</returns>
-            public Enumerator GetEnumerator() => new() { m_Ptr = Ptr, m_Length = Length, m_Index = -1 };
+            public Enumerator GetEnumerator() => new() { sourceList = list, m_Index = -1 };
 
             /// <summary>
             /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
             /// </summary>
             /// <returns>Throws NotImplementedException.</returns>
             /// <exception cref="NotImplementedException">Method is not implemented.</exception>
-            IEnumerator IEnumerable.GetEnumerator() => throw new NotImplementedException();
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
             /// <summary>
             /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
             /// </summary>
             /// <returns>Throws NotImplementedException.</returns>
             /// <exception cref="NotImplementedException">Method is not implemented.</exception>
-            IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
+            IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         }
 
         #endregion
@@ -1122,7 +996,7 @@ namespace VLib
         /// Providing a length allocator allows the slice to act like its own list with constrained capacity, but at the cost of a small allocation. </summary>
         public VUnsafeListSlice<T> Slice(int start, int length, Allocator lengthAllocator)
         {
-            CheckIndexInRange(start, Length);
+            CheckIndexInRange(start, Length); // Implicitly checks is created
             // Allow for empty slices, but put logic in conditional so it is stripped with the conditional
             CheckIndexInRange(length > 0 ? start + length - 1 : start, Length);
             return new VUnsafeListSlice<T>(this, start, length, lengthAllocator);
@@ -1139,7 +1013,7 @@ namespace VLib
         
         #endregion
 
-        public void ClearUnusedMemory() => listData->ClearUnusedMemory();
+        public void ClearUnusedMemory() => ListData.ClearUnusedMemory();
         
         public JobHandle DisposeAfter(JobHandle inDeps) => new DisposeJob<T> { list = this }.Schedule(inDeps);
 
@@ -1170,7 +1044,7 @@ namespace VLib
     /// Provides extension methods for UnsafeList.
     /// </summary>
     [GenerateTestsForBurstCompatibility]
-    public static unsafe class VUnsafeListExtensions
+    public static class VUnsafeListExtensions
     {
         /// <summary>
         /// Returns true if a particular value is present in this list.
@@ -1181,11 +1055,10 @@ namespace VLib
         /// <param name="value">The value to locate.</param>
         /// <returns>True if the value is present in this list.</returns>
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int), typeof(int)})]
-        public static bool Contains<T, U>(this VUnsafeList<T> list, U value)
+        public static unsafe bool Contains<T, U>(this VUnsafeList<T> list, U value)
             where T : unmanaged, IEquatable<U>
         {
-            list.ConditionalCheckIsCreated();
-            return NativeArrayExtensions.IndexOf<T, U>(list.listData->Ptr, list.Length, value) != -1;
+            return NativeArrayExtensions.IndexOf<T, U>(list.ListData.Ptr, list.Length, value) != -1; // Implicitly checks is created
         }
 
         /// <summary>
@@ -1197,11 +1070,10 @@ namespace VLib
         /// <param name="value">The value to locate.</param>
         /// <returns>The index of the first occurrence of the value in this list. Returns -1 if no occurrence is found.</returns>
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int), typeof(int)})]
-        public static int IndexOf<T, U>(this VUnsafeList<T> list, U value)
+        public static unsafe int IndexOf<T, U>(this VUnsafeList<T> list, U value)
             where T : unmanaged, IEquatable<U>
         {
-            list.ConditionalCheckIsCreated();
-            return NativeArrayExtensions.IndexOf<T, U>(list.listData->Ptr, list.Length, value);
+            return NativeArrayExtensions.IndexOf<T, U>(list.ListData.Ptr, list.Length, value); // Implicitly checks is created
         }
     }
 }

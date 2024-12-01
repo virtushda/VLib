@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using Unity.Burst;
-using UnityEditor;
 using UnityEngine;
 using VLib.Utility;
 using Debug = UnityEngine.Debug;
@@ -79,7 +78,7 @@ namespace VLib
 #endif
                 Interlocked.Decrement(ref takenHandles);
                 bool returned = safetyMemory.ReturnAddress(handle.truthLocation);
-                BurstAssert.True(returned);
+                BurstAssert.TrueCheap(returned);
                 return true;
             }
 
@@ -163,8 +162,9 @@ namespace VLib
             {
                 foreach (var kvp in traceDict)
                 { 
-                    Debug.LogError($"VSafetyHandle-{kvp.Key} still active...");
-                    Debug.LogError($"VSafetyHandle (ID logged separately) still active, stack trace: \n {kvp.Value}");
+                    Debug.LogWarning($"VSafetyHandle-{kvp.Key} still active...");
+                    // Separate log to preserve console 'collapse' functionality
+                    Debug.LogError($"VSafetyHandle (ID logged separately as warning) still active, stack trace: \n {kvp.Value}");
                 }
             }
         }

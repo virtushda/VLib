@@ -102,9 +102,12 @@ namespace VLib.Systems
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
         public static int frameCount => VTimeData.timeNative.Data.frameCount;
+        public static float maximumDeltaTime => VTimeData.timeNative.Data.maximumDeltaTime;
 
-        /// <summary> <inheritdoc cref="TimeData.externallyUpdatedTime"/> </summary>
+        /// <summary> <inheritdoc cref="VTimeData.TimeData.externallyUpdatedTime"/> </summary>
         public static double intraFrameTime => VTimeData.timeNative.Data.externallyUpdatedTime;
+        /// <summary> <inheritdoc cref="VTimeData.TimeData.externallyUpdatedUnscaledTime"/> </summary>
+        public static double intraFrameTimeUnscaled => VTimeData.timeNative.Data.externallyUpdatedUnscaledTime;
         
         // Integer time
         /// <summary> When cast to uint, runs for 4085 years. </summary>

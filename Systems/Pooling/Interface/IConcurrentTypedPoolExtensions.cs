@@ -44,7 +44,7 @@ namespace VLib
         {
             if (!dictionaryPool.Map.TryGetValue(key, out var pool))
                 return false;
-            pool.ClearAll();
+            pool.ClearPooled();
             if (!dictionaryPool.Map.TryRemove(key, out _))
             {
                 Debug.LogError($"Failed to remove pool of type {key} from pools map");
@@ -59,7 +59,7 @@ namespace VLib
             if (dictionaryPool != null && dictionaryPool.Map != null)
             {
                 foreach (var pool in dictionaryPool.Map.Values)
-                    pool?.ClearAll();
+                    pool?.ClearPooled();
                 dictionaryPool.Map.Clear();
             }
         }

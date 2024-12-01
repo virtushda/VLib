@@ -12,6 +12,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using VLib.Libraries.VLib.Unsafe.Utility;
 
 namespace VLib
 {
@@ -31,12 +32,6 @@ namespace VLib
                 throw new NullReferenceException("UnsafeList is not created!");
             if (!list.IndexValid(index))
                 throw new IndexOutOfRangeException($"Index '{index}' is invalid on UnsafeList with length {list.Length}");
-            return ReadAtIndexUnsafe(list, index);
-        }
-        
-        public static unsafe T ReadAtIndexUnsafe<T>(this UnsafeList<T>.ReadOnly list, int index)
-            where T : unmanaged
-        {
             return list.Ptr[index];
         }
     }
@@ -60,26 +55,42 @@ namespace VLib
             gcHandle.Free();
         }*/
 
+        public static void CopyTo<T>(this UnsafeList<T> src, int srcIndex, UnsafeList<T> dst, int dstIndex, int length)
+            where T : unmanaged
+        {
+            src.ConditionalCheckIsCreated();
+            dst.ConditionalCheckIsCreated();
+            VCollectionUtils.ConditionalCheckRangeValid(srcIndex, length, src.Length);
+            VCollectionUtils.ConditionalCheckRangeValid(dstIndex, length, dst.Length);
+            
+            VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, dst.Ptr, dstIndex, length);
+        }
+
         public static void CopyToUnsafe<T>(this UnsafeList<T> src, int srcIndex, GCHandle dstHandlePinnedType, int dstIndex, int length)
             where T : unmanaged
         {
-            //Could probably use more checks in here... Add if you encounter an exception PLAS
-//#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (!dstHandlePinnedType.IsAllocated)
             {
                 UnityEngine.Debug.LogError("Safety Exception: GCHandle is not allocated!");
                 return;
             }
-//#endif
 
-            UnsafeUtility.MemCpy((void*)((IntPtr)(void*)dstHandlePinnedType.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()),
+            BurstAssert.TrueCheap(length > 0);
+            BurstAssert.TrueCheap(src.IsCreated);
+            BurstAssert.TrueCheap(srcIndex >= 0 && srcIndex < src.Length);
+            BurstAssert.TrueCheap(dstIndex >= 0);
+            BurstAssert.TrueCheap(src.Length >= srcIndex + length);
+            
+            VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, (T*) dstHandlePinnedType.AddrOfPinnedObject(), dstIndex, length);
+            /*UnsafeUtility.MemCpy((void*)((IntPtr)(void*)dstHandlePinnedType.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()),
                                  (void*)((IntPtr)src.Ptr + srcIndex * UnsafeUtility.SizeOf<T>()),
-                                 length * UnsafeUtility.SizeOf<T>());
+                                 length * UnsafeUtility.SizeOf<T>());*/
         }
 
         public static void CopyToUnsafe<T>(this NativeArray<T> src, int srcIndex, ref UnsafeList<T> dst, int dstIndex, int length)
             where T : unmanaged
         {
+            src.ConditionalCheckIsCreated();
             dst.ConditionalCheckIsCreated();
 
             //Ensure Cap
@@ -87,16 +98,20 @@ namespace VLib
             int requiredCap = dstIndex + length;
             if (dst.Capacity < requiredCap)
                 dst.Resize(requiredCap, NativeArrayOptions.ClearMemory);
+            
+            VCollectionUtils.ConditionalCheckRangeValid(srcIndex, length, src.Length);
+            VCollectionUtils.ConditionalCheckRangeValid(dstIndex, length, dst.Length);
 
-            void* srcPtr = src.GetUnsafeReadOnlyPtr();
+            VCollectionUtils.MemcpyTyped((T*) src.GetUnsafeReadOnlyPtr(), srcIndex, dst.Ptr, dstIndex, length);
+            /*void* srcPtr = ;
             UnsafeUtility.MemCpy((void*)((IntPtr)dst.Ptr + dstIndex * UnsafeUtility.SizeOf<T>()),
                                  (void*)((IntPtr)srcPtr + srcIndex * UnsafeUtility.SizeOf<T>()),
-                                 length * UnsafeUtility.SizeOf<T>());
+                                 length * UnsafeUtility.SizeOf<T>());*/
 
             dst.Length = math.max(previousListLength, requiredCap);
         }
         
-        /// <summary>
+        /*/// <summary>
         /// Clears this list and then copies all the elements of an array to this list.
         /// </summary>
         /// <typeparam name="T">The type of elements.</typeparam>
@@ -110,7 +125,7 @@ namespace VLib
             list.Clear();
             list.Resize(array.Length, NativeArrayOptions.UninitializedMemory);
             array.PinArrayCopyOut(0, list.listData->Ptr, 0, array.Length);
-        }
+        }*/
 
         /// <summary> Stops a managed array of blittable types from moving in memory, then memcpys the desired buffer range directly. </summary>
         [ExcludeFromBurstCompatTesting("Takes managed array")]
@@ -165,12 +180,13 @@ namespace VLib
                 throw new ArgumentOutOfRangeException($"Destination index '{destIndex}' is less than 0!");
 #endif
             
-            GCHandle gcHandle = GCHandle.Alloc((object) dest, GCHandleType.Pinned);
-            IntPtr num = gcHandle.AddrOfPinnedObject();
-            UnsafeUtility.MemCpy(
+            var gcHandle = GCHandle.Alloc(dest, GCHandleType.Pinned);
+            VCollectionUtils.MemcpyTyped(source, sourceIndex, (T*) gcHandle.AddrOfPinnedObject(), destIndex, length);
+            //IntPtr num = gcHandle.AddrOfPinnedObject();
+            /*UnsafeUtility.MemCpy(
                 (void*) ((IntPtr) (void*) num + destIndex * UnsafeUtility.SizeOf<T>()), 
                 (void*) ((IntPtr) source + sourceIndex * UnsafeUtility.SizeOf<T>()), 
-                (long) (length * UnsafeUtility.SizeOf<T>()));
+                (long) (length * UnsafeUtility.SizeOf<T>()));*/
             gcHandle.Free();
         }
 
@@ -179,44 +195,45 @@ namespace VLib
             where T : struct =>
             array.IsCreated ? NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(array) : throw new NullReferenceException("Array is not created!");
 
-        public static ref T GetRef<T>(this NativeArray<T> array, int index)
+        public static ref T ElementAt<T>(this NativeArray<T> array, int index)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
-            // You might want to validate the index first, as the unsafe method won't do that.
-            if (index < 0 || index >= array.Length)
-                throw new ArgumentOutOfRangeException(nameof(index));
-#endif
+            array.ConditionalCheckIsCreated();
+            VCollectionUtils.ConditionalCheckIndexValid(index, array.Length);
             return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafePtr(), index);
         }
 
-        public static ref T GetRefReadOnly<T>(this NativeArray<T> array, int index)
+        /// <summary> <see cref="ElementAt{T}"/>, but the ref is readonly. Will error if you don't have 'read' access according to Unity's safety system. </summary>
+        public static ref readonly T ElementAtReadOnly<T>(this NativeArray<T> array, int index)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
-            // You might want to validate the index first, as the unsafe method won't do that.
-            if (index < 0 || index >= array.Length)
-                throw new ArgumentOutOfRangeException(nameof(index));
-#endif
+            return ref ElementAtReadOnlyUnsafe(array, index);
+        }
+
+        /// <summary> <see cref="ElementAtReadOnly{T}"/>, but returns a writable ref.
+        /// This is a bit of a codesmell, but that's more Unity's fault for making their native safety managed.  </summary>
+        public static ref T ElementAtReadOnlyUnsafe<T>(this NativeArray<T> array, int index)
+            where T : struct
+        {
+            array.ConditionalCheckIsCreated();
+            VCollectionUtils.ConditionalCheckIndexValid(index, array.Length);
             return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafeReadOnlyPtr(), index);
         }
 
-        public static ref T GetRefReadOnly<T>(this NativeArray<T>.ReadOnly array, int index)
+        /// <summary> <inheritdoc cref="ElementAtReadOnlyUnsafe{T}(Unity.Collections.NativeArray{T},int)"/> </summary>
+        public static ref T ElementAtReadOnlyUnsafe<T>(this NativeArray<T>.ReadOnly array, int index)
             where T : struct
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
-            // You might want to validate the index first, as the unsafe method won't do that.
-            if (index < 0 || index >= array.Length)
-                throw new ArgumentOutOfRangeException(nameof(index));
-#endif
+            array.ConditionalCheckIsCreated();
+            VCollectionUtils.ConditionalCheckIndexValid(index, array.Length);
             return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafeReadOnlyPtr(), index);
         }
 
-        public static ref T GetRefNoChecksUNSAFE<T>(this NativeArray<T> array, int index)
+        public static ref T ElementAtNoChecksUNSAFE<T>(this NativeArray<T> array, int index)
             where T : struct
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
-            // You might want to validate the index first, as the unsafe method won't do that.
+            array.ConditionalCheckIsCreated();
             if (index < 0 || index >= array.Length)
                 throw new ArgumentOutOfRangeException("Safety Exception: " + nameof(index));
 #endif
@@ -246,6 +263,7 @@ namespace VLib
             where T : unmanaged
         {
 #if SAFETY
+            array.ConditionalCheckIsCreated();
             if (index >= array.Length)
                 throw new IndexOutOfRangeException($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
             return array.ReadUnsafe(index);
@@ -260,6 +278,9 @@ namespace VLib
             where T : unmanaged
         {
 #if SAFETY
+            array.ConditionalCheckIsCreated();
+            if (index < 0)
+                throw new IndexOutOfRangeException($"Safety Exception: Index '{index}' is < 0");
             if (index >= array.Length)
                 throw new IndexOutOfRangeException($"Safety Exception: Index '{index}' is >= Length '{array.Length}'");
             ((T*)array.ForceGetUnsafePtrNOSAFETY())[index] = value;
@@ -271,30 +292,34 @@ namespace VLib
         public static ref T TryGetRef<T>(this NativeArray<T> nativeArray, int index, out bool success)
             where T : unmanaged
         {
+            nativeArray.ConditionalCheckIsCreated();
             var isValidIndex = nativeArray.IsValidIndex(index);
             success = isValidIndex;
-            return ref isValidIndex ? ref nativeArray.GetRef(index) : ref UnsafeUtility.AsRef<T>(null);
+            return ref isValidIndex ? ref nativeArray.ElementAt(index) : ref VUnsafeUtil.NullRef<T>();
         }
         
         public static ref T TryGetRefReadOnly<T>(this NativeArray<T> nativeArray, int index, out bool success)
             where T : unmanaged
         {
+            nativeArray.ConditionalCheckIsCreated();
             var isValidIndex = nativeArray.IsValidIndex(index);
             success = isValidIndex;
-            return ref isValidIndex ? ref nativeArray.GetRefReadOnly(index) : ref UnsafeUtility.AsRef<T>(null);
+            return ref isValidIndex ? ref nativeArray.ElementAtReadOnlyUnsafe(index) : ref UnsafeUtility.AsRef<T>(null);
         }
         
         public static ref T TryGetRefNoSafety<T>(this NativeArray<T> nativeArray, int index, out bool success)
             where T : unmanaged
         {
+            nativeArray.ConditionalCheckIsCreated();
             var isValidIndex = nativeArray.IsValidIndex(index);
             success = isValidIndex;
-            return ref isValidIndex ? ref nativeArray.GetRefNoChecksUNSAFE(index) : ref UnsafeUtility.AsRef<T>(null);
+            return ref isValidIndex ? ref nativeArray.ElementAtNoChecksUNSAFE(index) : ref UnsafeUtility.AsRef<T>(null);
         }
         
         public static bool TryGetElementPtr<T>(this NativeArray<T> nativeArray, int index, out T* valuePtr)
             where T : unmanaged
         {
+            nativeArray.ConditionalCheckIsCreated();
             var isValidIndex = nativeArray.IsValidIndex(index);
             valuePtr = isValidIndex ? nativeArray.GetArrayRefElementPtr(index) : (T*) IntPtr.Zero;
             return isValidIndex;
@@ -303,6 +328,7 @@ namespace VLib
         public static bool TryGetElementPtrReadOnly<T>(this NativeArray<T> nativeArray, int index, out T* valuePtr)
             where T : unmanaged
         {
+            nativeArray.ConditionalCheckIsCreated();
             var isValidIndex = nativeArray.IsValidIndex(index);
             valuePtr = isValidIndex ? nativeArray.GetArrayElementPtrReadOnly(index) : default;
             return isValidIndex;
@@ -311,6 +337,7 @@ namespace VLib
         public static bool TryGetElementPtrNoSafety<T>(this NativeArray<T> nativeArray, int index, out T* valuePtr)
             where T : unmanaged
         {
+            nativeArray.ConditionalCheckIsCreated();
             var isValidIndex = nativeArray.IsValidIndex(index);
             valuePtr = isValidIndex ? nativeArray.GetArrayElementPtrNoSafety(index) : default;
             return isValidIndex;
@@ -398,7 +425,7 @@ namespace VLib
                 count = array.Length;
             
             for (int i = start; i < count; i++) 
-                array.GetRef(i).Dispose();
+                array.ElementAt(i).Dispose();
         }*/
 
         public static void DisposeElements<T>(ref this NativeArray<T> array, bool disposeSelf, int start = 0, int count = -1)
@@ -500,7 +527,9 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
+            if (!list.IsCreated)
+                UnityEngine.Debug.LogError("Safety Exception: List is not created!");
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= list.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
@@ -508,14 +537,16 @@ namespace VLib
             return ref UnsafeUtility.ArrayElementAsRef<T>(list.GetUnsafePtr(), index);
         }
 
-        public static ref T GetRefReadOnly<T>(ref this NativeList<T> list, int index, bool logError = true)
+        public static ref T ElementAtReadOnlyUnsafe<T>(ref this NativeList<T> list, int index, bool logError = true)
             where T : unmanaged
         {
 #if CORRUPTION_CHECKS
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG           
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG      
+            if (!list.IsCreated)
+                UnityEngine.Debug.LogError("Safety Exception: List is not created!");     
             // You might want to validate the index first, as the unsafe method won't do that.
             if (index < 0 || index >= list.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
@@ -546,7 +577,7 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void* ForceGetUnsafePtrNOSAFETY<T>(this ref NativeList<T> list, bool logError = true)
+        public static T* ForceGetUnsafePtrNOSAFETY<T>(this ref NativeList<T> list, bool logError = true)
             where T : unmanaged
         {
             // Detect this stuff in editor mode#if CORRUPTION_CHECKS
@@ -570,11 +601,12 @@ namespace VLib
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
 #if SAFETY
+            if (!list.IsCreated)
+                UnityEngine.Debug.LogError("Safety Exception: List is not created!");
             if (!list.IsIndexValid(index))
                 UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' invalid on NativeList with length {list.Length}");
 #endif
             return list.GetUnsafePtr() + index;
-            //return (T*) ((IntPtr) list.GetUnsafePtr() + index * sizeof(T));
         }
 
         /// <summary> Safety in editor only </summary>
@@ -587,26 +619,12 @@ namespace VLib
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
 #if SAFETY
+            if (!list.IsCreated)
+                UnityEngine.Debug.LogError("Safety Exception: List is not created!");
             if (!list.IsIndexValid(index, logError))
                 UnityEngine.Debug.LogError($"Safety Exception: Array is not created or index {index} is invalid in UnsafeList with length {list.Length}");
 #endif
             return list.Ptr + index;
-        }
-
-        /// <summary> Safety in editor only </summary>
-        public static T* GetListElementPtr<T>(in this VUnsafeList<T> list, int index, bool logError = true)
-            where T : unmanaged
-        {
-            // Detect this stuff in editor mode
-#if CORRUPTION_CHECKS
-            if (logError && !math.ispow2(list.Capacity))
-                UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
-#endif
-#if SAFETY
-            if (!list.IsIndexValid(index, logError))
-                UnityEngine.Debug.LogError($"Safety Exception: Array is not created or index {index} is invalid in UnsafeList with length {list.Length}");
-#endif
-            return list.listData->Ptr + index;
         }
 
         public static T* GetListElementPtrReadOnly<T>(ref this NativeList<T> list, int index, bool logError = true)
@@ -618,10 +636,12 @@ namespace VLib
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
 #if SAFETY
+            if (!list.IsCreated)
+                UnityEngine.Debug.LogError("Safety Exception: List is not created!");
             if (!list.IsIndexValid(index))
                 UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' invalid on NativeList with length {list.Length}");
 #endif
-            return (T*) ((IntPtr) list.GetUnsafeReadOnlyPtr() + index * sizeof(T));
+            return list.GetUnsafeReadOnlyPtr() + index;
         }
 
         public static T* GetListElementPtrNoSafety<T>(ref this NativeList<T> list, int index, bool logError = true)
@@ -633,10 +653,12 @@ namespace VLib
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
 #if SAFETY
+            if (!list.IsCreated)
+                UnityEngine.Debug.LogError("Safety Exception: List is not created!");
             if (!list.IsIndexValid(index))
                 UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' invalid on NativeList with length {list.Length}");
 #endif
-            return ((T*) list.ForceGetUnsafePtrNOSAFETY()) + index;
+            return list.ForceGetUnsafePtrNOSAFETY() + index;
         }
 
         public static long MemoryFootprintBytes<T>(this NativeList<T> list, bool logError = true) 
@@ -658,8 +680,10 @@ namespace VLib
             if (logError && !math.ispow2(sortedList.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {sortedList.Capacity} is not a power of 2!");
 #endif
+            sortedList.ConditionalCheckIsCreated();
             //Make Rooom
             sortedList.InsertRangeWithBeginEnd(startIndex, startIndex + valuesToAdd.Length);
+            valuesToAdd.ConditionalCheckIsCreated();
             //Copy Chunk
             valuesToAdd.CopyToUnsafe(0, ref sortedList, startIndex, valuesToAdd.Length);
             //Avoid UnsafeList -> NativeArray Mess
@@ -679,6 +703,9 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
+            list.ConditionalCheckIsCreated();
+            hashMap.ConditionalCheckIsCreated();
+            
             if (hashMap.TryGetValue(key, out var index))
             {
                 value = list.GetRef(index);
@@ -703,6 +730,9 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
+            
+            hashMap.ConditionalCheckIsCreated();
+            list.ConditionalCheckIsCreated();
 
             //Quick remove if last result
             if (mapValue == list.Length - 1)
@@ -719,34 +749,6 @@ namespace VLib
             }
         }
         
-        /*public static long MemoryFootprintBytes<TKey, TValue>(this NativeParallelHashMap<TKey, TValue> hashMap) 
-            where TKey : unmanaged, IEquatable<TKey> 
-            where TValue : unmanaged
-        {
-            long footprint = 0;
-            int capacity = hashMap.Capacity;
-            footprint += sizeof(TKey) * capacity;
-            footprint += sizeof(TValue) * capacity;
-            return footprint;
-        }
-        
-        public static long MemoryFootprintBytes<T>(this NativeParallelHashSet<T> array) 
-            where T : unmanaged, IEquatable<T> =>
-            UnsafeUtility.SizeOf<T>() * array.Capacity;*/
-        
-        public static void DisposeSafe<T>(this ref UnsafeList<T> list, bool logError = true)
-            where T : unmanaged
-        {
-#if CORRUPTION_CHECKS
-            if (logError && list.Capacity != 0 && !math.ispow2(list.Capacity))
-                UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
-#endif
-            if (list.IsCreated)
-            {
-                list.Dispose();
-            }
-        }
-        
         public static long MemoryFootprintBytes<T>(this UnsafeList<T> list, bool logError = true) 
             where T : unmanaged
         {
@@ -760,6 +762,8 @@ namespace VLib
         public static ref UnsafeList<T> AsUnsafeList<T>(this NativeList<T> list, bool logError = true)
             where T : unmanaged
         {
+            if (!list.IsCreated)
+                UnityEngine.Debug.LogError("Safety Exception: List is not created!");
 #if CORRUPTION_CHECKS
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
@@ -807,6 +811,7 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
+            list.ConditionalCheckIsCreated();
             var length = list.Length;
             if (length > 0)
             {
@@ -822,6 +827,7 @@ namespace VLib
         public static bool TryPop<T>(ref this UnsafeList<T> list , out T value, bool logError = true)
             where T : unmanaged
         {
+            list.ConditionalCheckIsCreated();
             if (list.Length > 0)
             {
                 value = list.Pop();
@@ -832,13 +838,14 @@ namespace VLib
         }
         
         /// <summary> Will return 'default' on a 0-length list. </summary>
-        public static T Peek<T>(ref this UnsafeList<T> list, bool logError = true)
+        public static T Peek<T>(this UnsafeList<T> list, bool logError = true)
             where T : unmanaged
         {
 #if CORRUPTION_CHECKS
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
+            list.ConditionalCheckIsCreated();
             var length = list.Length;
             if (length > 0)
             {
@@ -868,6 +875,7 @@ namespace VLib
             where T : unmanaged 
             where U : struct
         {
+            list.ConditionalCheckIsCreated();
             long num1 = UnsafeUtility.SizeOf<T>();
             long num2 = UnsafeUtility.SizeOf<U>();
             long num3 = list.m_length * num1;
@@ -882,6 +890,7 @@ namespace VLib
             where T : unmanaged
             where U : struct
         {
+            list.ConditionalCheckIsCreated();
             long num1 = UnsafeUtility.SizeOf<T>();
             long num2 = UnsafeUtility.SizeOf<U>();
             long num3 = list.m_length * num1;
@@ -904,7 +913,7 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
-            return UnsafeUtility.ReadArrayElement<U>((void*) ((IntPtr) list.Ptr + (UnsafeUtility.SizeOf<T>() * sourceIndex)), 0);
+            return UnsafeUtility.ReadArrayElement<U>(list.Ptr + sourceIndex, 0);
         }
 
         /// <summary> Write with type interpretation. </summary>
@@ -921,21 +930,14 @@ namespace VLib
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
-            UnsafeUtility.WriteArrayElement((void*) ((IntPtr) list.Ptr + (UnsafeUtility.SizeOf<T>() * destTIndex)), 0, data);
+            UnsafeUtility.WriteArrayElement(list.Ptr + destTIndex, 0, data);
         }
-
-        // Faster, but going to stick with roundabout but known safe method above...
-        /*public static void WriteToByteListAsUnsafe<T, U>(this UnsafeList<T> list, int indexAsU, U data)
-            where T : unmanaged
-            where U : unmanaged
-        {
-            *(U*)((IntPtr) list.Ptr + indexAsU * UnsafeUtility.SizeOf<U>()) = data;
-        }*/
         
         /// <summary> Clears memory (memclear, writes 0s) from length to capacity. </summary>
         public static void ClearUnusedMemory<T>(this NativeList<T> list)
             where T : unmanaged
         {
+            list.ConditionalCheckIsCreated();
             // Trip safety checks
             byte* ptr = (byte*)list.GetUnsafePtr();
             // Then just call into unsafelist version for code reuse
