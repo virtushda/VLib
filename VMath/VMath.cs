@@ -1,13 +1,16 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
+
 using static Unity.Mathematics.math;
 using Debug = UnityEngine.Debug;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
+using int2 = Unity.Mathematics.int2;
 using quaternion = Unity.Mathematics.quaternion;
 
 namespace VLib
@@ -315,10 +318,46 @@ namespace VLib
             return true;
         }
         
-        #region Checks
+        public static bool LineSegmentSphereIntersection(float3 p1, float3 p2, float3 center, float radius, out float3 intersection)
+        {
+            intersection = float3.zero;
+
+            var d = p2 - p1; // Direction vector of the line
+            var f = p1 - center; // Vector from the center of the sphere to the first point
+
+            var a = dot(d, d);
+            var b = 2f * dot(f, d);
+            var c = dot(f, f) - radius * radius;
+
+            var discriminant = b * b - 4f * a * c;
+            
+            // No intersection
+            if (discriminant < 0)
+                return false;
+
+            // One or two solutions
+            discriminant = sqrt(discriminant);
+            var t1 = (-b - discriminant) / (2f * a);
+            var t2 = (-b + discriminant) / (2f * a);
+            
+            // If t1 or t2 is between 0 and 1, it's on the line segment
+            if (t1 is >= 0f and <= 1f)
+            {
+                intersection = p1 + t1 * d;
+                return true;
+            }
+            if (t2 is >= 0f and <= 1f)
+            {
+                intersection = p1 + t2 * d;
+                return true;
+            }
+            return false;
+        }
+        
+        #region Checks / Defensive
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
-        public static float CheckedDivide(this float numerator, float denominator, float epsilon = EPSILON, bool logError = true)
+        public static float DivideChecked(this float numerator, float denominator, float epsilon = EPSILON, bool logError = true)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
             if (abs(denominator) < epsilon)
@@ -329,6 +368,78 @@ namespace VLib
             }
 #endif
             return numerator / denominator;
+        }
+
+        /// <summary> Divide, but if the denominator is zero, return 0. </summary>
+        public static float DivideSafe(this float numerator, float denominator, float epsilon = EPSILON)
+        {
+            if (abs(denominator) < epsilon)
+                return 0;
+            return numerator / denominator;
+        }
+        
+        /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
+        public static int DivideChecked(this int numerator, int denominator, bool logError = true)
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
+            if (denominator == 0)
+            {
+                if (logError)
+                    Debug.LogError("Division by zero!");
+                return 0;
+            }
+#endif
+            return numerator / denominator;
+        }
+
+        /// <summary> Divide, but if the denominator is zero, return 0. </summary>
+        public static int DivideSafe(this int numerator, int denominator)
+        {
+            if (denominator == 0)
+                return 0;
+            return numerator / denominator;
+        }
+
+        /// <summary> <inheritdoc cref="ModuloChecked(int,int)"/> </summary>
+        public static float ModuloChecked(this float numerator, float denominator, float epsilon = EPSILON)
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
+            if (abs(denominator) < epsilon)
+            {
+                Debug.LogError("Division by zero!");
+                return 0;
+            }
+#endif
+            return numerator % denominator;
+        }
+
+        /// <summary> Perform a modulo operator, but in the editor, check that we're not dividing by zero! </summary>
+        public static int ModuloChecked(this int numerator, int denominator)
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
+            if (abs(denominator) < 1)
+            {
+                Debug.LogError("Division by zero!");
+                return 0;
+            }
+#endif
+            return numerator % denominator;
+        }
+        
+        /// <summary> Modulo, but if the denominator is zero, return 0. </summary>
+        public static float ModuloSafe(this float numerator, float denominator, float epsilon = EPSILON)
+        {
+            if (abs(denominator) < epsilon)
+                return 0;
+            return numerator % denominator;
+        }
+        
+        /// <summary> <inheritdoc cref="ModuloSafe"/> </summary>
+        public static int ModuloSafe(this int numerator, int denominator)
+        {
+            if (denominator == 0)
+                return 0;
+            return numerator % denominator;
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
@@ -382,6 +493,56 @@ namespace VLib
             // Method to compute index from coord
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static int CoordToIndex(int2 xy, int width) => xy.y * width + xy.x;
+
+            /*/// <summary> Loop-free method to find the coordinate if you spiral around (0,0) 'index' times in a counter-clockwise direction. </summary>
+            public static int2 SpiralIndexToCoord(int index)
+            {
+                if (index == 0)
+                    return int2.zero;
+                index -= 1;
+                int layer = (int) floor((sqrt(index) + 1) / 2);
+                int layerSize = 2 * layer + 1;
+                int maxIndexInLayer = layerSize * layerSize;
+                layerSize -= 1;
+
+                if (index >= maxIndexInLayer - layerSize)
+                    return new int2(-layer + (maxIndexInLayer - index), layer);
+                maxIndexInLayer -= layerSize;
+
+                if (index >= maxIndexInLayer - layerSize)
+                    return new int2(-layer, -layer + (maxIndexInLayer - index));
+                maxIndexInLayer -= layerSize;
+
+                if (index >= maxIndexInLayer - layerSize)
+                    return new int2(layer - (maxIndexInLayer - index), -layer);
+
+                return new int2(layer, layer - (maxIndexInLayer - index - layerSize));
+            }
+            
+            /// <summary> Loop-free method to find the coord if you're spiraling around (0,0) 'index' times in a counter-clockwise direction. </summary>
+            public static int SpiralCoordToIndex(int2 coord)
+            {
+                if (coord.Equals(int2.zero))
+                    return 0;
+
+                int layer = max(abs(coord.x), abs(coord.y));
+                int layerSize = 2 * layer + 1;
+                int maxIndexInLayer = layerSize * layerSize;
+                layerSize -= 1;
+
+                if (coord.y == layer)
+                    return maxIndexInLayer - (layer - coord.x);
+                maxIndexInLayer -= layerSize;
+
+                if (coord.x == -layer)
+                    return maxIndexInLayer - (layer - coord.y);
+                maxIndexInLayer -= layerSize;
+
+                if (coord.y == -layer)
+                    return maxIndexInLayer - (layer + coord.x);
+
+                return maxIndexInLayer - (layer + coord.y);
+            }*/
         }
 
         public static class DistField
