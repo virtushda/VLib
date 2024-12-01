@@ -354,6 +354,14 @@ namespace VLib
             return false;
         }
         
+        public static float InverseSampleLineSegment(float3 p0, float3 p1, float3 position)
+        {
+            var v = p1 - p0;
+            var w = position - p0;
+
+            return dot(w, v) / dot(v, v);
+        }
+        
         #region Checks / Defensive
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
