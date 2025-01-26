@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using Unity.Collections.LowLevel.Unsafe;
-using VLib.Libraries.VLib.Unsafe.Utility;
+using VLib.Unsafe.Utility;
 
 namespace VLib
 {
@@ -59,7 +59,7 @@ namespace VLib
         public unsafe SafePtr(T* ptr, VSafetyHandle safetyHandle)
         {
             // Pointer validity state much match safety handle validity state
-            BurstAssert.TrueCheap(ptr != null == safetyHandle.IsValid);
+            BurstAssert.True(ptr != null == safetyHandle.IsValid);
             //VCollectionUtils.CheckPtrNonNull(ptr);
             //safetyHandle.ConditionalCheckValid();
             this.ptr = ptr;

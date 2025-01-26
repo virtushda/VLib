@@ -11,7 +11,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
-using VLib.Libraries.VLib.Unsafe.Utility;
+using VLib.Unsafe.Utility;
 using Debug = UnityEngine.Debug;
 
 namespace VLib

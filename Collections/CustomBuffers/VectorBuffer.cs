@@ -9,6 +9,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
+using UnityEngine.Profiling;
 using static Unity.Mathematics.math;
 
 namespace VLib
@@ -237,6 +238,7 @@ namespace VLib
         /// <summary> Call this to update the internal computebuffer, otherwise the GPU will not get the updated data!</summary>
         public void UpdateGPUBuffer()
         {
+            Profiler.BeginSample("VectorBuffer-UpdateGPUBuffer");
             //If buffer is modified on the native-end, we need to ensure the GPUBuffer still fits.
             EnsureGPUBufferFitsCPUBuffer(true);
 
@@ -250,6 +252,7 @@ namespace VLib
                 // No need to update the GPU buffer if the dirty range is empty
                 if (nativeRef.dirtyRange.x > nativeRef.dirtyRange.y)
                     Debug.LogError($"Dirty range is invalid! X:{nativeRef.dirtyRange.x} Y:{nativeRef.dirtyRange.y}");
+                Profiler.EndSample();
                 return;
             }
             int count = nativeRef.dirtyRange.y - nativeRef.dirtyRange.x;
@@ -291,6 +294,7 @@ namespace VLib
             if (!native.ValueRef.dirtyRange.Equals(new int2(-1)))
                 Debug.LogError("Dirty range ref broke!");
 #endif
+            Profiler.EndSample();
         }
 
         public void UpdateGPUBufferIfDirty()

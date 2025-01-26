@@ -22,8 +22,8 @@ namespace VLib
             Action<GameObject> disposalAction = null)
             : base(initPoolCapacity, depoolPostProcess, returnPreProcess, creationAction, disposalAction)
         {
-            BurstAssert.TrueCheap(prefab);
-            BurstAssert.TrueCheap(initPoolCapacity > 0);
+            BurstAssert.True(prefab);
+            BurstAssert.True(initPoolCapacity > 0);
             
             // Auto replace null actions
             this.depoolPostProcess ??= obj => obj.SetActive(true);

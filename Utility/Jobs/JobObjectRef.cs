@@ -70,6 +70,7 @@ namespace VLib.Jobs
         }
 
         /// <summary> Not burst compatible </summary>
+        [BurstDiscard]
         public void Dispose()
         {
             if (nativeHandle.TryDispose())
@@ -82,6 +83,13 @@ namespace VLib.Jobs
             }
         }
 
+        public T GetOrThrow()
+        {
+            if (!TryGet(out var obj))
+                throw new InvalidOperationException("Failed to get object from JobObjectRef!");
+            return obj;
+        }
+        
         /// <summary> Not burst compatible </summary>
         public bool TryGet(out T obj)
         {

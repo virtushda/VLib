@@ -49,7 +49,7 @@ namespace VLib
             float c = edgeLengths.z;
             float s = (a + b + c) / 2f;
             var area = math.sqrt(math.abs(s * (s - a) * (s - b) * (s - c)));
-            BurstAssert.TrueCheap(area >= 0);
+            BurstAssert.True(area >= 0);
             return area;
         }
 

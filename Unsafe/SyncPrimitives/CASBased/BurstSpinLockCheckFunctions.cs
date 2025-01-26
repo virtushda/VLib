@@ -1,4 +1,7 @@
-﻿using System;
+﻿//#define DEBUG_DEADLOCKS
+//#define MARK_THREAD_OWNERS
+
+using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -31,12 +34,13 @@ namespace VLib
         public static void CheckForRecursiveLock(ref long lockVar)
         {
 #if MARK_THREAD_OWNERS
+            //var threadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
             var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
             CheckForRecursiveLock(threadId, ref lockVar);
 #endif
         }
 
-        [Conditional("DEBUG_ADDITIONAL_CHECKS")]
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void CheckWeCanExit(ref long lockVar)
         {

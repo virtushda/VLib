@@ -8,6 +8,9 @@ namespace VLib
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte ToByteFromFloat01(this float value_min0_max1) => (byte) math.round(math.saturate(value_min0_max1) * byte.MaxValue);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte ToByteCeilFromFloat01(this float value_min0_max1) => (byte) math.ceil(math.saturate(value_min0_max1) * byte.MaxValue);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ushort ToUshortAsPercent(this float value_min0_max1) => (ushort) math.round(math.saturate(value_min0_max1) * ushort.MaxValue);

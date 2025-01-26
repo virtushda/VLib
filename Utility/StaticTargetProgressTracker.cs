@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using Unity.Collections;
 using Unity.Mathematics;
 
@@ -6,7 +6,7 @@ namespace VLib
 {
     /// <summary>Track progress toward a target, and build up a variable estimating whether something is stuck. WARNING: Is mutable struct, plan accordingly!</summary>
     [GenerateTestsForBurstCompatibility]
-    public struct StaticTargetProgressTracker : IDisposable
+    public struct StaticTargetProgressTracker
     {
         //Data
         public float3 target;
@@ -108,7 +108,5 @@ namespace VLib
 
             return stuckness >= 1;
         }
-
-        public void Dispose() { } //To comply with VUnsafeRef<T>
     }
-}
+}*/

@@ -2,6 +2,7 @@
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine.Assertions;
+using VLib.Structures;
 
 namespace VLib
 {
@@ -12,6 +13,24 @@ namespace VLib
         public const byte FourBitMaxValue = 15;
         public const float FourBitMaxValueF = FourBitMaxValue;
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ReadBit(ulong bits, int index) => ((bits >> index) & 1U) != 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteBit(ref ulong bits, byte index, bool bit)
+        {
+            var mask = ~(1UL << index);
+            var bitsMasked = bits & mask;
+            bits = bitsMasked | ((bit ? 1UL : 0UL) << index);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void InsertBitAtLowest(ref ulong transitBits, bool bit)
+        {
+            transitBits <<= 1;
+            transitBits |= bit ? 1U : 0U;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe long BitSizeOf<T>() where T : unmanaged => sizeof(T) * 8;
 
@@ -46,7 +65,7 @@ namespace VLib
 
         ///<summary> Read from any type a certain number of bits, up to 64 </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe ulong ReadNBitsFromRef<T>(ref T readTarget, byte bitIndex, byte bitCount) 
+        public static ulong ReadNBitsFromRef<T>(ref T readTarget, byte bitIndex, byte bitCount) 
             where T : unmanaged
         {
             Assert.IsTrue(bitIndex + bitCount <= BitSizeOf<T>()); //, $"Bit index {bitIndex} + bit count {bitCount} out of range");
@@ -64,7 +83,7 @@ namespace VLib
 
         ///<summary> Write to any type a certain number of bits, up to 64 </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void WriteNBitsToRef<T>(ref T writeTarget, byte bitIndex, byte bitCount, ulong valueToWrite)
+        public static void WriteNBitsToRef<T>(ref T writeTarget, byte bitIndex, byte bitCount, ulong valueToWrite)
             where T : unmanaged
         {
             // Must fit type and ulong limit of 64 bits, don't put string in assert, makes this method vastly slower
@@ -118,28 +137,6 @@ namespace VLib
             writeTarget = (uint) ((writeTarget & ~(0xFF << bitIndex)) | (uint) (valueToWrite << bitIndex));
         }
 
-        /*public static unsafe byte ReadFromValue<T>(ref T readTarget, byte byteIndex) 
-            where T : unmanaged
-        {
-            Assert.IsTrue(byteIndex < sizeof(T), $"Byte index {byteIndex} out of range");
-            return UnsafeUtility.ReadArrayElement<byte>(UnsafeUtility.AddressOf(ref readTarget), byteIndex);
-        }
-        
-        public static unsafe void WriteToValue<T>(ref T writeTarget, byte byteIndex, byte valueToWrite) 
-            where T : unmanaged
-        {
-            Assert.IsTrue(byteIndex < sizeof(T), $"Byte index {byteIndex} out of range");
-            UnsafeUtility.WriteArrayElement(UnsafeUtility.AddressOf(ref writeTarget), byteIndex, valueToWrite);
-        }*/
-
-        /*public static void WriteToFloat(ref float writeTarget, byte byteIndex, byte valueToWrite)
-        {
-            Assert.IsTrue(byteIndex < 4, $"Byte index {byteIndex} out of range");
-            
-            ref var writeTargetAsInt = ref UnsafeUtility.As<float, uint>(ref writeTarget);
-            WriteToInt(ref writeTargetAsInt, byteIndex, valueToWrite);
-        }*/
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ushort Read16bitsFromInt(int readTarget, byte bitIndex)
         {
@@ -161,9 +158,26 @@ namespace VLib
             // Write the value to the target
             writeTarget |= valueAsShiftedInt;
         }
+
+        /// <summary> Puts the first byte in the lower bit range, and the second byte in the upper range. </summary>
+        public static byte Pack_2bytes_To_Byte(byte byte1, byte byte2)
+        {
+            BurstAssert.ValueLessOrEqualTo(byte1, FourBitMaxValue);
+            BurstAssert.ValueLessOrEqualTo(byte2, FourBitMaxValue);
+            return (byte) ((byte2 << 4) | byte1);
+        }
         
+        /// <summary> Unpacks a byte into two bytes, the first byte is the lower 4 bits, the second byte is the upper 4 bits. </summary>
+        public static Byte2 Unpack_Byte_To_2bytes(byte packedByte)
+        {
+            var byte1 = (byte) (packedByte & 0x0F);
+            var byte2 = (byte) (packedByte >> 4);
+            return new Byte2(byte1, byte2);
+        }
+        
+        /// <summary> Packs two bytes approximately into one byte, rounding each byte value to the nearest value that can be conveyed in four bits. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte Convert_2bytes_To_4BitValues_AsByte(byte byte1, byte byte2)
+        public static byte Convert_2bytes_To_4BitValues_AsByte_Rounding(byte byte1, byte byte2)
         {
             // Pre round the integer values so the 4 bit representation is more accurate
             byte byte1PreRounded = (byte) math.min(byte1 + ByteBitCount, byte.MaxValue);

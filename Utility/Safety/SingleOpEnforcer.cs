@@ -28,7 +28,7 @@ namespace VLib.Safety
         [Conditional("SINGLE_OP")]
         void StartOpCustomLine(int callerLine, string callerName)
         {
-            BurstAssert.TrueCheap(callerLine >= 0);
+            BurstAssert.True(callerLine >= 0);
             lock (locker)
             {
                 if (lastOpCallerLine != -1)

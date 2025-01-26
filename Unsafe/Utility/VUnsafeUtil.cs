@@ -1,6 +1,6 @@
 ﻿using Unity.Collections.LowLevel.Unsafe;
 
-namespace VLib.Libraries.VLib.Unsafe.Utility
+namespace VLib.Unsafe.Utility
 {
     public static unsafe class VUnsafeUtil
     {

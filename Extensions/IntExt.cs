@@ -44,14 +44,14 @@ namespace VLib
             
             double valueF = value;
             
-            if (value < 1000000)
+            if (value < 1_000_000)
                 return $"{(valueF / 1000).ToString("N")} kilobytes";
-            if (value < 1000000000)
-                return $"{(valueF / 1000000).ToString("N")} megabytes";
-            if (value < 1000000000000)
-                return $"{(valueF / 1000000000).ToString("N")} gigabytes";
+            if (value < 1_000_000_000)
+                return $"{(valueF / 1_000_000).ToString("N")} megabytes";
+            if (value < 1_000_000_000_000)
+                return $"{(valueF / 1_000_000_000).ToString("N")} gigabytes";
             
-            return $"{(valueF / 1000000000000).ToString("N")} terabytes";
+            return $"{(valueF / 1_000_000_000_000).ToString("N")} terabytes";
         }
 
         public static float ToPercent01(this ushort value) => (float) value / ushort.MaxValue;

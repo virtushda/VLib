@@ -202,7 +202,7 @@ namespace VLib
         public int IndexOfComparableMatch(T item) => hasComparer ? list.BinarySearch(item, comparer) : list.BinarySearch(item);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int IndexOfByComparison(Compare<T> comparison) => list.BinarySearch(comparison);
+        public int IndexOfByComparison<TComparison>(TComparison comparison) where TComparison : IComparable<T> => list.BinarySearch(comparison);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsIndexValid(int index, bool throwException = false)
@@ -313,7 +313,8 @@ namespace VLib
         /// <summary> Respect list's IComparer, if implemented. </summary>
         public int CompareItems(T itemA, T itemB) => HasComparer ? Comparer.Compare(itemA, itemB) : itemA.CompareTo(itemB);
 
-        public bool FindByComparison(Compare<T> comparison, out T value)
+        public bool FindByComparison<TComparison>(TComparison comparison, out T value)
+            where TComparison : IComparable<T>
         {
             return list.FindBinary(comparison, out value);
         }

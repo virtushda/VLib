@@ -102,6 +102,15 @@ namespace VLib
             posRotTransformed.RotationNative = math.mul(transformRot, posRotTransformed.RotationNative);
         }
 
+        public static TranslationRotation Lerp(in TranslationRotation a, in TranslationRotation b, float t)
+        {
+            return new TranslationRotation
+            {
+                PositionNative = math.lerp(a.PositionNative, b.PositionNative, t),
+                RotationNative = math.slerp(a.RotationNative, b.RotationNative, t)
+            };
+        }
+        
         public bool Equals(TranslationRotation other) => position.Equals(other.position) && rotation.Equals(other.rotation);
         public override bool Equals(object obj) => obj is TranslationRotation other && Equals(other);
         public override int GetHashCode() => HashCode.Combine(position, rotation);

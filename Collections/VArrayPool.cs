@@ -8,15 +8,19 @@ namespace VLib
 {
     public class VArrayPool
     {
+        protected static readonly object globalPoolsLock = new();
         protected static List<IArrayPool> globalPools = new();
 
         public static void DisposeAllArrayPools()
         {
-            for (var i = globalPools.Count - 1; i >= 0; i--)
+            lock (globalPoolsLock)
             {
-                var globalPool = globalPools[i];
-                globalPool?.Dispose(false);
-                globalPools.RemoveAt(i);
+                for (var i = globalPools.Count - 1; i >= 0; i--)
+                {
+                    var globalPool = globalPools[i];
+                    globalPool?.Dispose(false);
+                }
+                globalPools.Clear();
             }
         }
     }
@@ -37,12 +41,18 @@ namespace VLib
         List<T[]> arrays;
         volatile int rentCounter;
 
-        public VArrayPool()
+        VArrayPool()
         {
             lock (arraysLock)
             {
-                globalPools.Add(this);
-                arrays = new List<T[]>();
+                if (arrays == null)
+                {
+                    lock (globalPoolsLock)
+                    {
+                        globalPools.Add(this);
+                    }
+                    arrays = new List<T[]>();
+                }
             }
         }
 
@@ -52,7 +62,13 @@ namespace VLib
             lock (arraysLock)
             {
                 if (autoGlobalRemoval)
-                    globalPools.Remove(this);
+                {
+                    lock (globalPoolsLock)
+                    {
+                        globalPools.Remove(this);
+                    }
+                }
+
                 sharedInstance = null;
             }
         }
@@ -100,6 +116,7 @@ namespace VLib
                     {
                         array = arrayAtIndex;
                         arrays.RemoveAtSwapBack(i);
+                        Profiler.EndSample();
                         return true;
                     }
                 }

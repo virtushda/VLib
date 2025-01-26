@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -239,10 +240,10 @@ namespace VLib
         /// </remarks>
         public unsafe struct Enumerator : IEnumerator<T>, IDisposable
         {
-            private T* m_Ptr;
-            private int m_Length;
-            private int m_Index;
-            private BurstSpinLockReadWrite burstLock;
+            T* m_Ptr;
+            int m_Length;
+            int m_Index;
+            BurstSpinLockReadWrite burstLock;
 
             /// <summary>Will lock the collection for speedy reading</summary>
             public Enumerator(ParallelUnsafeList<T> list)
@@ -291,9 +292,9 @@ namespace VLib
         
         public unsafe struct UnsafeEnumerator : IEnumerator<T>
         {
-            private T* m_Ptr;
-            private int m_Length;
-            private int m_Index;
+            T* m_Ptr;
+            int m_Length;
+            int m_Index;
             
             public UnsafeEnumerator(ParallelUnsafeList<T> list)
             {
@@ -352,7 +353,7 @@ namespace VLib
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] { typeof(int) })]
         public unsafe struct ReadOnly : IReadOnlyList<T>
         {
-            private ParallelUnsafeList<T> list;
+            ParallelUnsafeList<T> list;
             
             public ReadOnly(ParallelUnsafeList<T> list) => this.list = list;
             
@@ -406,8 +407,8 @@ namespace VLib
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] { typeof(int) })]
         public struct ScopedParallelReader : IReadOnlyList<T>, IDisposable
         {
-            private ParallelUnsafeList<T> list;
-            private bool locked;
+            ParallelUnsafeList<T> list;
+            bool locked;
             
             public ScopedParallelReader(ParallelUnsafeList<T> list, float timeout = BurstSpinLock.DefaultTimeout)
             {
@@ -423,9 +424,63 @@ namespace VLib
 
             public void Dispose()
             {
+                if (!list.IsCreated)
+                {
+                    if (!TryLogListNotCreatedToCloud())
+                        Debug.LogError("ParallelUnsafeList is not created!");
+                    return;
+                }
+                if (!list.burstLock.IsCreated)
+                {
+                    if (!TryLogLockNotCreatedToCloud())
+                        Debug.LogError("BurstSpinLockReadWrite is not created!");
+                    return;
+                }
                 list.burstLock.ExitRead();
                 locked = false;
             }
+
+            #region Diagnostics
+
+            bool TryLogListNotCreatedToCloud()
+            {
+                Span<bool> completed = stackalloc bool[1] { false };
+                LogListNotCreatedCloud(ref completed);
+                if (!completed[0])
+                {
+                    Debug.LogError("ParallelUnsafeList is not created!");
+                    return true;
+                }
+                return false;
+            }
+
+            [BurstDiscard]
+            void LogListNotCreatedCloud(ref Span<bool> completed)
+            {
+                Debug.LogException(new UnityException("ParallelUnsafeList is not created!"));
+                completed[0] = true;
+            }
+            
+            bool TryLogLockNotCreatedToCloud()
+            {
+                Span<bool> completed = stackalloc bool[1] { false };
+                LogLockNotCreatedToCloud(ref completed);
+                if (!completed[0])
+                {
+                    Debug.LogError("BurstSpinLockReadWrite is not created!");
+                    return true;
+                }
+                return false;
+            }
+
+            [BurstDiscard]
+            void LogLockNotCreatedToCloud(ref Span<bool> completed)
+            {
+                Debug.LogException(new UnityException("BurstSpinLockReadWrite is not created!"));
+                completed[0] = true;
+            }
+
+            #endregion
 
             public readonly bool GetIsValid()
             {
@@ -447,6 +502,93 @@ namespace VLib
             
             public T this[int index] => list.ReadUnsafe(index, out var value) ? value : default;
             
+            public bool IsIndexValid (int index) => list.IsIndexValidUnsafe(index);
+
+            public bool TryGetValue(int index, out T value) => list.ReadUnsafe(index, out value);
+            
+            public ref T ElementAt(int index)
+            {
+                list.ConditionalCheckIsCreated();
+                return ref list.ListRef.ElementAt(index);
+            }
+
+            /// <summary>
+            /// Returns an enumerator over the elements of the list.
+            /// </summary>
+            /// <returns>An enumerator over the elements of the list.</returns>
+            public UnsafeEnumerator GetEnumerator() => new(list);
+
+            /// <summary>
+            /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
+            /// </summary>
+            /// <returns>Throws NotImplementedException.</returns>
+            /// <exception cref="NotImplementedException">Method is not implemented.</exception>
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+            /// <summary>
+            /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
+            /// </summary>
+            /// <returns>Throws NotImplementedException.</returns>
+            /// <exception cref="NotImplementedException">Method is not implemented.</exception>
+            IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+        }
+        
+        /// <summary>Locks the collection and returns a disposable struct that can be used to repeatedly access the collection before releasing the lock</summary>
+        /// <example>using var listWriter = list.GetScopedParallelWriter()</example>
+        public readonly ScopedParallelWriter GetScopedParallelWriter(float timeout = BurstSpinLock.DefaultTimeout)
+        {
+            this.ConditionalCheckIsCreated();
+            // Lol, just wrap the list, idk why they would input the ptr and length manually, that stuff could be modified elsewhere leading to a crash, easily.
+            return new ScopedParallelWriter(this, timeout);
+        }
+        
+        /// <summary>A disposable struct that can be used to repeatedly access the collection before releasing the lock</summary>
+        /// <example>using var listWriter = list.GetScopedParallelWriter()</example>
+        [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] { typeof(int) })]
+        public struct ScopedParallelWriter : IReadOnlyList<T>, IDisposable
+        {
+            ParallelUnsafeList<T> list;
+            readonly bool tookLock;
+            
+            public ScopedParallelWriter(ParallelUnsafeList<T> list, float timeout = BurstSpinLock.DefaultTimeout)
+            {
+                this.list = list;
+                
+                if (!list.IsCreated)
+                    throw new NullReferenceException("Trying to acquire ScopedParallelWriter for ParallelUnsafeList that does not exist!");
+                
+                tookLock = list.burstLock.EnterExclusive(timeout);
+                if (!tookLock)
+                    Debug.LogError("Failed to acquire exclusive lock!");
+            }
+
+            public void Dispose()
+            {
+                if (tookLock)
+                    list.burstLock.ExitExclusive();
+            }
+
+            public readonly bool GetIsValid()
+            {
+                if (tookLock && list.IsCreated)
+                    return true;
+                
+                Debug.LogError("Safety Exception: UnsafeWriter is invalid! ParallelUnsafeList was not created, or failed to secure an exclusive lock!");
+                return false;
+            }
+
+            public static implicit operator bool(ScopedParallelWriter writer) => writer.GetIsValid();
+            
+            public readonly int Count => list.LengthUnsafe;
+            
+            public readonly int Capacity => list.CapacityUnsafe;
+            
+            public T this[int index]
+            {
+                get => list.ReadUnsafe(index, out var value) ? value : default;
+                set => list.WriteUnsafe(index, value);
+            }
+
             public bool IsIndexValid (int index) => list.IsIndexValidUnsafe(index);
 
             public bool TryGetValue(int index, out T value) => list.ReadUnsafe(index, out value);

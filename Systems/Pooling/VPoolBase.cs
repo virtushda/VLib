@@ -92,13 +92,13 @@ namespace VLib
             if (!TryTakeFromCollection(PooledCount - 1, out var poolable))
             {
                 // If depool fails, try to create a new item
-                if (createAction != null)
-                    poolable = createAction.Invoke();
-                else
+                if (createAction == null)
                 {
                     Debug.LogError("Pool is empty!");
                     return default;
-                }
+                } 
+                
+                poolable = createAction.Invoke();
             }
 
             if (runPostProcessAction)
@@ -136,7 +136,7 @@ namespace VLib
         public virtual void ClearPooled()
         {
             DisposePastLength(0);
-            BurstAssert.TrueCheap(PooledCount == 0); // Pool should be empty
+            BurstAssert.True(PooledCount == 0); // Pool should be empty
         }
 
         /// <summary> Clears the pool and resets the 'taken' counter. <br/>
@@ -145,6 +145,23 @@ namespace VLib
         {
             ClearPooled();
             Interlocked.Exchange(ref takenCount, 0);
+        }
+        
+        public ScopedUser GetScopedUser() => new(this);
+        
+        /// <summary> A scope that automatically repools an object when disposed. </summary>
+        public readonly struct ScopedUser : IDisposable
+        {
+            readonly VPoolBase<TCollection, TPoolable> pool;
+            public readonly TPoolable Value;
+
+            public ScopedUser(VPoolBase<TCollection, TPoolable> pool)
+            {
+                this.pool = pool;
+                Value = pool.Depool();
+            }
+
+            public void Dispose() => pool.Repool(Value);
         }
     }
 }

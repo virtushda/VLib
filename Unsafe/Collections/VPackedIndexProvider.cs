@@ -37,7 +37,7 @@ namespace VLib
             recyclables = new UnsafeHashSet<int>(64, allocator);
             locker = new VUnsafeRef<int>(0, allocator);
             nextIndex = 0;
-            BurstAssert.TrueCheap(maxIndex > 0);
+            BurstAssert.True(maxIndex > 0);
             this.maxIndex = maxIndex;
             this.reportAllNotDisposed = reportAllNotDisposed;
         }
@@ -154,7 +154,7 @@ namespace VLib
         void PushNextIndexUntilBeyond(int index)
         {
             this.ConditionalCheckIsCreated();
-            BurstAssert.TrueCheap(locker.Value > 0);
+            BurstAssert.True(locker.Value > 0);
             while (nextIndex < index)
             {
                 // Populate the recycle buffer with all the indices between the current next index and the claimed index

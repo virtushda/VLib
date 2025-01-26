@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using VLib.Libraries.VLib.Unsafe.Utility;
+using VLib.Unsafe.Utility;
 
 namespace VLib
 {
@@ -90,15 +90,13 @@ namespace VLib
         /// <summary> Tells you whether the index is inside the buffer range or not, without care to whether the index is considered 'active'. </summary>
         public readonly bool IndexInBufferRange(int index)
         {
-            this.ConditionalCheckIsCreated();
-            return index < Length && index >= 0;
+            return index < Length && index >= 0; // Length property checks IsCreated
         }
 
         /// <summary> Tells you whether the index is inside the buffer range and is considered 'active'. </summary>
         public readonly bool IndexActive(int index)
         {
-            // Rely on conditional check inside this call
-            if (!IndexInBufferRange(index))
+            if (!IndexInBufferRange(index)) // Rely on conditional check inside this call
                 return false;
             return indicesActive[index];
         }
@@ -132,8 +130,7 @@ namespace VLib
         /// <exception cref="IndexOutOfRangeException">Thrown if index is out of bounds.</exception>
         public ref T ElementAt(int index)
         {
-            this.ConditionalCheckIsCreated();
-            ConditionalCheckIndexActive(index);
+            ConditionalCheckIndexActive(index); // Checks isCreated
             return ref listData.ElementAt(index);
         }
 
@@ -267,8 +264,7 @@ namespace VLib
         /// Disables the index, writes default to it and returns it to the pool. </summary>
         public void RemoveAtClear(int index, in T defaultValue = default)
         {
-            this.ConditionalCheckIsCreated();
-            ConditionalCheckIndexActive(index);
+            ConditionalCheckIndexActive(index); // Relies on internall IsCreated check
             
             SetActive(index, false);
             listData[index] = defaultValue;
@@ -278,13 +274,20 @@ namespace VLib
         /// <returns>True if the index active state was changed, false if it was already set to the desired state.</returns>
         bool SetActive(int index, bool active)
         {
-            if (indicesActive[index] == active)
+            ref var indexRef = ref indicesActive.ElementAt(index);
+            if (indexRef == active)
                 return false;
-            indicesActive[index] = active;
+            indexRef = active;
             if (active)
+            {
                 ++count;
+                BurstAssert.False(count > Length);
+            }
             else
+            {
                 --count;
+                BurstAssert.False(count < 0);
+            }
             return true;
         }
 
@@ -347,13 +350,16 @@ namespace VLib
 
             public Enumerator(VUnsafeBufferList<T> list)
             {
-                BurstAssert.TrueCheap(list.IsCreated);
+                BurstAssert.True(list.IsCreated);
                 this.list = list;
                 index = -1;
             }
+            
+            public int CurrentIndex => index;
 
             /// <summary> The current ACTIVE element in the buffer. </summary>
             public T Current => list[index];
+            public ref T CurrentRef => ref list.ElementAt(index);
 
             object IEnumerator.Current => Current;
 
@@ -378,17 +384,19 @@ namespace VLib
         
         #endregion
         
+        /// <summary> Checks: Created, Index in Range </summary>
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public readonly void ConditionalCheckIndexValid(int index)
         {
-            if (!IndexInBufferRange(index))
+            if (!IndexInBufferRange(index)) // Rely on conditional IsCreated check inside this call
                 throw new IndexOutOfRangeException($"Index {index} is out of range in VUnsafeBufferList of '{Length}' Length.");
         }
 
+        /// <summary> Checks: Created, Index in Range, Index Active </summary>
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public readonly void ConditionalCheckIndexActive(int index)
         {
-            if (!IndexActive(index))
+            if (!IndexActive(index)) // Rely on conditional IsCreated check inside this call
                 throw new IndexOutOfRangeException($"Index {index} is not active in VUnsafeBufferList.");
         }
     }

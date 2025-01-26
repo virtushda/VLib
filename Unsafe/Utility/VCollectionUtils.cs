@@ -75,7 +75,15 @@ namespace VLib
         public static void ConditionalCheckIndexValid(int index, int length)
         {
             if (index < 0 || index >= length)
-                throw new IndexOutOfRangeException();
+                throw new IndexOutOfRangeException($"{index} out of range [0..{length}] (inclusive, exclusive)");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckLengthValid(int length, int capacity)
+        {
+            if (length < 0 || length > capacity)
+                throw new ArgumentOutOfRangeException(nameof(length), "Length must be >= 0 and <= capacity.");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

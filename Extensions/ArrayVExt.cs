@@ -21,6 +21,10 @@ namespace VLib
             return default(T);
         }
 
+        /// <summary> List-like add behaviour for arrays. Will resize the array if necessary. </summary>
+        /// <param name="array">The array to add to.</param>
+        /// <param name="arrayCount">The current count of the array. Will be incremented.</param>
+        /// <param name="element">The element to add.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Add<T>(this T[] array, ref int arrayCount, T element)
         {
@@ -29,7 +33,7 @@ namespace VLib
                 Array.Resize(ref array, arrLength * 2);
 
             array[arrayCount] = element;
-            arrayCount++;
+            ++arrayCount;
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

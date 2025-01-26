@@ -54,7 +54,7 @@ namespace VLib
             bool respectComponentStates, VirtualValueTransformTree transformTree, List<ITransformAccessRequestor> requestors)
         {
             // Setup for accessing the tree safely
-            transformTree.EnableAccessGuard();
+            transformTree.EnableHyperAccess();
             
             foreach (var requestor in requestors)
             {

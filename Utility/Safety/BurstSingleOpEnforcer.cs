@@ -56,7 +56,7 @@ namespace VLib.Safety
             public ScopedOp(RefStruct<BurstSingleOpEnforcer> enforcer, int callerLine)
             {
 #if BURST_SINGLE_OP
-                BurstAssert.TrueCheap(enforcer.IsCreated);
+                BurstAssert.True(enforcer.IsCreated);
                 this.enforcer = enforcer;
                 enforcer.ValueRef.StartOpCustomLine(callerLine);
                 return;

@@ -21,5 +21,11 @@
             sbyte2 = new Sbyte2();
             return false;
         }
+
+        public void Deconstruct(out byte valueX, out byte valueY)
+        {
+            valueX = x;
+            valueY = y;
+        }
     }
 }

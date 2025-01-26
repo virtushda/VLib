@@ -168,8 +168,7 @@ namespace VLib
         )
         {
             // Leverage affine transform
-            var affine = new AffineTransform(m);
-            decompose(affine, out var translationMathLib, out var rotationMathLib, out var scaleMathLib);
+            decompose(AffineTransform(m), out var translationMathLib, out var rotationMathLib, out var scaleMathLib);
 
             // Switch types
             translation = UnsafeUtility.As<float3, Vector3>(ref translationMathLib);
@@ -209,6 +208,12 @@ namespace VLib
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetPositionDelta(ref this float4x4 m, float3 position) => m.c3.xyz = position;
+
+        /// <summary> Position is .xyz of this column. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref float4 GetThirdColumnRef(ref this float4x4 m) => ref m.c3;
+        
+        public static ref float3 GetPositionRef(ref this float4x4 m) => ref UnsafeUtility.As<float4, float3>(ref m.c3);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static quaternion RotationDelta(in this float4x4 m)

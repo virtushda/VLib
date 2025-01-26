@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using Drawing;
 using System.Runtime.CompilerServices;
@@ -14,6 +15,7 @@ namespace VLib
     /// Can cast to and from: Rect, RectInt, float4
     /// </summary>
     [GenerateTestsForBurstCompatibility]
+    [Serializable]
     public struct RectNative : IConvex<float2>
     {
         public static implicit operator Rect(RectNative r) => new Rect(r.corners.xy, r.corners.zw - r.corners.xy);

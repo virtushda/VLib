@@ -9,6 +9,19 @@ namespace VLib
     {
         public static float3x3 GetDirsXYZ(this Transform t) => new float3x3(t.right, t.up, t.forward);
 
+        public static bool TryGetChild(this Transform t, int childIndex, out Transform child)
+        {
+            BurstAssert.True(childIndex >= 0); // Negative child index is invalid.
+            if (t.childCount <= childIndex)
+            {
+                child = default;
+                return false;
+            }
+
+            child = t.GetChild(childIndex);
+            return true;
+        }
+        
         public static Transform[] GetChildTransforms(this Transform t)
         {
             if (t.childCount == 0)

@@ -426,5 +426,12 @@ namespace VLib
                 c[i] = (ColorRGB101210)colors[i];
             return c;
         }
+        
+        public static void ToColorRGB101210Span(this Color[] colors, ref Span<ColorRGB101210> colorsSpan)
+        {
+            var colorsLength = math.min(colors.Length, colorsSpan.Length);
+            for (int i = 0; i < colorsLength; i++)
+                colorsSpan[i] = (ColorRGB101210)colors[i];
+        }
     }
 }

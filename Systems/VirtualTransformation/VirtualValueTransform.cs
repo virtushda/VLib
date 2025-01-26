@@ -16,15 +16,17 @@ using float4x4 = Unity.Mathematics.float4x4;
 
 namespace VLib
 {
-    /// <summary> A thread-safe virtual VirtualTransform that can be used to do Transform operations on other threads.
-    /// Not all transform features are implemented, but there is reference code at the bottom of this class that can help with that. </summary>
+    /// <summary> A thread-safe virtual VirtualTransform that can be used to do Transform operations on other threads. <br/>
+    /// Not all transform features are implemented, but there is reference code at the bottom of this class that can help with that. <br/>
+    /// This struct is COPY-SAFE, data is held in allocated native memory. </summary>
     [GenerateTestsForBurstCompatibility]
-    public unsafe struct VirtualValueTransform : IEquatable<VirtualValueTransform>, IDisposable
+    public struct VirtualValueTransform : IEquatable<VirtualValueTransform>, IDisposable
     {
-        public static implicit operator bool(VirtualValueTransform t) => t.IsCreated && t.DataPtr != null && t.DataPtr->transformID != 0;
+        public static implicit operator bool(VirtualValueTransform t) => t.IsCreated && t.DataRef.transformID != 0;
         
         public struct Internal
         {
+            /// <summary> Matches the runtime InstanceID of a <see cref="Transform"/> </summary>
             public int transformID;
             /// <summary> Very cheap fetch. This is not directly equivalent to localToWorldMatrix, this is actually parentToWorld. If no parent, then it is localToWorld. </summary>
             public float4x4 localMatrix;
@@ -36,29 +38,31 @@ namespace VLib
         /// <summary> Protected native buffer that must be keyed by an external collection for safety. </summary>
         VUnsafeKeyedRef<Internal> data;
 
-        readonly Internal* DataPtr
+        readonly ref Internal DataRef
         {
             get
             {
-                var ptr = data.TPtr;
+                return ref data.ValueRef;
+                
+                /*var ptr = data.TPtr;
                 // It will report errors and return null if it can't get the ptr, so we test for that and throw in this case
                 if (ptr == null)
                     throw new NullReferenceException("VirtualValueTransform is not initialized!");
-                return ptr;
+                return ptr;*/
             }
         }
 
         public readonly bool IsCreated => data.IsCreated;
         
         /// <summary> Creates a new VirtualTransform. </summary>
-        public VirtualValueTransform(byte* key, Transform t, VirtualValueTransform parent = default)
+        public unsafe VirtualValueTransform(byte* key, Transform t, VirtualValueTransform parent = default)
         {
             data = default;
             SetData(key, t, parent);
         }
 
         /// <summary> Allows you to create null (or default) virtual transforms and populate them later. Be careful not to call this on a copy! </summary>
-        public void SetData(byte* key, Transform t, VirtualValueTransform newParent = default)
+        public unsafe void SetData(byte* key, Transform t, VirtualValueTransform newParent = default)
         {
             if (t == null)
                 throw new ArgumentNullException(nameof(t), "Transform is NULL!");
@@ -74,7 +78,7 @@ namespace VLib
             }
 
             // The virtual transform will be able to be related efficiently via this ID
-            DataPtr->transformID = t.GetInstanceID();
+            DataRef.transformID = t.GetInstanceID();
             parent = newParent;
 
             //localMatrix = float4x4.TRS(t.localPosition, t.localRotation, t.localScale);
@@ -88,11 +92,11 @@ namespace VLib
         }
 
         /// <summary> The transform.GetInstanceID() that this virtualtransform refers to. </summary>
-        public readonly int TransformID => DataPtr->transformID;
+        public readonly int TransformID => DataRef.transformID;
 
         public readonly VirtualValueTransform parent
         {
-            get => data.IsCreated ? DataPtr->_parent : default;
+            get => data.IsCreated ? DataRef._parent : default;
             set
             {
                 if (!data.IsCreated)
@@ -100,13 +104,13 @@ namespace VLib
                     Debug.LogError("VirtualValueTransform not initialized, cannot set parent!");
                     return;
                 }
-                var p = DataPtr->_parent;
+                var p = DataRef._parent;
                 if (p.IsCreated && p.TransformID != 0)
                     p.RemoveChild(this);
-                DataPtr->_parent = value;
+                DataRef._parent = value;
                 if (value == default)
                     return;
-                DataPtr->_parent.AddChild(this);
+                DataRef._parent.AddChild(this);
             }
         }
 
@@ -115,47 +119,46 @@ namespace VLib
         {
             get
             {
-                var cur = this;
-                for (int i = 0; i < 512; ++i)
+                var currentTransform = this;
+                while (true)
                 {
-                    var p = cur.parent;
-                    if (p.IsCreated)
-                        cur = p;
+                    var parentTransform = currentTransform.parent;
+                    if (parentTransform.IsCreated)
+                        currentTransform = parentTransform;
                     else
-                        break;
+                        return currentTransform;
                 }
-                return cur;
             }
         }
 
         /// <summary> For write access use the DataPtr </summary>
-        public readonly UnsafeList<VirtualValueTransform>.ReadOnly children => DataPtr->_children.AsReadOnly();
+        public readonly UnsafeList<VirtualValueTransform>.ReadOnly children => DataRef._children.AsReadOnly();
         
         public readonly void AddChild(VirtualValueTransform child)
         {
-            if (DataPtr->_children.Contains(child))
+            if (DataRef._children.Contains(child))
                 return;
-            DataPtr->_children.Add(child);
+            DataRef._children.Add(child);
             if (child.parent != this)
                 child.parent = this; // TODO: Ensure recursive call doesn't cause infinite loop or performance issues
         }
 
         public readonly void RemoveChild(VirtualValueTransform child)
         {
-            if (!DataPtr->_children.RemoveValue(child))
+            if (!DataRef._children.RemoveValue(child))
                 return;
-            var childPtr = child.DataPtr;
-            if (childPtr->_parent == this)
-                childPtr->_parent = default;
+            ref var childRef = ref child.DataRef;
+            if (childRef._parent == this)
+                childRef._parent = default;
         }
 
         /// <summary> <inheritdoc cref="Internal.localMatrix"/> </summary>
-        public readonly ref float4x4 LocalMatrixRef => ref DataPtr->localMatrix;
+        public readonly ref float4x4 LocalMatrixRef => ref DataRef.localMatrix;
         /// <summary> <inheritdoc cref="Internal.localMatrix"/> </summary>
         public readonly float4x4 LocalMatrix
         {
-            get => DataPtr->localMatrix;
-            set => DataPtr->localMatrix = value;
+            get => DataRef.localMatrix;
+            set => DataRef.localMatrix = value;
         }
 
         public readonly float3 positionNative
@@ -327,37 +330,22 @@ namespace VLib
 
             return newPosition;
         }
-        
-        // Doesn't seem to work right
-        /*/// <summary> Copies Translations and Rotations from the given transform with safety checks for NANS (in editor only).
-        /// More efficient than <see cref="CopyTRSFromSafe"/>.
-        /// For speed, assumes scale is (1,1,1)! </summary>
-        public readonly void CopyPosRotFrom(ref TransformAccess transformAccess)
-        {
-            transformAccess.GetLocalPositionAndRotation(out var tLocalPos, out var tLocalRot);
 
-#if NANCHECKS
-            if (any(isnan(tLocalPos)) || any(isnan(((quaternion) tLocalRot).value)))
-                Debug.LogError($"Nans detected in transform, ID of virtual is: {DataPtr->transformID}");
-#endif
-            
-            DataPtr->localMatrix = float4x4.TRS(tLocalPos, tLocalRot, VMath.One3);
-        }*/
-
-        // Mysteriously doesn't work, the NoOpt version does...
-        /*/// <summary> Copies Translations, Rotations and Scales from the given transform with safety checks for (in editor only). </summary>
+        /// <summary> Copies Translations, Rotations and Scales from the given transform with safety checks for (in editor only). </summary>
         public readonly void CopyTRSFrom(ref TransformAccess transformAccess)
         {
             transformAccess.GetLocalPositionAndRotation(out var tLocalPos, out var tLocalRot);
             var tLocalScale = transformAccess.localScale;
-
+            
+            DataRef.localMatrix = float4x4.TRS(
+                UnsafeUtility.As<Vector3, float3>(ref tLocalPos), 
+                UnsafeUtility.As<Quaternion, quaternion>(ref tLocalRot), 
+                UnsafeUtility.As<Vector3, float3>(ref tLocalScale));
 #if NANCHECKS
-            if (any(isnan(tLocalPos)) || any(isnan(((quaternion) tLocalRot).value)) || any(isnan(tLocalScale)) || any((float3) tLocalScale == 0))
+            if (DataPtr->localMatrix.IsNan())
                 Debug.LogError($"Nans detected in transform, ID of virtual is: {DataPtr->transformID}");
 #endif
-            
-            DataPtr->localMatrix = float4x4.TRS(tLocalPos, tLocalRot, tLocalScale);
-        }*/
+        }
 
         /// <summary> Copies Translations, Rotations and Scales from the given transform with safety checks for (in editor only). </summary>
         public readonly void CopyTRSFromNoOpt(ref TransformAccess transformAccess)
@@ -371,7 +359,11 @@ namespace VLib
                 Debug.LogError($"Nans detected in transform, ID of virtual is: {DataPtr->transformID}");
 #endif
             
-            DataPtr->localMatrix = float4x4.TRS(tLocalPos, tLocalRot, tLocalScale);
+            // Bypass casting overhead, just view stack memory as float3 and quaternion types
+            DataRef.localMatrix = float4x4.TRS(
+                UnsafeUtility.As<Vector3, float3>(ref tLocalPos), 
+                UnsafeUtility.As<Quaternion, quaternion>(ref tLocalRot), 
+                UnsafeUtility.As<Vector3, float3>(ref tLocalScale));
         }
 
         /// <summary> Copies Translations, Rotations and Scales from the given transform with safety checks for (in editor only). </summary>
@@ -385,14 +377,14 @@ namespace VLib
                 Debug.LogError($"Nans detected in transform, ID of virtual is: {DataPtr->transformID}");
 #endif
             
-            DataPtr->localMatrix = float4x4.TRS(tLocalPos, tLocalRot, tLocalScale);
+            DataRef.localMatrix = float4x4.TRS(tLocalPos, tLocalRot, tLocalScale);
         }
         
         /// <summary> Copies Translations, Rotations and Scales TO the given transform with safety checks for (in editor only). </summary>
         public readonly void CopyTRSTo(ref TransformAccess transformAccess)
         {
             // Get all at once
-            DataPtr->localMatrix.Decompose(out float3 localPos, out quaternion localRot, out float3 locScale);
+            DataRef.localMatrix.Decompose(out float3 localPos, out quaternion localRot, out float3 locScale);
 
 #if NANCHECKS
             if (any(isnan(localPos)) || any(isnan(localRot.value)) || any(isnan(locScale)) || any(locScale == 0))
@@ -407,7 +399,7 @@ namespace VLib
         public readonly void CopyTRSToNoOpt(ref TransformAccess transformAccess)
         {
             // Get all at once
-            DataPtr->localMatrix.Decompose(out float3 localPos, out quaternion localRot, out float3 locScale);
+            DataRef.localMatrix.Decompose(out float3 localPos, out quaternion localRot, out float3 locScale);
 
 #if NANCHECKS
             if (any(isnan(localPos)) || any(isnan(localRot.value)) || any(isnan(locScale)) || any(locScale == 0))
@@ -423,7 +415,7 @@ namespace VLib
         public readonly void CopyPosRotTo(ref TransformAccess transformAccess)
         {
             // Get all at once
-            DataPtr->localMatrix.Decompose(out float3 localPos, out quaternion localRot, out float3 locScale);
+            DataRef.localMatrix.Decompose(out float3 localPos, out quaternion localRot, out float3 locScale);
 
 #if NANCHECKS
             if (any(isnan(localPos)) || any(isnan(localRot.value)))
@@ -438,7 +430,7 @@ namespace VLib
         
         readonly float4x4 GetLocalToWorldMatrix()
         {
-            float4x4 t = DataPtr->localMatrix; //float4x4.TRS(localPosition, m_LocalRotation, m_LocalScale);
+            float4x4 t = DataRef.localMatrix; //float4x4.TRS(localPosition, m_LocalRotation, m_LocalScale);
             if (parent)
                 t = mul(parent.GetLocalToWorldMatrix(), t); //parent.GetLocalToWorldMatrix() * t;
 
@@ -500,21 +492,19 @@ namespace VLib
         public readonly bool Equals(VirtualValueTransform other)
         {
             // Access allocation status and get pointers at the same time
-            bool thisNull = !data.TryGetPtr(out var thisDataPtr);
-            bool otherNull = !other.data.TryGetPtr(out var otherDataPtr);
+            ref readonly var thisRef = ref data.TryGetRef(out var thisExists);
+            ref readonly var otherRef = ref other.data.TryGetRef(out var otherExists);
             
             // Null handling
-            bool anyNull = otherNull || thisNull;
+            bool anyNull = !thisExists || !otherExists;
             if (Hint.Unlikely(anyNull))
             {
-                // One must be null inside this block
-                // True if both are null
-                // False if only one is null
-                return thisNull == otherNull;
+                // One must be null inside this block, if equal, both must be null. True if both are null, False if only one is null
+                return thisExists == otherExists;
             }
 
             // Now that we know both transforms are created, compare their transform IDs
-            return thisDataPtr->transformID.Equals(otherDataPtr->transformID);
+            return thisRef.transformID.Equals(otherRef.transformID);
             
             // This is now availble in EqualsInstance:
             
@@ -540,13 +530,7 @@ namespace VLib
         public static bool operator ==(VirtualValueTransform left, VirtualValueTransform right) => left.Equals(right);
         public static bool operator !=(VirtualValueTransform left, VirtualValueTransform right) => !left.Equals(right);
 
-        public readonly override int GetHashCode()
-        {
-            bool hasPtr = data.TryGetPtr(out var ptr);
-            if (Hint.Likely(hasPtr))
-                return ((IntPtr) ptr).GetHashCode();
-            return 0;
-        }
+        public readonly override int GetHashCode() => data.GetHashCode();
     }
     
     // REFERENCE CODE for writing found on da github

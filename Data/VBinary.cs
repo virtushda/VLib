@@ -14,7 +14,8 @@ namespace VLib
         
         public const int MD5HashLength = 16;
         
-        public static unsafe bool TryCreateFromSerializedData<TStream>(byte[][] dataObjects, TStream dataStream, TStream byteCountStream, bool closeStreams, bool extraInfo = false)
+        public static unsafe bool TryCreateFromSerializedData<TStream>
+            (byte[][] dataObjects, TStream dataStream, TStream byteCountStream, bool closeStreams, out string errorMsg, bool extraInfo = false)
             where TStream : Stream
         {
             ulong objectByteCountsGCHandle = 0;
@@ -24,14 +25,16 @@ namespace VLib
                 Profiler.BeginSample("Pre-Flight Checks");
                 if (dataObjects is not {Length: > 0})
                 {
-                    Debug.LogError("Data objects array is null or empty, cannot create VBinary");
+                    errorMsg = "Data objects array is null or empty, cannot create VBinary";
+                    Profiler.EndSample();
                     return false;
                 }
                 foreach (var data in dataObjects)
                 {
                     if (data is not {Length: > 0})
                     {
-                        Debug.LogError("Data object is null or empty, cannot create VBinary with any empty data");
+                        errorMsg = "Data object is null or empty, cannot create VBinary with any empty data";
+                        Profiler.EndSample();
                         return false;
                     }
                 }
@@ -109,14 +112,15 @@ namespace VLib
                 
                 Dispose();
                 
+                errorMsg = null;
                 return true;
             }
             catch (Exception e)
             {
                 Dispose();
-                Debug.LogError("An error occurred while creating VBinary, logging exception... ");
-                Debug.LogException(e);
+                Debug.LogException(e); // Should automatically be passed to cloud diagnostics
             }
+            errorMsg = "An exception occurred while creating VBinary, logging... (should go to cloud diagnostics)";
             return false;
 
             void Dispose()
@@ -219,19 +223,19 @@ namespace VLib
         static void AssertEquals(int valueA, int valueB, string message)
         {
             if (valueA != valueB)
-                Debug.LogError($"{message} {valueA} != {valueB}");
+                Debug.LogException(new UnityException($"{message} {valueA} != {valueB}"));
         }
         
         static void AssertEvenNumber(int value, string message)
         {
             if (value % 2 != 0)
-                Debug.LogError($"{message} {value} is not even");
+                Debug.LogException(new UnityException($"{message} {value} is not even"));
         }
         
         static void AssertDivisibleByFour(int value, string message)
         {
             if (value % 4 != 0)
-                Debug.LogError($"{message} {value} is not divisible by 4");
+                Debug.LogException(new UnityException($"{message} {value} is not divisible by 4"));
         }
     }
 }

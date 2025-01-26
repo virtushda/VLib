@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Unity.Burst.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -132,6 +133,30 @@ namespace VLib
                         lerp(c01, c11, tx), ty);
         }
 
+        /// <summary> Get a blend between the minimum and the average of the given values </summary>
+        public static float MinAvgBlend2(float a, float b, float blendAverage01)
+        {
+            var avg = (a + b) / 2f;
+            var min = math.min(a, b);
+            return lerp(min, avg, blendAverage01);
+        }
+
+        /// <summary> Get a blend between the minimum and the average of the given values </summary>
+        public static float MinAvgBlend3(float a, float b, float c, float blendAverage01)
+        {
+            var avg = (a + b + c) / 3f;
+            var min = math.min(math.min(a, b), c);
+            return lerp(min, avg, blendAverage01);
+        }
+
+        /// <summary> Get a blend between the minimum and the average of the given values </summary>
+        public static float MinAvgBlend4(float a, float b, float c, float d, float blendAverage01)
+        {
+            var avg = (a + b + c + d) / 4f;
+            var min = math.min(math.min(a, b), math.min(c, d));
+            return lerp(min, avg, blendAverage01);
+        }
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float2 Rotate90CW(float2 input)
         {
@@ -162,6 +187,27 @@ namespace VLib
             input.xz = input.zx;
             input.x *= -1;
             return input;
+        }
+
+        public static float2 ClampToRectAroundZero(this float2 vector, in RectNative rect, bool logOnBadRect = true)
+        {
+            var vectorAbs = abs(vector);
+            // Pick extents based on which sides of the rect the vector is on
+            var extentsFromZero = select(abs(rect.Min), rect.Max, vector >= float2.zero);
+            
+            //BurstAssert.True(all(extentsFromZero >= .0000001f)); //Rect must have extents to avoid divide by zero!
+            if (any(extentsFromZero < .0000001f))
+            {
+                if (logOnBadRect)
+                    Debug.LogError("Rect must contain (0,0) to avoid divide by zero!");
+                return float2.zero;
+            }
+
+            var maxVectorScalePastRect = cmax(vectorAbs / extentsFromZero);
+            
+            // If the vector is already within the rect, return it
+            // This should also protect against division by zero doing it this way
+            return maxVectorScalePastRect < 1 ? vector : vector / maxVectorScalePastRect; // Flip the scale to shrink the vector to fit into the rect
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -277,8 +323,16 @@ namespace VLib
 
             return true; // The lines intersect - return true and the intersectionPoint as output argument
         }
+
+        public static float3 ClosestPointOnRay(in float3 point, in float3 rayOrigin, in float3 rayDirection)
+        {
+            BurstAssert.True(lengthsq(rayDirection).Equals(1f)); // Must be normalized
+            var rayOriginToPoint = point - rayOrigin;
+            var distanceAlongRay = dot(rayOriginToPoint, rayDirection);
+            return rayOrigin + distanceAlongRay * rayDirection;
+        }
         
-        public static bool LineSegmentIntersection(float2x2 a, float2x2 b, out float2 intersection, out float aNorm, out float bNorm)
+        public static bool LineSegmentIntersection(in float2x2 a, in float2x2 b, out float2 intersection, out float aNorm, out float bNorm)
         {
             var p1 = a.c0;
             var p2 = a.c1;
@@ -304,7 +358,7 @@ namespace VLib
             return true;
         }
 
-        public static bool LineSegmentIntersectionXZ(float3x2 a, float3x2 b, out float3 intersection, out float aNorm, out float bNorm, float heightLerp = 0.5f)
+        public static bool LineSegmentIntersectionXZ(in float3x2 a, in float3x2 b, out float3 intersection, out float aNorm, out float bNorm, float heightLerp = 0.5f)
         {
             intersection = float3.zero;
             var aXZ = new float2x2(a.c0.xz, a.c1.xz);
@@ -318,7 +372,7 @@ namespace VLib
             return true;
         }
         
-        public static bool LineSegmentSphereIntersection(float3 p1, float3 p2, float3 center, float radius, out float3 intersection)
+        public static bool LineSegmentSphereIntersection(in float3 p1, in float3 p2, in float3 center, float radius, out float3 intersection)
         {
             intersection = float3.zero;
 
@@ -353,15 +407,53 @@ namespace VLib
             }
             return false;
         }
-        
-        public static float InverseSampleLineSegment(float3 p0, float3 p1, float3 position)
+
+        /// <summary> Tells you how far along a given line segment a point would be. The point is inherently projected to the line.
+        /// Values below 0 indicate the point is before the start of the line segment, and values above 1 indicate the point is after the end of the line segment. </summary>
+        public static float InverseSampleLineSegment(in float3 p0, in float3 p1, in float3 position)
         {
             var v = p1 - p0;
             var w = position - p0;
-
             return dot(w, v) / dot(v, v);
         }
-        
+
+        /// <summary> Constrains a given position to lie on the line segment defined by points `a` and `b`. </summary>
+        /// <param name="position">The position to constrain.</param>
+        /// <param name="a">The start point of the line segment.</param>
+        /// <param name="b">The end point of the line segment.</param>
+        /// <param name="lineLerpT">The interpolation factor indicating how far along the segment the constrained position lies.</param>
+        /// <returns>The constrained position on the line segment.</returns>
+        public static float3 ConstrainToSegment(in float3 position, in float3 a, in float3 b, out float lineLerpT)
+        {
+            lineLerpT = InverseSampleLineSegment(a, b, position);
+            return lerp(a, b, saturate(lineLerpT));
+        }
+
+        // Implementation of https://zalo.github.io/blog/closest-point-between-segments/
+        /// <summary> Calculates the closest points between two line segments `ab` and `cd` in 3D space. </summary>
+        /// <param name="ab">The first line segment defined by two points.</param>
+        /// <param name="cd">The second line segment defined by two points.</param>
+        /// <param name="closestPointOnSegAB">The closest point on segment `ab`.</param>
+        /// <param name="closestPointOnSegCD">The closest point on segment `cd`.</param>
+        /// <param name="lineABLerpT">The interpolation factor along segment `ab`.</param>
+        public static void ClosestPointBetweenTwoSegments(in float3x2 ab, in float3x2 cd, out float3 closestPointOnSegAB, out float3 closestPointOnSegCD, out float lineABLerpT)
+        {
+            var segDC = cd.c1 - cd.c0; // segD-segC; 
+            var lineDirSqrMag = dot(segDC, segDC);
+
+            var inPlaneA = ab.c0 - ((dot(ab.c0 - cd.c0, segDC) / lineDirSqrMag) * segDC);
+            var inPlaneB = ab.c1 - ((dot(ab.c1 - cd.c0, segDC) / lineDirSqrMag) * segDC);
+            var inPlaneBA = inPlaneB - inPlaneA;
+            
+            var t = 0f;
+            if (Hint.Likely(any(inPlaneA != inPlaneB)))
+                t = dot(cd.c0 - inPlaneA, inPlaneBA) / dot(inPlaneBA, inPlaneBA);
+            var segABtoLineCD = lerp(ab.c0, ab.c1, saturate(t));
+
+            closestPointOnSegCD = ConstrainToSegment(segABtoLineCD, cd.c0, cd.c1, out _);
+            closestPointOnSegAB = ConstrainToSegment(closestPointOnSegCD, ab.c0, ab.c1, out lineABLerpT); // Is this second constrain necessary??
+        }
+
         #region Checks / Defensive
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
@@ -381,9 +473,11 @@ namespace VLib
         /// <summary> Divide, but if the denominator is zero, return 0. </summary>
         public static float DivideSafe(this float numerator, float denominator, float epsilon = EPSILON)
         {
-            if (abs(denominator) < epsilon)
+            return select(numerator / denominator, 0, abs(denominator) < epsilon);
+            
+            /*if (abs(denominator) < epsilon)
                 return 0;
-            return numerator / denominator;
+            return numerator / denominator;*/
         }
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>

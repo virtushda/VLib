@@ -268,6 +268,7 @@ namespace VLib
     
     public static class VUnsafeRefExtensions
     {
+        /// <summary> Disposes the internal IDisposable and then disposes this reference. </summary>
         public static void DisposeRefAndInternal<T>(this VUnsafeRef<T> reference)
             where T : unmanaged, IDisposable
         {
@@ -277,6 +278,7 @@ namespace VLib
             reference.Dispose();
         }
 
+        /// <summary> <see cref="DisposeRefAndInternal{T}"/>, then writes default to the reference address too. </summary>
         public static void DisposeRefAndInternalToDefault<T>(this ref VUnsafeRef<T> reference)
             where T : unmanaged, IDisposable
         {

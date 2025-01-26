@@ -63,7 +63,9 @@ namespace VLib
             var dependsOn = DetermineDependencies(ref job, dependencies);
             
             // Schedule job
+            Profiler.BeginSample("Schedule");
             var handle = job.Schedule(JobHandle.CombineDependencies(dependsOn, addInDeps));
+            Profiler.EndSample();
             
             RegisterNewDependenciesAndCleanup(dependencies, handle);
 

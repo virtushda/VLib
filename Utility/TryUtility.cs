@@ -3,7 +3,8 @@ using UnityEngine;
 
 namespace VLib
 {
-    /// <summary>Utility for burying try-catch-finally boilerplate</summary>
+    /// <summary>Utility for burying try-catch-finally boilerplate. <br/>
+    /// To be used only where GC-pressure is not a concern. </summary>
     public static class Try
     {
         /// <summary>Invokes passed in action inside a try block and logs any exception on failure (by default).</summary>

@@ -12,6 +12,7 @@ namespace VLib
     {
         public static bool TryGet<T>(this IList<T> list, int index, out T value, bool logErrors = false)
         {
+            BurstAssert.False(list == null);
             if (index < 0)
             {
                 if (logErrors)
@@ -24,14 +25,6 @@ namespace VLib
             {
                 if (logErrors)
                     Debug.LogError($"Index '{index}' is beyond the range of list of count {list.Count}!");
-                value = default;
-                return false;
-            }
-
-            if (list.Count < 1)
-            {
-                if (logErrors)
-                    Debug.LogError("List is empty!");
                 value = default;
                 return false;
             }
@@ -185,7 +178,8 @@ namespace VLib
         }
         
         //Modified version of c# Array.BinarySearch
-        public static int BinarySearch<T>(this List<T> list, Compare<T> comparison)
+        public static int BinarySearch<T, TComparison>(this List<T> list, TComparison comparison) // Compare<T> comparison)
+            where TComparison : IComparable<T>
         {
             var array = list.GetInternalArray();
             int count = list.Count;
@@ -196,7 +190,7 @@ namespace VLib
             while (low <= hi)
             {
                 int median = GetMedian(low, hi);
-                int compareResult = comparison.Invoke(array[median]);
+                int compareResult = comparison.CompareTo(array[median]);
 
                 if (compareResult < 0)
                     low = median + 1;
@@ -209,7 +203,8 @@ namespace VLib
             return ~low;
         }
         
-        public static bool FindBinary<T>(this List<T> list, Compare<T> comparison, out T value)
+        public static bool FindBinary<T, TComparison>(this List<T> list, TComparison comparison, out T value)
+            where TComparison : IComparable<T>
         {
             int index = list.BinarySearch(comparison);
             if (index >= 0)
@@ -353,13 +348,6 @@ namespace VLib
         {
             if (list.Capacity < capacity)
                 list.Capacity = capacity;
-        }
-        
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void ConditionalCheckIndexValid<T>(this IReadOnlyList<T> readOnlyList, int index)
-        {
-            if (index < 0 || index >= readOnlyList.Count)
-                throw new IndexOutOfRangeException($"Index '{index}' is out of range of list of count {readOnlyList.Count}!");
         }
     } 
 }

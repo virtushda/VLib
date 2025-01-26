@@ -26,7 +26,7 @@ namespace VLib
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
     public struct BurstSpinLock
     {
-        public const float DefaultTimeout = 2f;
+        public const float DefaultTimeout = 5f;
         
         private VUnsafeBufferedRef<long> m_LockHolder;
         

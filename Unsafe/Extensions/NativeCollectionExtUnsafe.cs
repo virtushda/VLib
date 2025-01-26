@@ -12,7 +12,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using VLib.Libraries.VLib.Unsafe.Utility;
+using VLib.Unsafe.Utility;
 
 namespace VLib
 {
@@ -38,6 +38,13 @@ namespace VLib
     
     public static unsafe class NativeCollectionExtUnsafe
     {
+        public static Span<T> LengthToSpan<T>(this UnsafeList<T> list)
+            where T : unmanaged
+        {
+            list.ConditionalCheckIsCreated();
+            return new Span<T>(list.Ptr, list.Length);
+        }
+        
         public static long MemoryFootprintBytes<T>(this NativeArray<T> array) 
             where T : struct =>
             array.IsCreated ? UnsafeUtility.SizeOf<T>() * array.Length : 0;
@@ -75,11 +82,11 @@ namespace VLib
                 return;
             }
 
-            BurstAssert.TrueCheap(length > 0);
-            BurstAssert.TrueCheap(src.IsCreated);
-            BurstAssert.TrueCheap(srcIndex >= 0 && srcIndex < src.Length);
-            BurstAssert.TrueCheap(dstIndex >= 0);
-            BurstAssert.TrueCheap(src.Length >= srcIndex + length);
+            BurstAssert.True(length > 0);
+            BurstAssert.True(src.IsCreated);
+            BurstAssert.True(srcIndex >= 0 && srcIndex < src.Length);
+            BurstAssert.True(dstIndex >= 0);
+            BurstAssert.True(src.Length >= srcIndex + length);
             
             VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, (T*) dstHandlePinnedType.AddrOfPinnedObject(), dstIndex, length);
             /*UnsafeUtility.MemCpy((void*)((IntPtr)(void*)dstHandlePinnedType.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()),
@@ -746,6 +753,21 @@ namespace VLib
                 hashMap.Remove(key);
                 list.RemoveAtSwapBack(mapValue);
                 hashMap[lastKey] = mapValue;
+            }
+        }
+
+        public static void Reverse<T>(ref this UnsafeList<T> list)
+            where T : unmanaged
+        {
+            BurstAssert.True(list.IsCreated);
+            int start = 0;
+            int end = list.Length - 1;
+            
+            while (start < end)
+            {
+                (list[start], list[end]) = (list[end], list[start]);
+                ++start;
+                --end;
             }
         }
         

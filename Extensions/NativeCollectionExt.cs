@@ -456,7 +456,7 @@ namespace VLib
 
         public static int BinarySearch<T, U>(this NativeList<T> sortedList, U comparison)
             where T : unmanaged, IComparable<T>
-            where U : struct, IComparison<T>
+            where U : struct, IComparable<T>
         {
             //Copied from NativeSort.BinarySearch extension method for NativeList
             var offset = 0;
@@ -482,7 +482,7 @@ namespace VLib
 
         public static int BinarySearch<T, U>(this NativeList<T> sortedList, U comparison, int start, int count)
             where T : unmanaged, IComparable<T>
-            where U : struct, IComparison<T>
+            where U : struct, IComparable<T>
         {
             //Copied from NativeSort.BinarySearch extension method for NativeList
             var searchStart = start;
@@ -508,7 +508,7 @@ namespace VLib
 
         public static int BinarySearch<T, U>(this ref UnsafeList<T> sortedList, U comparison)
             where T : unmanaged, IComparable<T>
-            where U : struct, IComparison<T>
+            where U : struct, IComparable<T>
         {
             //Copied from NativeSort.BinarySearch extension method for NativeList
             var offset = 0;
@@ -726,7 +726,7 @@ namespace VLib
         /// <typeparam name="U"></typeparam>
         public static void RemoveSortedByComparison<T, U>(this NativeList<T> sortedList, U comparison)
             where T : unmanaged, IComparable<T>
-            where U : struct, IComparison<T>
+            where U : struct, IComparable<T>
         {
             if (sortedList.BinarySearch(comparison) is int index && index >= 0)
                 sortedList.RemoveAt(index);
@@ -742,7 +742,7 @@ namespace VLib
         /// <typeparam name="U"></typeparam>
         public static void RemoveSortedByComparison<T, U>(this ref UnsafeList<T> sortedList, U comparison)
             where T : unmanaged, IComparable<T>
-            where U : struct, IComparison<T>
+            where U : struct, IComparable<T>
         {
             if (sortedList.BinarySearch(comparison) is int index && index >= 0)
                 sortedList.RemoveAt(index);

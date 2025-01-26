@@ -12,7 +12,8 @@ namespace VLib
 {
     /// <summary> Designed to serve as an ECS-style native buffer where indices are recycled instead of removed. This allows for safely persisting references to individual elements. <br/>
     /// Wraps a <see cref="VUnsafeBufferList{T}"/> and provides a way to rent SafePtrs to elements. <br/>
-    /// Not thread-safe unless otherwise specified. </summary>
+    /// Not thread-safe unless otherwise specified. <br/>
+    /// Copy-safe.</summary>
     /// <typeparam name="T">The type of the elements.</typeparam>
     [StructLayout(LayoutKind.Sequential)]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
@@ -21,8 +22,20 @@ namespace VLib
     {
         VUnsafeRef<Data> data;
 
-        readonly ref Data DataRef => ref data.ValueRef;
-        readonly ref readonly Data DataReadRef => ref data.ValueRef;
+        /// <summary> Inherently checks IsCreated </summary>
+        readonly ref Data DataRef
+        {
+            get
+            {
+                this.ConditionalCheckIsCreated();
+                return ref data.ValueRef;
+            }
+        }
+        readonly ref Data DataRefUnsafe => ref data.ValueRef;
+
+        /// <summary> Inherently checks IsCreated </summary>
+        readonly ref readonly Data DataReadRef => ref DataRef;
+        readonly ref readonly Data DataReadRefUnsafe => ref data.ValueRef;
 
         struct Data : IAllocating
         {
@@ -188,15 +201,13 @@ namespace VLib
                 return list.EnsureClaimedAndActive(index);
             }*/
 
-            /*/// <summary> Disposes renters, disables the index, writes default to it and returns it to the pool. </summary>
-            public void RemoveAt(int index, in T defaultValue = default)
+            /// <summary> Disposes renters, disables the index, writes default to it and returns it to the pool. </summary>
+            public void RemoveAtClear(int index, in T defaultValue = default)
             {
                 this.ConditionalCheckIsCreated();
                 DisposeRentersOf(index);
-                SetActive(index, false);
-                listData[index] = defaultValue;
-                packedIndices.RemoveAt(index);
-            }*/
+                list.RemoveAtClear(index, defaultValue);
+            }
 
             /*/// <returns>True if the index active state was changed, false if it was already set to the desired state.</returns>
             bool SetActive(int index, bool active)
@@ -292,7 +303,7 @@ namespace VLib
         public readonly bool IsCreated
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => data.IsCreated && DataReadRef.IsCreated;
+            get => data.IsCreated && DataReadRefUnsafe.IsCreated;
         }
 
         /// <summary> Whether this list is empty. </summary>
@@ -300,21 +311,13 @@ namespace VLib
         public readonly bool IsEmpty
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
-            {
-                this.ConditionalCheckIsCreated();
-                return DataRef.list.IsEmpty;
-            }
+            get => DataRef.list.IsEmpty;
         }
 
         public int ActiveCount
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
-            {
-                this.ConditionalCheckIsCreated();
-                return DataRef.list.Count;
-            }
+            get => DataRef.list.Count;
         }
 
         /// <summary> The range within capacity being used. There may be holes with inactive indices. </summary>
@@ -323,16 +326,8 @@ namespace VLib
         public int Length
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get
-            {
-                this.ConditionalCheckIsCreated();
-                return DataRef.list.Length;
-            }
-            set
-            {
-                this.ConditionalCheckIsCreated();
-                DataRef.Resize(value);
-            }
+            readonly get => DataRef.list.Length;
+            set => DataRef.Resize(value);
         }
 
         /// <summary> The number of elements that fit in the current allocation. </summary>
@@ -342,37 +337,17 @@ namespace VLib
         public int Capacity
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get
-            {
-                this.ConditionalCheckIsCreated();
-                return DataRef.list.Capacity;
-            }
+            readonly get => DataRef.list.Capacity;
             set => UnityEngine.Debug.LogError($"Capacity is not settable in VUnsafeBufferArray. Current capacity is {Capacity}, attempted to set to {value}.");
         }
 
-        public bool IsFull
-        {
-            get
-            {
-                this.ConditionalCheckIsCreated();
-                ref var dataRef = ref DataRef;
-                return dataRef.list.IsFull;
-            }
-        }
+        public bool IsFull => DataRef.list.IsFull;
 
         /// <summary> Tells you whether the index is inside the buffer range or not, without care to whether the index is considered 'active'. </summary>
-        public readonly bool IndexInBufferRange(int index)
-        {
-            this.ConditionalCheckIsCreated();
-            return DataReadRef.list.IndexInBufferRange(index);
-        }
+        public readonly bool IndexInBufferRange(int index) => DataReadRef.list.IndexInBufferRange(index);
 
         /// <summary> Tells you whether the index is inside the buffer range and is considered 'active'. </summary>
-        public readonly bool IndexActive(int index)
-        {
-            this.ConditionalCheckIsCreated();
-            return DataRef.list.IndexActive(index);
-        }
+        public readonly bool IndexActive(int index) => DataRef.list.IndexActive(index);
 
         /// <summary> The element at a given index. </summary>
         /// <param name="index">An index into this list.</param>
@@ -381,18 +356,9 @@ namespace VLib
         public T this[int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get
-            {
-                this.ConditionalCheckIsCreated();
-                return DataRef.list[index];
-            }
-
+            readonly get => DataRef.list[index];
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            set
-            {
-                this.ConditionalCheckIsCreated();
-                DataRef.list[index] = value;
-            }
+            set => DataRef.list[index] = value;
         }
 
         /// <summary> Take a safe pointer to a given index. <br/>
@@ -400,11 +366,7 @@ namespace VLib
         /// You do not need to dispose the safe pointer yourself, if you want to throw out your reference, you can simply assign 'default'. <br/>
         /// Disposing the pointer directly will invalidate the reference at its source and invalidate the reference everywhere. <br/>
         /// This is NOT concurrent-safe. </summary>
-        public SafePtr<T> RentIndexPointer(int index)
-        {
-            this.ConditionalCheckIsCreated();
-            return DataRef.RentIndexPointer(index);
-        }
+        public SafePtr<T> RentIndexPointer(int index) => DataRef.RentIndexPointer(index);
 
         /// <summary> A variant of <see cref="RentIndexPointer"/> that can only be called on the main thread. This is one way to ensure thread-safety, where applicable. </summary>
         public SafePtr<T> RentIndexPointerMainThread(int index)
@@ -417,55 +379,27 @@ namespace VLib
         /// <param name="index">An index.</param>
         /// <returns>A reference to the element at the index.</returns>
         /// <exception cref="IndexOutOfRangeException">Thrown if index is out of bounds.</exception>
-        public readonly ref T ElementAt(int index)
-        {
-            this.ConditionalCheckIsCreated();
-            return ref DataRef.list.ElementAt(index);
-        }
+        public readonly ref T ElementAt(int index) => ref DataRef.list.ElementAt(index);
 
         /// <summary> Accesses an index whether it's active or not. Use carefully. </summary>
-        public readonly ref T ElementAtUnsafe(int index)
-        {
-            this.ConditionalCheckIsCreated();
-            return ref DataRef.list.ElementAtUnsafe(index);
-        }
+        public readonly ref T ElementAtUnsafe(int index) => ref DataRef.list.ElementAtUnsafe(index);
 
-        public readonly bool TryGetValue(int index, out T value)
-        {
-            this.ConditionalCheckIsCreated();
-            return DataReadRef.list.TryGetValue(index, out value);
-        }
+        public readonly bool TryGetValue(int index, out T value) => DataReadRef.list.TryGetValue(index, out value);
 
         /// <summary> Can access inactive indices. </summary>
-        public readonly bool TryGetValueUnsafe(int index, out T value)
-        {
-            this.ConditionalCheckIsCreated();
-            return DataReadRef.list.TryGetValueUnsafe(index, out value);
-        }
+        public readonly bool TryGetValueUnsafe(int index, out T value) => DataReadRef.list.TryGetValueUnsafe(index, out value);
 
-        public readonly ref T TryGetRef(int index, out bool hasRef)
-        {
-            this.ConditionalCheckIsCreated();
-            return ref DataRef.list.TryGetRef(index, out hasRef);
-        }
+        public readonly ref T TryGetRef(int index, out bool hasRef) => ref DataRef.list.TryGetRef(index, out hasRef);
 
         /// <summary> Can access inactive indices. </summary>
-        public readonly ref T TryGetRefUnsafe(int index, out bool hasRef)
-        {
-            this.ConditionalCheckIsCreated();
-            return ref DataRef.list.TryGetRefUnsafe(index, out hasRef);
-        }
+        public readonly ref T TryGetRefUnsafe(int index, out bool hasRef) => ref DataRef.list.TryGetRefUnsafe(index, out hasRef);
 
         public readonly ref readonly T TryGetRefReadonly(int index, out bool hasRef) => ref TryGetRef(index, out hasRef);
 
         /// <summary> Can access inactive indices. </summary>
         public readonly ref readonly T TryGetRefReadonlyUnsafe(int index, out bool hasRef) => ref TryGetRefUnsafe(index, out hasRef);
 
-        public readonly int PeekUnusedIndex()
-        {
-            this.ConditionalCheckIsCreated();
-            return DataRef.list.PeekUnusedIndex();
-        }
+        public readonly int PeekUnusedIndex() => DataRef.list.PeekUnusedIndex();
 
         /// <summary> Add a value, using a free index inside the list's range, if possible. </summary>
         /// <returns>The index of the added value.</returns>
@@ -477,34 +411,18 @@ namespace VLib
         }
 
         /// <summary> Like <see cref="AddCompact"/>, but can safely return false if no room is available. </summary>
-        public bool TryAddCompact(in T value, out int index)
-        {
-            this.ConditionalCheckIsCreated();
-            return DataRef.list.TryAddCompactNoResize(value, out index);
-        }
+        public bool TryAddCompact(in T value, out int index) => DataRef.list.TryAddCompactNoResize(value, out index);
 
         /// <summary> Will expand list to fit incoming index. </summary>
-        public bool TryAddAtIndex(int index, T value, bool allowWriteOverActive = true)
-        {
-            this.ConditionalCheckIsCreated();
-            return DataRef.list.TryAddAtIndex(index, value, allowWriteOverActive);
-        }
+        public bool TryAddAtIndex(int index, T value, bool allowWriteOverActive = true) => DataRef.list.TryAddAtIndex(index, value, allowWriteOverActive);
 
         /// <summary> Sets the length to 0. </summary>
         /// <remarks> Does not change the capacity. </remarks>
-        public void Clear()
-        {
-            this.ConditionalCheckIsCreated();
-            DataRef.Clear();
-        }
+        public void Clear() => DataRef.Clear();
 
         /// <summary> Sets the value to default at index and adds the index to the recycle indices list.
         /// This is the only real way to "remove" from this type of list.</summary>
-        public void RemoveAtClear(int index, in T defaultValue = default)
-        {
-            this.ConditionalCheckIsCreated();
-            DataRef.list.RemoveAtClear(index, defaultValue);
-        }
+        public void RemoveAtClear(int index, in T defaultValue = default) => DataRef.RemoveAtClear(index, defaultValue);
 
         /*/// <summary>
         /// Returns an array that aliases this list. The length of the array is updated when the length of
@@ -685,11 +603,7 @@ namespace VLib
 
         /// <summary> Returns an enumerator over the active elements of this list. Does NOT include inactive elements. </summary>
         /// <returns>An enumerator over the elements of this list.</returns>
-        public VUnsafeBufferList<T>.Enumerator GetEnumerator()
-        {
-            this.ConditionalCheckIsCreated();
-            return new VUnsafeBufferList<T>.Enumerator(this.DataRef.list);
-        }
+        public VUnsafeBufferList<T>.Enumerator GetEnumerator() => new(DataRef.list);
 
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.

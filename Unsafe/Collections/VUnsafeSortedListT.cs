@@ -142,6 +142,8 @@ namespace VLib
             Add(item);
         }
 
+        public void Resort() => list.ListData.Sort();
+
         /// <summary> Get and remove from collection. </summary>
         public T Pull(int index)
         {

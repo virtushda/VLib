@@ -10,7 +10,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using VLib.Libraries.VLib.Unsafe.Utility;
+using VLib.Unsafe.Utility;
 using VLib.UnsafeListSlicing;
 
 namespace VLib
@@ -941,13 +941,15 @@ namespace VLib
         {
             readonly VUnsafeList<T> list;
 
+            public bool IsCreated => list.IsCreated;
+            
             /// <summary> The number of elements. </summary>
             public int Length => list.Length;
 
             public int Count => list.Length;
             
             public int Capacity => list.Capacity;
-            
+
             public T this[int index] => list[index];
 
             public ReadOnly(VUnsafeList<T> list) => this.list = list;

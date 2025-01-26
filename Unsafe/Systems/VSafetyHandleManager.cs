@@ -78,7 +78,7 @@ namespace VLib
 #endif
                 Interlocked.Decrement(ref takenHandles);
                 bool returned = safetyMemory.ReturnAddress(handle.truthLocation);
-                BurstAssert.TrueCheap(returned);
+                BurstAssert.True(returned);
                 return true;
             }
 

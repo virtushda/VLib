@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using VLib.Unsafe.Utility;
 using Debug = UnityEngine.Debug;
 
 namespace VLib
@@ -14,7 +15,7 @@ namespace VLib
     /// <typeparam name="T"></typeparam>
     [StructLayout(LayoutKind.Sequential)]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
-    public unsafe struct VUnsafeKeyedRef<T> : IEquatable<VUnsafeKeyedRef<T>>, IDisposable
+    public struct VUnsafeKeyedRef<T> : IEquatable<VUnsafeKeyedRef<T>>, IDisposable
         where T : unmanaged
     {
         public const byte InvalidKey = 0;
@@ -23,10 +24,10 @@ namespace VLib
         public static implicit operator bool(in VUnsafeKeyedRef<T> unsafeRef) => unsafeRef.IsCreated;
         
         /// <summary> Data ptr </summary>
-        [NativeDisableUnsafePtrRestriction] T* ptr;
+        [NativeDisableUnsafePtrRestriction] unsafe T* ptr;
 
         /// <summary> A special pointer that should be used to turn off this struct, by setting the pointer to zero. This value MUST be '1' to be considered valid. </summary>
-        [NativeDisableUnsafePtrRestriction] byte* keyPtr;
+        [NativeDisableUnsafePtrRestriction] unsafe byte* keyPtr;
 
         internal AllocatorManager.AllocatorHandle m_AllocatorLabel;
 
@@ -35,7 +36,7 @@ namespace VLib
         /// </summary>
         /// <param name="allocator">The allocator to use.</param>
         /// <param name="options">Whether newly allocated bytes should be zeroed out.</param>
-        public VUnsafeKeyedRef(AllocatorManager.AllocatorHandle allocator, byte* keyPtr, NativeArrayOptions options = NativeArrayOptions.ClearMemory)
+        public unsafe VUnsafeKeyedRef(AllocatorManager.AllocatorHandle allocator, byte* keyPtr, NativeArrayOptions options = NativeArrayOptions.ClearMemory)
         {
             Allocate(allocator, keyPtr, out this);
             if (options == NativeArrayOptions.ClearMemory)
@@ -54,7 +55,7 @@ namespace VLib
         /// </summary>
         /// <param name="allocator">The allocator to use.</param>
         /// <param name="value">The initial value.</param>
-        public VUnsafeKeyedRef(T value, byte* keyPtr, AllocatorManager.AllocatorHandle allocator)
+        public unsafe VUnsafeKeyedRef(T value, byte* keyPtr, AllocatorManager.AllocatorHandle allocator)
         {
             Allocate(allocator, keyPtr, out this);
             *ptr = value;
@@ -65,14 +66,14 @@ namespace VLib
         /// </summary>
         /// <param name="valuePtr">The fixed pointer to the value in question</param>
         /// <param name="keyPtr">The fixed pointer to the key</param>
-        public VUnsafeKeyedRef(T* valuePtr, byte* keyPtr)
+        public unsafe VUnsafeKeyedRef(T* valuePtr, byte* keyPtr)
         {
             ptr = valuePtr;
             this.keyPtr = keyPtr;
             m_AllocatorLabel = Allocator.None;
         }
 
-        static void Allocate(AllocatorManager.AllocatorHandle allocator, byte* keyPtr, out VUnsafeKeyedRef<T> reference)
+        static unsafe void Allocate(AllocatorManager.AllocatorHandle allocator, byte* keyPtr, out VUnsafeKeyedRef<T> reference)
         {
             //CollectionHelper.CheckAllocator(allocator);
             reference = default;
@@ -83,27 +84,27 @@ namespace VLib
             reference.m_AllocatorLabel = allocator;
         }
 
-        public readonly bool IsCreated => keyPtr != null && *keyPtr == ValidKey;
-        public readonly void* Ptr
+        public readonly unsafe bool IsCreated => keyPtr != null && *keyPtr == ValidKey;
+        /*public readonly void* Ptr
         {
             get
             {
                 ConditionalCheckIsCreated();
                 return ptr;
             }
-        }
+        }*/
 
-        public readonly T* TPtr
+        /*public readonly unsafe T* TPtr
         {
             get
             {
                 ConditionalCheckIsCreated();
                 return ptr;
             }
-        }
+        }*/
 
         /// <summary> The value stored in this reference. </summary>
-        public T Value
+        public unsafe T Value
         {
             readonly get
             {
@@ -117,7 +118,7 @@ namespace VLib
             }
         }
 
-        public readonly ref T ValueRef
+        public readonly unsafe ref T ValueRef
         {
             get
             {
@@ -126,9 +127,13 @@ namespace VLib
             }
         }
 
-        /// <summary> Whether this reference has been allocated (and not yet deallocated). </summary>
-
-        public readonly bool TryGetPtr(out T* ptrOut)
+        public readonly unsafe ref T TryGetRef(out bool hasRef)
+        {
+            hasRef = IsCreated;
+            return ref hasRef ? ref UnsafeUtility.AsRef<T>(ptr) : ref VUnsafeUtil.NullRef<T>();
+        }
+        
+        /*public readonly unsafe bool TryGetPtr(out T* ptrOut)
         {
             if (IsCreated)
             {
@@ -137,10 +142,10 @@ namespace VLib
             }
             ptrOut = null;
             return false;
-        }
+        }*/
         
         /// <summary>Releases all resources (memory and safety handles). Inherently safe, will not throw exception if already disposed.</summary>
-        public void Dispose()
+        public unsafe void Dispose()
         {
             if (m_AllocatorLabel == Allocator.None)
                 return;
@@ -177,7 +182,7 @@ namespace VLib
         /// </summary>
         /// <param name="other">A reference to compare with.</param>
         /// <returns>True if the value stored in this reference is equal to the value stored in another reference.</returns>
-        public readonly bool Equals(VUnsafeKeyedRef<T> other) => ptr == other.ptr && keyPtr == other.keyPtr;
+        public readonly unsafe bool Equals(VUnsafeKeyedRef<T> other) => ptr == other.ptr && keyPtr == other.keyPtr;
 
         /// <summary>
         /// Returns true if the value stored in this reference is equal to an object.
@@ -195,13 +200,13 @@ namespace VLib
         }
 
         /// <summary> Returns true when two keyed references point to the same location in memory, regardless of their key ptrs. </summary>
-        public readonly bool HasSameValuePtr(VUnsafeKeyedRef<T> other) => ptr == other.ptr;
+        public readonly unsafe bool HasSameValuePtr(VUnsafeKeyedRef<T> other) => ptr == other.ptr;
 
         /// <summary>
         /// Returns the hash code of this reference.
         /// </summary>
         /// <returns>The hash code of this reference.</returns>
-        public readonly override int GetHashCode() => IsCreated ? (int)(IntPtr)ptr : 0;
+        public readonly override unsafe int GetHashCode() => IsCreated ? (int)(IntPtr)ptr : 0;
 
         /// <summary>
         /// Returns true if the values stored in two references are equal.
@@ -233,11 +238,14 @@ namespace VLib
                 Debug.LogError("Cannot copy from or to a null VUnsafeRef!");
                 return;
             }
-            UnsafeUtility.MemCpy(dst.ptr, src.ptr, UnsafeUtility.SizeOf<T>());
+            unsafe
+            {
+                UnsafeUtility.MemCpy(dst.ptr, src.ptr, UnsafeUtility.SizeOf<T>());
+            }
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public readonly void ConditionalCheckIsCreated()
+        public readonly unsafe void ConditionalCheckIsCreated()
         {
             if (!IsCreated)
             {
@@ -250,7 +258,7 @@ namespace VLib
         #region Alloc Utils
 
         /// <summary> The internal memory allocation method of VUnsafeRef </summary>
-        static void AllocateMemory(ref T* ptrRef, AllocatorManager.AllocatorHandle allocator)
+        static unsafe void AllocateMemory(ref T* ptrRef, AllocatorManager.AllocatorHandle allocator)
         {
             if (ptrRef != null)
                 throw new ArgumentException("Incoming ptrRef is not null!");
@@ -258,7 +266,7 @@ namespace VLib
         }
 
         /// <summary> The internal memory disposal method of VUnsafeRef </summary>
-        static void DisposeMemory(ref T* ptr, AllocatorManager.AllocatorHandle allocator)
+        static unsafe void DisposeMemory(ref T* ptr, AllocatorManager.AllocatorHandle allocator)
         {
             if (ptr != null)
             {

@@ -8,7 +8,7 @@ namespace VLib
     {
         /// <summary> Automatically reports the caller line number and name. (As separate messages) </summary>
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
-        public static void True(bool condition, [CallerLineNumber] int callerLineNumber = default, [CallerMemberName] string callerMemberName = default)
+        public static void TrueVerbose(bool condition, [CallerLineNumber] int callerLineNumber = default, [CallerMemberName] string callerMemberName = default)
         {
             if (!condition)
             {
@@ -19,7 +19,7 @@ namespace VLib
         
         /// <summary> Automatically reports the caller line number and name. (As separate messages) </summary>
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
-        public static void False(bool condition, [CallerLineNumber] int callerLineNumber = default, [CallerMemberName] string callerMemberName = default)
+        public static void FalseVerbose(bool condition, [CallerLineNumber] int callerLineNumber = default, [CallerMemberName] string callerMemberName = default)
         {
             if (condition)
             {
@@ -31,7 +31,7 @@ namespace VLib
         /// <summary> Cheaper version of true, but provides less debugging data. </summary>
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void TrueCheap(bool condition)
+        public static void True(bool condition)
         {
             if (!condition)
                 UnityEngine.Debug.LogError("BurstAssert.True, received false");
@@ -40,10 +40,42 @@ namespace VLib
         /// <summary> Cheaper version of false, but provides less debugging data. </summary>
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void FalseCheap(bool condition)
+        public static void False(bool condition)
         {
             if (condition)
                 UnityEngine.Debug.LogError("BurstAssert.False, received true");
+        }
+        
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ValueLessThan(int value, int threshold)
+        {
+            if (value >= threshold)
+                UnityEngine.Debug.LogError($"BurstAssert.ValueLessThan: {value} >= {threshold}");
+        }
+        
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ValueGreaterThan(int value, int threshold)
+        {
+            if (value <= threshold)
+                UnityEngine.Debug.LogError($"BurstAssert.ValueGreaterThan: {value} <= {threshold}");
+        }
+        
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ValueLessOrEqualTo(int value, int threshold)
+        {
+            if (value > threshold)
+                UnityEngine.Debug.LogError($"BurstAssert.ValueLessOrEqualTo: {value} > {threshold}");
+        }
+
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ValueGreaterOrEqualTo(int value, int threshold)
+        {
+            if (value < threshold)
+                UnityEngine.Debug.LogError($"BurstAssert.ValueGreaterOrEqualTo: {value} < {threshold}");
         }
     }
 }

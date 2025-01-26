@@ -1,7 +1,3 @@
-//#define DEBUG_DEADLOCKS
-
-//#define MARK_THREAD_OWNERS
-
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
 #define DEBUG_ADDITIONAL_CHECKS
 #endif
@@ -21,7 +17,13 @@ using Debug = UnityEngine.Debug;
 namespace VLib
 {
     /// <summary>
-    /// Implement a very basic, Burst-compatible read-write SpinLock
+    /// A read-write spinlock that is fully burst compatible. <br/>
+    /// Timeouts are supported to be able to detect and protect against deadlocks. <br/>
+    ///
+    /// This lock type is not safely reentrant. <br/>
+    /// You can technically take the read lock recursively, but there exists a dangerous deadlock case: <br/>
+    /// If you enter a read lock, then another thread enters the write lock, they will contend as normal.
+    /// But if the read lock thread then tries to enter the read lock again, the second readlock will contend with the write lock, while the write lock is still contending with the first read lock.
     /// </summary>
     [BurstCompile]
     [Il2CppSetOption(Option.NullChecks, false)]
@@ -98,6 +100,10 @@ namespace VLib
                 ref m_LockedUnsafePtr.ElementAt(LockLocation),
                 ref m_LockedUnsafePtr.ElementAt(ReadersLocation),
                 timeoutSeconds);
+            
+            // Cannot assert here as the TryEnterRead will temporarily take a read lock before checking if the exclusive lock is set
+            //BurstAssert.True(!locked || !LockedForRead); // If we got a write lock, there should be no read locks
+            //return locked;
         }
 
         /// <summary> Try to lock Exclusive. Won't block </summary>
@@ -106,7 +112,9 @@ namespace VLib
         public bool TryEnterExclusive()
         {
             ref var lockRef = ref m_Locked;
-            return BurstSpinLockReadWriteFunctions.TryEnterExclusive(ref lockRef.ElementAt(LockLocation), ref lockRef.ElementAt(ReadersLocation));
+            bool locked = BurstSpinLockReadWriteFunctions.TryEnterExclusive(ref lockRef.ElementAt(LockLocation), ref lockRef.ElementAt(ReadersLocation));
+            BurstAssert.True(!locked || !LockedForRead); // If we got a write lock, there should be no read locks
+            return locked;
         }
 
         /// <summary> Unlock </summary>
@@ -123,6 +131,10 @@ namespace VLib
                 ref lockRef.ElementAt(LockLocation),
                 ref lockRef.ElementAt(ReadersLocation),
                 timeoutSeconds);
+            
+            // Cannot assert this, as exclusive lock can be active while TryEnterExclusiveBlocking is running in order t
+            //BurstAssert.True(!locked || !LockedExclusive); // If we got a read lock, there should be no exclusive locks
+            //return locked;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

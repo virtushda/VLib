@@ -4,6 +4,8 @@
 
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -111,15 +113,27 @@ namespace VLib.Systems
         
         // Integer time
         /// <summary> When cast to uint, runs for 4085 years. </summary>
-        public static long Minutes => (long)(timePrecise / 60);
+        public static long TimeMinutes => (long)(timePrecise / 60);
+        /// <summary> <inheritdoc cref="TimeMinutes"/> </summary>
+        public static uint TimeMinutesU => (uint)TimeMinutes;
+        
         /// <summary> When cast to uint, runs for 68 years. </summary>
-        public static long Seconds => (long)timePrecise;
+        public static long TimeSeconds => (long)timePrecise;
+        /// <summary> <inheritdoc cref="TimeSeconds"/> </summary>
+        public static uint TimeSecondsU => (uint)TimeSeconds;
+        
         /// <summary> When cast to uint, runs for 17 years. </summary>
-        public static long QuarterSeconds => (long)(timePrecise * 4);
+        public static long TimeQuarterSeconds => (long)(timePrecise * 4);
+        /// <summary> <inheritdoc cref="TimeQuarterSeconds"/> </summary>
+        public static uint TimeQuarterSecondsU => (uint)TimeQuarterSeconds;
+        
         /// <summary> When cast to uint, runs for 6.8 years. </summary>
-        public static long TenthsOfASecond => (long)(timePrecise * 10);
+        public static long TimeDeciseconds => (long)(timePrecise * 10);
+        /// <summary> <inheritdoc cref="TimeDeciseconds"/> </summary>
+        public static uint TimeDecisecondsU => (uint) TimeDeciseconds;
+        
         /// <summary> When cast to uint, runs for 24.8 days. </summary>
-        public static long Milliseconds => (long)(timePrecise * 1000);
+        public static long TimeMilliseconds => (long)(timePrecise * 1000);
 
         /// <summary> Changing the timescale with this method allows VTime to be perfectly up to date, allowing the timescale to be fetched from other threads & burst immediately after being set. </summary>
         public static void SetTimeScale(float factor, bool setUnityTimeScale = true)
@@ -135,6 +149,8 @@ namespace VLib.Systems
         public static ulong SecondsToNanoSeconds(double seconds) => (ulong)(seconds * 1000000000);
         public static long SecondsToTicks(double seconds) => (long)(seconds * 10000000);
         public static long MillisecondsToTicks(double ms) => (long)(ms * 10000);
+        public static double QuarterSecondsToSeconds(double quarterSeconds) => quarterSeconds / 4f;
+        public static double SecondsToQuarterSeconds(double seconds) => seconds * 4;
         public static double SecondsToMSFrac(double seconds) => seconds * 1000;
         public static double SecondsToMinutesFrac(double seconds) => seconds / 60f;
         public static double SecondsToHoursFrac(double seconds) => seconds / 3600f;
@@ -184,6 +200,22 @@ namespace VLib.Systems
         
         public static float ConstrainTimeStep(float step, float min = DeltaTime1000FPS, float max = DeltaTime10FPS) => math.clamp(step, min, max);
 
+        /// <summary> When you want to know when a parallel job actually starts executing: <br/>
+        /// - Add a double and an int field to your struct. <br/>
+        /// - Call this at the beginning of execute. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CaptureConcurrentInitTime(ref double startTime, ref int initialized)
+        {
+            if (initialized > 0)
+                return;
+            
+            // Race to initialize
+            var previousInitValue = Interlocked.Exchange(ref initialized, 1);
+            // Only the initializing thread can actually set the time
+            if (previousInitValue == 0)
+                Interlocked.Exchange(ref startTime, timePrecise); // Exchange to avoid partial read
+        }
+        
         /// <summary> Returns delta time constrained to be at max: .1f (10fps) </summary>
         public static float DeltaTimeConstrained => ConstrainTimeStep(deltaTime, 0);
 

@@ -10,6 +10,9 @@ namespace VLib
         readonly long startTimestamp;
 
         public static ValueStopwatch StartNew() => new ValueStopwatch(Stopwatch.GetTimestamp());
+        
+        public static long GetTimestampRaw() => Stopwatch.GetTimestamp();
+        public static double GetTimestampSeconds() => Stopwatch.GetTimestamp() * TimestampToTicks;
 
         ValueStopwatch(long startTimestamp)
         {
