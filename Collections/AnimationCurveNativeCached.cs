@@ -8,7 +8,7 @@ using WrapMode = UnityEngine.WrapMode;
 namespace VLib
 {
     /// <summary> Legacy native version that caches animation curve values into an array. </summary>
-    public struct AnimationCurveNativeCached
+    public struct AnimationCurveNativeCached : IAllocating
     {
         public UnsafeList<float> curveData;
         public WrapMode wrapMode;

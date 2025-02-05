@@ -1,11 +1,11 @@
-using System;
+/*using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
-namespace Unity.Animation
+namespace VLib.Collections
 {
     /// <summary>
     /// The data associated at a point in time in a bezier curve. If the weights of the tangents are
@@ -217,4 +217,4 @@ namespace Unity.Animation
             LhsIndex = RhsIndex = 0;
         }
     }
-}
+}*/

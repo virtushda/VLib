@@ -36,7 +36,7 @@ namespace VLib
 
         public ulong OwnerIndex => InternalRef.ownerIndex;
 
-        unsafe byte* accessKey => (byte*) UnsafeUtility.AddressOf(ref data.ValueRef.accessKey);
+        unsafe byte* AccessKey => (byte*) UnsafeUtility.AddressOf(ref data.ValueRef.accessKey);
 
         public VirtualValueTransformTree(ulong ownerID, List<Transform> transforms) : this()
         {
@@ -79,7 +79,8 @@ namespace VLib
             VirtualValueTransformTreeEvents.DisposeHandler(this);
         }
 
-        public bool TryAdd(int id, VirtualValueTransform transform)
+        // NOTE: If this is reenabled, it will need to support deterministic sorting! (see: AutoConstructTreeFrom)
+        /*public bool TryAdd(int id, VirtualValueTransform transform)
         {
             ref var dataRef = ref InternalRef;
             if (dataRef.HyperAccessActive)
@@ -96,12 +97,13 @@ namespace VLib
             dataRef.idToIndexMap.Add(id, index);
             
             return true;
-        }
+        }*/
 
         /// <summary> This system bypasses the trees safety system. Check out <see cref="TryGetGuardedRef(UnityEngine.Transform,out VLib.VirtualValueTransform)"/> </summary>
         [BurstDiscard]
         public bool TryGetTransformUNSAFE(Transform t, out VirtualValueTransform transform) => TryGetTransformUNSAFE(t.GetInstanceID(), out transform);
 
+        /// <summary> <inheritdoc cref="TryGetTransformUNSAFE(UnityEngine.Transform,out VLib.VirtualValueTransform)"/> </summary>
         public bool TryGetTransformUNSAFE(int id, out VirtualValueTransform transform)
         {
             ref var dataRef = ref InternalRef;
@@ -226,7 +228,7 @@ namespace VLib
             dataRef.transforms.Clear();
             dataRef.idToIndexMap.Clear();
             
-            AutoExpandTransformListWithAllRequired(ref inputTransforms);
+            ProcessTransformListDeterministic(ref inputTransforms);
 
             // Create virtual transforms
             for (var i = 0; i < inputTransforms.Count; i++)
@@ -240,7 +242,7 @@ namespace VLib
                 // Create virtual transforms without parents or children, these will be established later as a given parent could not be created before its children or vice-versa
                 unsafe
                 {
-                    dataRef.transforms.Add(new VirtualValueTransform(accessKey, transform));
+                    dataRef.transforms.Add(new VirtualValueTransform(AccessKey, transform));
                 }
             }
 
@@ -272,8 +274,14 @@ namespace VLib
             }
         }
 
+        public static void ProcessTransformListDeterministic(ref List<Transform> transforms)
+        {
+            AutoExpandTransformListWithAllRequired(ref transforms);
+            transforms.AutoSortTransformListDepthFirst();
+        }
+
         [BurstDiscard]
-        public static void AutoExpandTransformListWithAllRequired(ref List<Transform> transforms)
+        static void AutoExpandTransformListWithAllRequired(ref List<Transform> transforms)
         {
             // Remove nulls
             for (int i = transforms.Count - 1; i >= 0; i--)

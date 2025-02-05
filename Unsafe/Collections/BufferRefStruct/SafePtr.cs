@@ -18,6 +18,8 @@ namespace VLib
         readonly VSafetyHandle safetyHandle;
 
         public readonly bool IsCreated => safetyHandle.IsValid;
+        public static implicit operator bool(SafePtr<T> safePtr) => safePtr.IsCreated;
+        
         public readonly ulong SafetyID => safetyHandle.safetyIDCopy;
         
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]

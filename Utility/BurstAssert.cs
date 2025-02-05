@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Unity.Mathematics;
 
 namespace VLib
 {
@@ -44,6 +45,14 @@ namespace VLib
         {
             if (condition)
                 UnityEngine.Debug.LogError("BurstAssert.False, received true");
+        }
+        
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ApproxEquals(float value, float target, float threshold = .001f)
+        {
+            if (math.abs(value - target) > threshold)
+                UnityEngine.Debug.LogError($"BurstAssert.ValueApprox: {value} != {target}, off by {math.abs(value - target)}");
         }
         
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]

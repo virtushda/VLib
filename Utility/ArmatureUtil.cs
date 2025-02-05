@@ -10,7 +10,7 @@ namespace VLib
         public static readonly float2 DefaultSkinningCapsuleWeightImportanceRemapRange = new(0f, .25f);
         
         public static bool TryCalculateSkinnedBoneCapsule(SkinnedMeshRenderer skinnedMeshRenderer, Transform bone, out CapsuleNative boneSpaceCapsule,
-            float2? weightImportanceRemapRange = null, CommandBuilder? draw = null)
+            float2? weightImportanceRemapRange = null, CommandBuilder? draw = null, bool logErrors = true)
         {
             // Cannot be a leaf bone
             if (bone.childCount == 0)
@@ -56,7 +56,8 @@ namespace VLib
             if (boneIndex == -1)
             {
                 boneSpaceCapsule = default;
-                Debug.LogError("Input bone must be a bone in the skinned mesh renderer.");
+                if (logErrors)
+                    Debug.LogError($"Input bone '{bone}' must be a bone in the skinned mesh renderer.");
                 return false;
             }
             

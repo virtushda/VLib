@@ -13,7 +13,7 @@ namespace VLib.Structures
 
         public byte Count
         {
-            get => (byte) (bits1 << 56);
+            get => (byte) (bits1 >> 56);
             set
             {
                 if (value > MaxCapacity)
@@ -89,7 +89,7 @@ namespace VLib.Structures
                 case < MaxCapacity:
                     // Take the last bit that's about to be pushed off the end of bits0
                     var lastBit = BitUtility.ReadBit(bits0, 63);
-                    // Push it to the next bit
+                    // Push it to the next chunk
                     BitUtility.InsertBitAtLowest(ref bits1, lastBit);
                     // Push the new value to the first bit
                     BitUtility.InsertBitAtLowest(ref bits0, bit);
@@ -98,7 +98,7 @@ namespace VLib.Structures
                     Debug.LogError("Too many transits recorded. Hit limit of 120.");
                     return;
             }
-            ++count;
+            Count = (byte) (count + 1); // Set count in this way to restore it when the second memory chunk is edited as it ruins the count information
         }
     }
 }

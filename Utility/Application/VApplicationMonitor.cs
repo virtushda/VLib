@@ -78,7 +78,7 @@ namespace VLib.Utility
             /// <summary> Returns the number of events after addition </summary>
             public static OnQuitAndAllScenesUnloadedEventRelay operator +(OnQuitAndAllScenesUnloadedEventRelay _, SortedAction action)
             {
-                AddEvent(action);
+                AddQuitEvent(action);
                 return OnQuitAndAllScenesUnloaded;
             }
             public static OnQuitAndAllScenesUnloadedEventRelay operator -(OnQuitAndAllScenesUnloadedEventRelay _, SortedAction action)
@@ -88,7 +88,7 @@ namespace VLib.Utility
             }
         }
         
-        public static void AddEvent(SortedAction action) => OnQuitAndAllScenesUnloadedActions.Add(action);
+        public static void AddQuitEvent(SortedAction action) => OnQuitAndAllScenesUnloadedActions.Add(action);
 
         public static void RemoveEventByReference(SortedAction action) => OnQuitAndAllScenesUnloadedActions.Remove(action);
 

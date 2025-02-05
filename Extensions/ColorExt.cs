@@ -5,6 +5,13 @@ namespace VLib
 {
     public static class ColorExt
     {
+        public static readonly Color orange = new Color(1, 0.5f, 0);
+        public static readonly Color gold = new Color(1, 0.84f, 0);
+        public static readonly Color greenDeep = new Color(0, 0.65f, 0);
+        public static readonly Color blueBright = new Color(0, 0.5f, 1);
+        public static readonly Color normalMapDefault = new Color(0.5f, 0.5f, 1);
+        public static readonly Color purple = new Color(0.5f, 0, 1);
+        
         public static float4 RGBAToFloat4(this Color c) => new float4(c.r, c.g, c.b, c.a);
         public static float3 RGBToFloat3(this Color c) => new float3(c.r, c.g, c.b);
 

@@ -7,10 +7,11 @@ using UnityEngine;
 
 namespace VLib
 {
+    [Serializable]
     public struct BoundsNative
     {
-        private float3 m_Center;
-        private float3 m_Extents;
+        [SerializeField] float3 m_Center;
+        [SerializeField] float3 m_Extents;
 
         public static BoundsNative Identity = new BoundsNative(new float3(-10,-10,-10), float3.zero);
         // Creates new Bounds with a given /center/ and total /size/. Bound ::ref::extents will be half the given size.

@@ -1,9 +1,18 @@
-using Unity.Collections;
+/*using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 
-namespace Unity.Animation
+namespace VLib.Collections
 {
+    public static class AnimationCurveNativeExt
+    {
+        public static float Evaluate(ref this AnimationCurveNative curveNative, float time)
+        {
+            var cache = new AnimationCurveCache();
+            return AnimationCurveNativeEvaluator.Evaluate(time, ref curveNative, ref cache);
+        }
+    }
+    
     [GenerateTestsForBurstCompatibility]
     public struct AnimationCurveNativeEvaluator
     {
@@ -21,6 +30,9 @@ namespace Unity.Animation
         /// </returns>
         public static float Evaluate(float time, ref AnimationCurveNative curveNative, ref AnimationCurveCache cache)
         {
+#if ENABLE_PROFILER
+            using var _ = ProfileScope.Auto();
+#endif
             ref var curveTimes = ref curveNative.KeyframesTime;
 
             // Wrap time
@@ -268,4 +280,4 @@ namespace Unity.Animation
             return omt3 * p0 + 3.0F * t * omt2 * p1 + 3.0F * t2 * omt * p2 + t3 * p3;
         }
     }
-}
+}*/

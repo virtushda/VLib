@@ -17,7 +17,7 @@ namespace VLib
         UnsafeList<T> listData;
         VPackedIndexProvider packedIndices;
         UnsafeList<bool> indicesActive;
-        int count;
+        volatile int count;
 
         public readonly UnsafeList<T> ListDataUnsafe
         {

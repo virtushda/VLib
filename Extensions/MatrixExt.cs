@@ -72,7 +72,7 @@ namespace VLib
             return true;
         }
 
-        /// <summary> This is not the correct way to 'lerp' a transformation matrix. Only valid for float4x4 storing arbitrary values. </summary>
+        /// <summary> This is not the correct way to 'lerp' a transformation matrix with rotation data. Faster though! </summary>
         public static float4x4 LerpDirectNonTransform(in this float4x4 matrixA, in float4x4 matrixB, float lerpValue)
         {
             return new float4x4(lerp(matrixA.c0, matrixB.c0, lerpValue),

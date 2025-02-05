@@ -129,7 +129,7 @@ namespace VLib
 
         public bool ClearSafe(float timeout = .25f)
         {
-            using var scopeLock = BurstLock.ScopedExclusiveLock(timeout);
+            using var scopeLock = burstLock.ScopedExclusiveLock(timeout);
             if (!scopeLock.succeeded)
                 return false;
             ListRef.Clear();
@@ -191,7 +191,7 @@ namespace VLib
             return true;
         }
 
-        public bool AddSafe(T value, float timeOut = 0.25f)
+        public bool AddSafe(in T value, float timeOut = 0.25f)
         {
             using var scopeLock = BurstLock.ScopedExclusiveLock(timeOut);
             if (!scopeLock.succeeded)

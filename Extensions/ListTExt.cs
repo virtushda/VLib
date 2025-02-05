@@ -349,5 +349,19 @@ namespace VLib
             if (list.Capacity < capacity)
                 list.Capacity = capacity;
         }
+        
+        public static int RemoveNull<T>(this List<T> list)
+        {
+            int removedCount = 0;
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                if (list[i] == null)
+                {
+                    list.RemoveAt(i);
+                    removedCount++;
+                }
+            }
+            return removedCount;
+        }
     } 
 }

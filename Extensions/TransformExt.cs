@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -128,6 +131,163 @@ namespace VLib
             }
 
             return null;
+        }
+
+        /// <summary> A depth and child index to record splits in a tree. </summary>
+        struct HierarchicalSplit
+        {
+            public ushort depth;
+            public ushort childIndex;
+        }
+
+        /// <summary> <inheritdoc cref="RecordChildrenDepthOrderedRecursive"/> </summary>
+        [BurstDiscard]
+        public static void AutoSortTransformListDepthFirst(this List<Transform> transforms)
+        {
+#if ENABLE_PROFILER
+            using var profileMarker = ProfileScope.Auto();
+#endif
+            var rootTransformIDs = new UnsafeList<int>(transforms.Count, Allocator.Temp);
+            var idMap = new UnsafeHashMap<int, int>(transforms.Count, Allocator.Temp);
+            var orderedIDs = new UnsafeList<int>(transforms.Count, Allocator.Temp);
+            
+            // Track IDs
+            for (int i = 0; i < transforms.Count; i++)
+            {
+                var t = transforms[i];
+                idMap.Add(t.GetInstanceID(), i);
+            }
+            
+            // Find roots (relative to the list, not necessarily scene roots)
+            for (int i = 0; i < transforms.Count; i++)
+            {
+                var t = transforms[i];
+                var tParent = t.parent;
+                if (!tParent // Scene root
+                    || !idMap.ContainsKey(tParent.GetInstanceID())) // Relative root
+                {
+                    rootTransformIDs.Add(t.GetInstanceID());
+                }
+            }
+            // Remove nested roots
+            for (int i = rootTransformIDs.Length - 1; i >= 0; i--)
+            {
+                var rootID = rootTransformIDs[i];
+                var rootIndex = idMap[rootID];
+                var rootTransform = transforms[rootIndex];
+                
+                for (int j = rootTransformIDs.Length - 1; j >= 0; j--)
+                {
+                    if (i == j)
+                        continue;
+                    var otherRootID = rootTransformIDs[j];
+                    var otherRootIndex = idMap[otherRootID];
+                    var otherRootTransform = transforms[otherRootIndex];
+                    if (rootTransform.IsChildOf(otherRootTransform))
+                    {
+                        rootTransformIDs.RemoveAtSwapBack(i);
+                        break;
+                    }
+                }
+            }
+            
+            // Record correct order
+            var recursiveSplitStack = new UnsafeList<HierarchicalSplit>(32, Allocator.Temp);
+            for (int r = 0; r < rootTransformIDs.Length; r++)
+            {
+                var rootID = rootTransformIDs[r];
+                var root = transforms[idMap[rootID]];
+
+                var currentDepth = 0;
+                var iteration = 0u;
+                RecordChildrenDepthOrderedRecursive(root, ref currentDepth, ref recursiveSplitStack, ref orderedIDs, ref iteration);
+            }
+            recursiveSplitStack.Dispose();
+            
+            // Clean ordered list of any gaps (input list does not have to be complete)
+            for (int i = orderedIDs.Length - 1; i >= 0; i--)
+            {
+                var id = orderedIDs[i];
+                if (!idMap.ContainsKey(id))
+                    orderedIDs.RemoveAt(i);
+            }
+            
+            // Reorder
+            for (int newIndex = 0; newIndex < orderedIDs.Length; newIndex++)
+            {
+                var correctID = orderedIDs[newIndex];
+                var oldIndex = idMap[correctID];
+                
+                // Swap needed?
+                if (oldIndex != newIndex)
+                {
+                    // Move transforms
+                    var other = transforms[newIndex];
+                    transforms[newIndex] = transforms[oldIndex];
+                    transforms[oldIndex] = other;
+                    
+                    // Update ID map
+                    idMap[correctID] = newIndex;
+                    idMap[other.GetInstanceID()] = oldIndex;
+                }
+            }
+            
+            // Clean up
+            rootTransformIDs.Dispose();
+            orderedIDs.Dispose();
+            idMap.Dispose();
+        }
+
+        /// <summary> Traverses a transform tree, preferring depth. Traverses child nodes, THEN siblings nodes, to record depth-based chains. <br/>
+        /// Optimizes access and provides a deterministic order. </summary>
+        static void RecordChildrenDepthOrderedRecursive(Transform current, ref int currentDepth, ref UnsafeList<HierarchicalSplit> recursiveSplitStack, ref UnsafeList<int> orderedIDs, 
+            ref uint iteration)
+        {
+            const int iterationLimit = 10000;
+            
+            ++iteration;
+            if (iteration > iterationLimit)
+            {
+                Debug.LogError("Infinite loop detected in AutoSortTransformListDepthFirst. Aborting.");
+                return;
+            }
+            
+            orderedIDs.Add(current.GetInstanceID());
+            var childCount = current.childCount;
+            
+            // Hit end point
+            if (childCount == 0)
+            {
+                // Is there another split to explore?
+                if (recursiveSplitStack.TryPop(out var split))
+                {
+                    // Travel back to the split
+                    while (currentDepth > split.depth)
+                    {
+                        current = current.parent;
+                        --currentDepth;
+                    }
+
+                    // Travel to the sibling (parent is already explored)
+                    current = current.GetChild(split.childIndex);
+                    ++currentDepth;
+                    RecordChildrenDepthOrderedRecursive(current, ref currentDepth, ref recursiveSplitStack, ref orderedIDs, ref iteration);
+                }
+            }
+            else // Traverse down tree
+            {
+                // Record passed splits to return to
+                // Record in reverse order to ensure popped order is correct
+                for (int c = childCount - 1; c > 0; c--)
+                    recursiveSplitStack.Add(new HierarchicalSplit {depth = (ushort)currentDepth, childIndex = (ushort)c});
+                
+                // Move to first child
+                var child = current.GetChild(0);
+                ++currentDepth;
+                RecordChildrenDepthOrderedRecursive(child, ref currentDepth, ref recursiveSplitStack, ref orderedIDs, ref iteration);
+            }
+            
+            // DONE!
         }
     }
 }

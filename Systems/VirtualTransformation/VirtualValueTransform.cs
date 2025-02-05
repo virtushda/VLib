@@ -28,7 +28,7 @@ namespace VLib
         {
             /// <summary> Matches the runtime InstanceID of a <see cref="Transform"/> </summary>
             public int transformID;
-            /// <summary> Very cheap fetch. This is not directly equivalent to localToWorldMatrix, this is actually parentToWorld. If no parent, then it is localToWorld. </summary>
+            /// <summary> Very cheap fetch. This matrix takes you from localToWorld. </summary>
             public float4x4 localMatrix;
 
             public VirtualValueTransform _parent;
@@ -153,13 +153,10 @@ namespace VLib
         }
 
         /// <summary> <inheritdoc cref="Internal.localMatrix"/> </summary>
-        public readonly ref float4x4 LocalMatrixRef => ref DataRef.localMatrix;
+        public readonly ref float4x4 LocalMatrixReadRef => ref DataRef.localMatrix;
+        
         /// <summary> <inheritdoc cref="Internal.localMatrix"/> </summary>
-        public readonly float4x4 LocalMatrix
-        {
-            get => DataRef.localMatrix;
-            set => DataRef.localMatrix = value;
-        }
+        public ref float4x4 LocalMatrixRef => ref DataRef.localMatrix;
 
         public readonly float3 positionNative
         {
@@ -197,8 +194,8 @@ namespace VLib
 
         public readonly float3 localPosition
         {
-            get => LocalMatrix.c3.xyz;
-            set => LocalMatrixRef.c3.xyz = value;
+            get => LocalMatrixReadRef.c3.xyz;
+            set => LocalMatrixReadRef.c3.xyz = value;
         }
 
         public readonly Quaternion localRotation
@@ -206,21 +203,17 @@ namespace VLib
             get => localRotationNative;
             set => localRotationNative = value;
         }
-        // Not sure if these are corrct, worry later
+        // Not sure if these are correct, worry later
         public readonly quaternion localRotationNative
         {
-            get => LocalMatrixRef.RotationDelta();
-            set
-            {
-                // TODO: Opt
-                LocalMatrix = float4x4.TRS(localPosition, value, localScale);
-            }
+            get => LocalMatrixReadRef.RotationDelta();
+            set => LocalMatrixReadRef = float4x4.TRS(localPosition, value, localScale); // TODO: Opt
         }
 
         public readonly float3 localScale
         {
-            get => LocalMatrix.ScaleDelta();
-            set => LocalMatrix = float4x4.TRS(localPosition, localRotation, value);
+            get => LocalMatrixReadRef.ScaleDelta();
+            set => LocalMatrixReadRef = float4x4.TRS(localPosition, localRotation, value);
         }
         
         // The red axis of the VirtualTransform in world space.
@@ -244,7 +237,7 @@ namespace VLib
             set => rotation = Quaternion.LookRotation(value);
         }
         
-        public readonly float4x4 localToWorldMatrix => GetLocalToWorldMatrix();
+        public readonly float4x4 localToWorldMatrix => GetFullToWorldMatrix();
         
         public readonly AffineTransform localToWorldAffineTransform => new(localToWorldMatrix);
 
@@ -428,11 +421,11 @@ namespace VLib
 
         #region Internal Methods
         
-        readonly float4x4 GetLocalToWorldMatrix()
+        readonly float4x4 GetFullToWorldMatrix()
         {
             float4x4 t = DataRef.localMatrix; //float4x4.TRS(localPosition, m_LocalRotation, m_LocalScale);
             if (parent)
-                t = mul(parent.GetLocalToWorldMatrix(), t); //parent.GetLocalToWorldMatrix() * t;
+                t = mul(parent.GetFullToWorldMatrix(), t); //parent.GetLocalToWorldMatrix() * t;
 
             return t;
         }
@@ -440,7 +433,7 @@ namespace VLib
         readonly float3 GetPosition()
         {
             if (parent)
-                return transform(parent.GetLocalToWorldMatrix(), localPosition);
+                return transform(parent.GetFullToWorldMatrix(), localPosition);
             return localPosition;
         }
 

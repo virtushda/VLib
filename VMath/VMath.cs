@@ -326,7 +326,7 @@ namespace VLib
 
         public static float3 ClosestPointOnRay(in float3 point, in float3 rayOrigin, in float3 rayDirection)
         {
-            BurstAssert.True(lengthsq(rayDirection).Equals(1f)); // Must be normalized
+            BurstAssert.ApproxEquals(lengthsq(rayDirection), 1f); // Must be normalized
             var rayOriginToPoint = point - rayOrigin;
             var distanceAlongRay = dot(rayOriginToPoint, rayDirection);
             return rayOrigin + distanceAlongRay * rayDirection;
@@ -435,7 +435,7 @@ namespace VLib
         /// <param name="cd">The second line segment defined by two points.</param>
         /// <param name="closestPointOnSegAB">The closest point on segment `ab`.</param>
         /// <param name="closestPointOnSegCD">The closest point on segment `cd`.</param>
-        /// <param name="lineABLerpT">The interpolation factor along segment `ab`.</param>
+        /// <param name="lineABLerpT">The interpolation factor along segment `ab`. Unclamped.</param>
         public static void ClosestPointBetweenTwoSegments(in float3x2 ab, in float3x2 cd, out float3 closestPointOnSegAB, out float3 closestPointOnSegCD, out float lineABLerpT)
         {
             var segDC = cd.c1 - cd.c0; // segD-segC; 

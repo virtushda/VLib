@@ -1,11 +1,19 @@
-﻿using System;
+﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
+//#define DEBUGDRAW
+#endif
+
+using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Drawing;
+using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
+using VLib.Aline;
 using static Unity.Mathematics.math;
 using quaternion = Unity.Mathematics.quaternion;
 using Random = Unity.Mathematics.Random;
+using float4 = Unity.Mathematics.float4;
 
 namespace VLib
 {
@@ -37,6 +45,8 @@ namespace VLib
             pointB = new float4(capsuleCollider.transform.TransformPoint(capsuleCollider.center + direction * capsuleCollider.height * 0.5f), capsuleCollider.radius);
         }
 
+        public readonly bool IsZero => pointA.Equals(pointB) && pointA.Equals(float4.zero); // A==B check most likely to reject early, but still technically valid, so zero check after.
+        
         public float3 Center => (pointA.xyz + pointB.xyz) * .5f;
         public float3 AToB => pointB.xyz - pointA.xyz;
 
@@ -98,8 +108,23 @@ namespace VLib
             VMath.ClosestPointBetweenTwoSegments(new float3x2(pointA.xyz, pointB.xyz), new float3x2(ray.origin, ray.origin + ray.direction * raySegmentLength),
                 out var closestPointOnCapsule, out var closestPointOnRay, out var capsuleABLerp);
             
+            // Clamp capsule lerp to stay on the capsule
+            capsuleABLerp = saturate(capsuleABLerp);
             var radius = ComputeRadius(capsuleABLerp);
+            
+            IntersectsRayDebug(ray, closestPointOnCapsule, closestPointOnRay, capsuleABLerp, radius);
+            
             return distancesq(closestPointOnCapsule, closestPointOnRay) < radius * radius;
+        }
+
+        [Conditional("DEBUGDRAW")]
+        readonly void IntersectsRayDebug(in Ray ray, float3 closestPointOnSegAb, float3 closestPointOnSegCd, float capsuleABLerpT, float radius)
+        {
+            AlineBurst.EnqueueRay(ray, 10000, Color.white);
+            AlineBurst.EnqueueSphere(closestPointOnSegAb, .05f, Color.white);
+            AlineBurst.EnqueueSphere(closestPointOnSegCd, .05f, ColorExt.blueBright);
+            AlineBurst.EnqueueCapsule(this, Color.green);
+            AlineBurst.EnqueueSphere(math.lerp(pointA.xyz, pointB.xyz, capsuleABLerpT), radius, ColorExt.orange);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
