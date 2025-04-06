@@ -121,11 +121,11 @@ namespace VLib.SpatialAcceleration
                 var initCapacity = math.min(elements.Length, worldRectXZ.CountInt);
                 var elementFilter = new UnsafeHashSet<int>(initCapacity, Allocator.Temp);
 
-                var iterator = new IteratorInt2Coords(cellBoundsIncExc, out var iteratorValue);
-                while (iterator.MoveNext(ref iteratorValue))
+                var iterator = new IteratorInt2Coords(cellBoundsIncExc);
+                while (iterator.MoveNext(out var coords))
                 {
                     // Attempt to reference the cell
-                    ref var cell = ref cells.TryGetValueRef(iteratorValue, out var success);
+                    ref var cell = ref cells.TryGetValueRef(coords, out var success);
                     if (!success)
                         continue;
                     
@@ -179,8 +179,8 @@ namespace VLib.SpatialAcceleration
         void AddElementToCellsInternal(in T value, int valueIndex, in int2x2 bounds)
         {
             // Inject into bins
-            var iterator = new IteratorInt2Coords(bounds, out var iteratorValue);
-            while (iterator.MoveNext(ref iteratorValue))
+            var iterator = new IteratorInt2Coords(bounds);
+            while (iterator.MoveNext(out var iteratorValue))
             {
                 ref var cell = ref GetOrCreateCellRef(iteratorValue);
                 cell.elementIndices.Add(valueIndex, out _);
@@ -193,10 +193,10 @@ namespace VLib.SpatialAcceleration
         void MoveInternal(in T value, int valueIndex, in int2x2 oldBounds, in int2x2 newBounds)
         {
             // Yoink the indices out of the cells the old bounds cover
-            var oldIterator = new IteratorInt2Coords(oldBounds, out var oldIteratorValue);
-            while (oldIterator.MoveNext(ref oldIteratorValue))
+            var oldIterator = new IteratorInt2Coords(oldBounds);
+            while (oldIterator.MoveNext(out var coord))
             {
-                ref var cell = ref GetOrCreateCellRef(oldIteratorValue);
+                ref var cell = ref GetOrCreateCellRef(coord);
                 cell.elementIndices.RemoveSwapBack(valueIndex, out _);
             }
 
@@ -208,36 +208,41 @@ namespace VLib.SpatialAcceleration
         {
             elements.RemoveAtSwapBack(value, removalIndex);
             // Where the 'swapbacked in' element WAS before it was moved to overwrite the removed element
-            var otherElementOLDIndex = elements.Length;
+            var lastIndexBeforeSwapback = elements.Length;
 
             // Remove element from all cells it was assigned to
-            var iterator = new IteratorInt2Coords(boundsIncExc, out var iteratorValue);
-            while (iterator.MoveNext(ref iteratorValue))
+            var iterator = new IteratorInt2Coords(boundsIncExc);
+            while (iterator.MoveNext(out var coords))
             {
-                ref var cell = ref GetOrCreateCellRef(iteratorValue);
+                ref var cell = ref GetOrCreateCellRef(coords);
                 cell.elementIndices.RemoveSwapBack(removalIndex, out _);
             }
 
-            // Remove the OTHER element's OLD index
-            var otherElementBoundsIncExc = elementIndexToCellBounds[otherElementOLDIndex];
-            elementIndexToCellBounds.Remove(otherElementOLDIndex);
-            var otherIterator = new IteratorInt2Coords(otherElementBoundsIncExc, out var otherIteratorValue);
-            while (otherIterator.MoveNext(ref otherIteratorValue))
+            // Check if the last element was swapped
+            // If the last element was the element we removed, then there was no swapback
+            if (lastIndexBeforeSwapback != removalIndex)
             {
-                ref var cell = ref GetOrCreateCellRef(otherIteratorValue);
-                cell.elementIndices.RemoveSwapBack(otherElementOLDIndex, out _);
-            }
+                // Remove the OTHER element's OLD index
+                var otherElementBoundsIncExc = elementIndexToCellBounds[lastIndexBeforeSwapback];
+                elementIndexToCellBounds.Remove(lastIndexBeforeSwapback);
+                var otherIterator = new IteratorInt2Coords(otherElementBoundsIncExc);
+                while (otherIterator.MoveNext(out var coords))
+                {
+                    ref var cell = ref GetOrCreateCellRef(coords);
+                    cell.elementIndices.RemoveSwapBack(lastIndexBeforeSwapback, out _);
+                }
 
-            // Insert the OTHER element's NEW index (which is the removal index)
-            otherIteratorValue = otherIterator.GetStartingIteratorValue();
-            while (otherIterator.MoveNext(ref otherIteratorValue))
-            {
-                ref var cell = ref GetOrCreateCellRef(otherIteratorValue);
-                cell.elementIndices.Add(removalIndex, out _);
-            }
+                // Insert the OTHER element's NEW index (which is the removal index)
+                otherIterator.Reset();
+                while (otherIterator.MoveNext(out var coords))
+                {
+                    ref var cell = ref GetOrCreateCellRef(coords);
+                    cell.elementIndices.Add(removalIndex, out _);
+                }
 
-            // Put the OTHER element's bounds back in the map with the new index
-            elementIndexToCellBounds[removalIndex] = otherElementBoundsIncExc;
+                // Put the OTHER element's bounds back in the map with the new index
+                elementIndexToCellBounds[removalIndex] = otherElementBoundsIncExc;
+            }
         }
 
         ref Cell GetOrCreateCellRef(int2 cellCoord)

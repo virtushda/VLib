@@ -13,7 +13,7 @@ namespace VLib
 
     public static class LerpableExt
     {
-        /// <summary> Computes a lerp value using the 'lerpable' as valueA, but does not alter the 'lerpable' value itself. </summary>
+        /*/// <summary> Computes a lerp value using the 'lerpable' as valueA, but does not alter the 'lerpable' value itself. </summary>
         public static TU LerpToward<T, TU>(this T lerpable, TU lerpTowardValue, float lerpValue)
             where T : ILerpable<TU>
         {
@@ -41,7 +41,7 @@ namespace VLib
             var newLerpable = new T();
             newLerpable.Value = lerpable.Lerp(lerpable.Value, lerpTowardValue, lerpValue);
             return newLerpable;
-        }
+        }*/
 
         /// <summary> Saturate extension method that uses the clamp method </summary>
         public static T Saturate<T>(this T lerpable)

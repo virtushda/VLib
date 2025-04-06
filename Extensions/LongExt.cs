@@ -42,5 +42,17 @@ namespace VLib
             if (valueL < min || valueL > max)
                 throw new ArgumentOutOfRangeException($"Value '{valueL}' is not in range {min} to {max}!");
         }
+
+        ///<summary>Takes a ulong value and uniformly redistributes it somewhere else in the ulong range</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ulong Rehash(this ulong value)
+        {
+            value ^= value >> 33;
+            value *= 0xff51afd7ed558ccdL;
+            value ^= value >> 33;
+            value *= 0xc4ceb9fe1a85ec53L;
+            value ^= value >> 33;
+            return value;
+        }
     }
 }

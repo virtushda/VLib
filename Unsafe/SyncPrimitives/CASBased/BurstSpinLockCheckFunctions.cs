@@ -14,7 +14,7 @@ namespace VLib
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]
     public static class BurstSpinLockCheckFunctions
     {
-        [Conditional("DEBUG_ADDITIONAL_CHECKS")]
+        /*[Conditional("DEBUG_ADDITIONAL_CHECKS")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void CheckForRecursiveLock(in long threadId, ref long lockVar)
         {
@@ -38,7 +38,7 @@ namespace VLib
             var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
             CheckForRecursiveLock(threadId, ref lockVar);
 #endif
-        }
+        }*/
 
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -60,12 +60,12 @@ namespace VLib
 #endif
         }
 
-        [Conditional("DEBUG_ADDITIONAL_CHECKS")]
+        /*[Conditional("DEBUG_ADDITIONAL_CHECKS")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void CheckLocked(ref long lockVar)
         {
             if (Interlocked.Read(ref lockVar) == 0)
                 throw new Exception("Exit is called on not locked lock");
-        }
+        }*/
     }
 }

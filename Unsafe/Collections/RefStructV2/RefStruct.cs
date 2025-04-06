@@ -259,7 +259,7 @@ namespace VLib
             }
         }
             
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
         static unsafe void StaticInit()
         {
             Assert.IsTrue(InternalStatic.UnsafeDataPointer != null);

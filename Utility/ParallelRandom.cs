@@ -128,5 +128,11 @@ namespace VLib
             ReleaseLane(ref lane);
             return randomValue;
         }
+
+        public byte NextByte()
+        {
+            var nextInt = NextInt();
+            return (byte)(nextInt % 256);
+        }
     }
 }

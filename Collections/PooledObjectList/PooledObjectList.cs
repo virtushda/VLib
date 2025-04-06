@@ -3,9 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Unity.Burst;
 using Unity.Collections.LowLevel.Unsafe;
 
-namespace VLib.Libraries.VLib.Collections
+namespace VLib.Collections
 {
     /// <summary> Very similar to <see cref="List{T}"/> except that it's backed by a pooled array, so you cannot add beyond capacity! </summary>
     public readonly struct PooledObjectList<T> : IDisposable, IReadOnlyList<T>
@@ -23,12 +24,15 @@ namespace VLib.Libraries.VLib.Collections
             this.id = id;
         }
 
+        [BurstDiscard]
         public void Dispose()
         {
-            if (IsValid)
-                PooledObjectListPool.Return(this);
-            else
-                UnityEngine.Debug.LogError("Trying to dispose a SharedObjectList with wrong ID!");
+            if (!PooledObjectListPool.Return(this))
+            {
+                // Only log if struct was initialized in the first place
+                if (pooledList != null)
+                    UnityEngine.Debug.LogError("Trying to dispose a SharedObjectList with wrong ID!");
+            }
         }
 
         public T this[int index]
@@ -64,7 +68,7 @@ namespace VLib.Libraries.VLib.Collections
                 AssertValidID();
                 if (value < 0 || value > pooledList.Objects.Length)
                     throw new ArgumentOutOfRangeException($"Count {value} is out of range for {pooledList.Objects.Length}!");
-                pooledList.count = (ushort) value;
+                pooledList.count = value;
             }
         }
 
@@ -85,20 +89,11 @@ namespace VLib.Libraries.VLib.Collections
             pooledList.objects[pooledList.count++] = obj;
             return true;
         }
-
-        /*/// <summary> Thread-safe way to add </summary>
-        public void AddParallel(T obj)
-        {
-            var index = Interlocked.Increment(ref pooledList.count) - 1;
-            AssertValidCount();
-            typedArray[index] = obj;
-        }
         
         public void RemoveAtSwapback(int index)
         {
-            AssertIndex(index);
-            --pooledList.count;
-            var lastIndex = pooledList.count;
+            AssertValidIndex(index);
+            var lastIndex = --pooledList.count;
             if (index >= lastIndex)
             {
                 pooledList.objects[index] = null;
@@ -108,7 +103,7 @@ namespace VLib.Libraries.VLib.Collections
                 pooledList.objects[index] = pooledList.objects[lastIndex];
                 pooledList.objects[lastIndex] = null;
             }
-        }*/
+        }
         
         public void Clear()
         {
@@ -116,6 +111,38 @@ namespace VLib.Libraries.VLib.Collections
             for (var i = 0; i < pooledList.count; i++)
                 pooledList.objects[i] = null;
             pooledList.count = 0;
+        }
+
+        /// <summary> Safely attempt to get a typed value. </summary>
+        /// <returns> True if the index is valid and the value is of the correct type. <br/>
+        /// True also if the value was null. <br/>
+        /// False if the index was out of range. <br/>
+        /// False also if the value was of the wrong type. </returns>
+        public bool TryGetValue(int index, out T value)
+        {
+            if ((uint)index >= Count)
+            {
+                value = default;
+                return false;
+            }
+            
+            object obj = pooledList.objects[index];
+            
+            if (obj != null)
+            {
+                if (obj is T objOfType)
+                    value = objOfType;
+                else
+                {
+                    // Found another type of object???
+                    value = default;
+                    return false;
+                }
+            }
+            else
+                value = null; // Storing null is legitimate, so don't try to cast it.
+
+            return true;
         }
 
         /// <summary>
@@ -179,7 +206,7 @@ namespace VLib.Libraries.VLib.Collections
         void AssertValidIndex(int index)
         {
             AssertValidID();
-            if (index < 0 || index >= Count)
+            if ((uint)index >= Count)
                 throw new IndexOutOfRangeException($"Index {index} is out of range for {Count}!");
         }
         

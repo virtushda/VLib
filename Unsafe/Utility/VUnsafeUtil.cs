@@ -1,10 +1,12 @@
-﻿using Unity.Collections.LowLevel.Unsafe;
+﻿using System.Runtime.CompilerServices;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace VLib.Unsafe.Utility
 {
     public static unsafe class VUnsafeUtil
     {
         /// <summary> Allows you to return a 'ref' to null, such that TryGetRef patterns can cleanly return null refs when false. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T NullRef<T>() where T : struct => ref UnsafeUtility.AsRef<T>(null);
 
         /// <summary> <inheritdoc cref="NullRef{T}"/> </summary>
@@ -20,6 +22,18 @@ namespace VLib.Unsafe.Utility
             BurstAssert.ValueGreaterOrEqualTo(UnsafeUtility.SizeOf<TB>(), UnsafeUtility.SizeOf<TA>());
             ref var bAsA = ref UnsafeUtility.As<TB, TA>(ref b);
             bAsA = a;
+        }
+        
+        /// <summary> Allows you to refer to a struct as a different type, as long as it is smaller or equal in size. <br/>
+        /// Compiles to <see cref="UnsafeUtility.As{TFrom,TTo}(ref TFrom)"/> in release. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref U AsChecked<T, U>(ref T t)
+            where T : unmanaged
+            where U : unmanaged
+        {
+            // Check we're not reading more memory, that is almost always dangerous
+            BurstAssert.TrueThrowing(UnsafeUtility.SizeOf<U>() <= UnsafeUtility.SizeOf<T>());
+            return ref UnsafeUtility.As<T, U>(ref t);
         }
     }
 }

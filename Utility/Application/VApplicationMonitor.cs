@@ -1,9 +1,10 @@
 ﻿using System;
-using JetBrains.Annotations;
+using System.Diagnostics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
+using Debug = UnityEngine.Debug;
 
 namespace VLib.Utility
 {
@@ -16,6 +17,11 @@ namespace VLib.Utility
         public static OnQuitAndAllScenesUnloadedEventRelay OnQuitAndAllScenesUnloaded = new();
         static readonly VSortedList<SortedAction> OnQuitAndAllScenesUnloadedActions = new(16);
         static bool onQuitHasCalled;
+
+        static bool applicationPlaying;
+
+        /// <summary> A thread-safe way to check if the application is playing, I cannot believe this is not thread-safe already... </summary>
+        public static bool IsPlayingSafe => applicationPlaying;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void StaticInit()
@@ -34,6 +40,8 @@ namespace VLib.Utility
             EditorApplication.playModeStateChanged -= EditorCleanup;
             EditorApplication.playModeStateChanged += EditorCleanup;
 #endif
+
+            applicationPlaying = true;
         }
         
         static void OnSceneUnloaded(Scene scene)
@@ -65,6 +73,9 @@ namespace VLib.Utility
                 return;
             
             Debug.Log("VApplicationMonitor.EditorCleanup called");
+            
+            applicationPlaying = false;
+            
             Application.quitting -= OnQuit;
             SceneManager.sceneUnloaded -= OnSceneUnloaded;
             

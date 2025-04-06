@@ -109,7 +109,10 @@ namespace VLib.UnsafeListSlicing
             CheckStartLengthSliceOfSlice(slice, startRelative, length);
         }
         
-        static VUnsafeRef<int> GetLengthMemoryFor(Allocator allocator, int initValue) => allocator is not (Allocator.Invalid or Allocator.None) ? new VUnsafeRef<int>(initValue, allocator) : default;
+        static VUnsafeRef<int> GetLengthMemoryFor(Allocator allocator, int initValue)
+        {
+            return allocator is not (Allocator.Invalid or Allocator.None) ? new VUnsafeRef<int>(initValue, allocator) : default;
+        }
 
         public void Dispose()
         {

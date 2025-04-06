@@ -8,6 +8,8 @@ namespace VLib
     public interface ITransformAccessGatherer
     {
         GameObject gameObject { get; }
+        
+        VirtualValueTransformTree TransformTree { get; }
     }
 
     public static class ITransformAccessGathererExtensions

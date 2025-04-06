@@ -11,6 +11,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
+using VLib.Unsafe.Utility;
 
 namespace VLib
 {
@@ -159,12 +160,12 @@ namespace VLib
             return true;
         }
 
-        public readonly unsafe ref T TryGetElementRefNoLock(int index, out bool success)
+        public readonly ref T TryGetElementRefNoLock(int index, out bool success)
         {
             if (!IsIndexValidUnsafe(index))
             {
                 success = false;
-                return ref UnsafeUtility.AsRef<T>(null);
+                return ref VUnsafeUtil.NullRef<T>();
             }
             success = true;
             return ref ListRef.ElementAt(index);
@@ -215,7 +216,7 @@ namespace VLib
         /// Returns an enumerator over the elements of this list.
         /// </summary>
         /// <returns>An enumerator over the elements of this list.</returns>
-        public Enumerator GetEnumerator() => new Enumerator(this);
+        public Enumerator GetEnumerator() => new Enumerator(this, true);
 
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
@@ -238,28 +239,32 @@ namespace VLib
         /// In an enumerator's initial state, <see cref="Current"/> is invalid.
         /// The first <see cref="MoveNext"/> call advances the enumerator to the first element of the list.
         /// </remarks>
-        public unsafe struct Enumerator : IEnumerator<T>, IDisposable
+        public struct Enumerator : IEnumerator<T>
         {
-            T* m_Ptr;
-            int m_Length;
-            int m_Index;
+            UnsafeList<T> internalList;
+            int index;
             BurstSpinLockReadWrite burstLock;
+            public readonly bool isLocking;
 
             /// <summary>Will lock the collection for speedy reading</summary>
-            public Enumerator(ParallelUnsafeList<T> list)
+            public Enumerator(ParallelUnsafeList<T> list, bool locking)
             {
-                list.burstLock.EnterRead();
+                BurstAssert.True(list.IsCreated);
                 
-                m_Ptr = list.ListRef.Ptr;
+                isLocking = locking;
+                if (locking)
+                    list.burstLock.EnterRead();
+                
+                internalList = list.ListRef;
                 burstLock = list.burstLock;
-                m_Length = list.LengthUnsafe;
-                m_Index = -1;
+                index = -1;
             }
 
             /// <summary>Will unlock the collection</summary>
             public void Dispose()
             {
-                burstLock.ExitRead();
+                if (isLocking)
+                    burstLock.ExitRead();
             }
 
             /// <summary>
@@ -270,12 +275,12 @@ namespace VLib
             /// </remarks>
             /// <returns>True if `Current` is valid to read after the call.</returns>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public bool MoveNext() => ++m_Index < m_Length;
+            public bool MoveNext() => ++index < internalList.Length;
 
             /// <summary>
             /// Resets the enumerator to its initial state.
             /// </summary>
-            public void Reset() => m_Index = -1;
+            public void Reset() => index = -1;
 
             /// <summary>
             /// The current element.
@@ -284,51 +289,7 @@ namespace VLib
             public T Current
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => m_Ptr[m_Index];
-            }
-
-            object IEnumerator.Current => Current;
-        }
-        
-        public unsafe struct UnsafeEnumerator : IEnumerator<T>
-        {
-            T* m_Ptr;
-            int m_Length;
-            int m_Index;
-            
-            public UnsafeEnumerator(ParallelUnsafeList<T> list)
-            {
-                m_Ptr = list.ListRef.Ptr;
-                m_Length = list.LengthUnsafe;
-                m_Index = -1;
-            }
-
-            /// <summary>Will unlock the collection</summary>
-            public void Dispose(){}
-
-            /// <summary>
-            /// Advances the enumerator to the next element of the list.
-            /// </summary>
-            /// <remarks>
-            /// The first `MoveNext` call advances the enumerator to the first element of the list. Before this call, `Current` is not valid to read.
-            /// </remarks>
-            /// <returns>True if `Current` is valid to read after the call.</returns>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public bool MoveNext() => ++m_Index < m_Length;
-
-            /// <summary>
-            /// Resets the enumerator to its initial state.
-            /// </summary>
-            public void Reset() => m_Index = -1;
-
-            /// <summary>
-            /// The current element.
-            /// </summary>
-            /// <value>The current element.</value>
-            public T Current
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => m_Ptr[m_Index];
+                get => internalList[index];
             }
 
             object IEnumerator.Current => Current;
@@ -351,14 +312,11 @@ namespace VLib
 
         /// <summary> A readonly version of ParallelUnsafeList, use AsReadOnly() to get one. </summary>
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] { typeof(int) })]
-        public unsafe struct ReadOnly : IReadOnlyList<T>
+        public struct ReadOnly : IReadOnlyList<T>
         {
             ParallelUnsafeList<T> list;
             
             public ReadOnly(ParallelUnsafeList<T> list) => this.list = list;
-            
-            /// <summary> The internal buffer of the list. </summary>
-            public readonly T* Ptr => list.ListRef.Ptr;
 
             public int Count => list.CountSafe(out var count) ? count : default;
             public readonly int CountUnsafe => list.LengthUnsafe;
@@ -376,7 +334,7 @@ namespace VLib
             /// Returns an enumerator over the elements of the list.
             /// </summary>
             /// <returns>An enumerator over the elements of the list.</returns>
-            public Enumerator GetEnumerator() => new(list);
+            public Enumerator GetEnumerator() => new(list, true);
 
             /// <summary>
             /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
@@ -516,7 +474,7 @@ namespace VLib
             /// Returns an enumerator over the elements of the list.
             /// </summary>
             /// <returns>An enumerator over the elements of the list.</returns>
-            public UnsafeEnumerator GetEnumerator() => new(list);
+            public Enumerator GetEnumerator() => new(list, false); // Don't lock in the enumerator, we're already in a locked context
 
             /// <summary>
             /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
@@ -603,7 +561,7 @@ namespace VLib
             /// Returns an enumerator over the elements of the list.
             /// </summary>
             /// <returns>An enumerator over the elements of the list.</returns>
-            public UnsafeEnumerator GetEnumerator() => new(list);
+            public Enumerator GetEnumerator() => new(list, false); // Don't lock in the enumerator, we're already in a locked context
 
             /// <summary>
             /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.

@@ -118,6 +118,8 @@ namespace VLib
         
         #region Hyper Access - Secure SAFE access to low-level virtual transforms
         
+        public bool HyperAccessActive => InternalRef.HyperAccessActive;
+        
         /// <summary> Incredibly dangerous if used wrong! Must call <see cref="DisableHyperAccess"/> after before trying to dispose the tree! </summary>
         public void EnableHyperAccess()
         {

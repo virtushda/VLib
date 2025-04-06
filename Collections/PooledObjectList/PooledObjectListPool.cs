@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using UnityEngine;
 
-namespace VLib.Libraries.VLib.Collections
+namespace VLib.Collections
 {
     /// <summary> Provides generic shared object lists, these lists can be typed into <see cref="PooledObjectList{T}"/> in order to reuse all internal arrays between all types. </summary>
     public static class PooledObjectListPool
@@ -45,13 +45,17 @@ namespace VLib.Libraries.VLib.Collections
             return new PooledObjectList<T>(listHolder, id);
         }
         
-        public static void Return<T>(PooledObjectList<T> list)
+        public static bool Return<T>(PooledObjectList<T> list)
             where T : class
         {
+            if (!list.IsValid)
+                return false;
             // Dispose internal list holder
-            list.pooledList.Dispose();
+            if (!list.pooledList.TryDispose())
+                return false;
             // Recycle it
             listHolderPool.Enqueue(list.pooledList);
+            return true;
         }
     }
 }

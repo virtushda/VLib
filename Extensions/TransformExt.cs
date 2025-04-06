@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
+using Plane = Unity.Mathematics.Geometry.Plane;
 
 namespace VLib
 {
@@ -24,7 +25,23 @@ namespace VLib
             child = t.GetChild(childIndex);
             return true;
         }
-        
+
+        public static bool TryGetComponentInParents<T>(this Transform transform, out T component) 
+            where T : Component
+        {
+            component = null;
+            
+            do
+            {
+                if (transform.TryGetComponent(out component))
+                    return true;
+                transform = transform.parent;
+            } 
+            while (transform != null);
+            
+            return false;
+        }
+
         public static Transform[] GetChildTransforms(this Transform t)
         {
             if (t.childCount == 0)
@@ -37,7 +54,7 @@ namespace VLib
 
             return array;
         }
-        
+
         public static List<Transform> GetAncestors(this Transform t, in List<Transform> ancestors)
         {
             var transformWalker = new TransformAncestryIterator(t);
@@ -131,6 +148,22 @@ namespace VLib
             }
 
             return null;
+        }
+
+        /// <summary> Creates a plane which intersects this transform position, taking the desired transform axis as the plane normal. </summary>
+        public static Plane GetPlane(this Transform t, Axis normalAxis, bool flippedNormal = false)
+        {
+            var pos = t.position;
+            var forward = normalAxis switch
+            {
+                Axis.X => t.right,
+                Axis.Y => t.up,
+                Axis.Z => t.forward,
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            if (flippedNormal)
+                forward = -forward;
+            return new Plane(forward, pos);
         }
 
         /// <summary> A depth and child index to record splits in a tree. </summary>

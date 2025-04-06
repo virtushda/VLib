@@ -5,6 +5,7 @@ using Unity.Collections.LowLevel.Unsafe;
 
 namespace VLib
 {
+    /// <summary> A thread-safe safety mechanism for unmanaged memory. </summary>
     public readonly struct VSafetyHandle : IDisposable, IEquatable<VSafetyHandle>, IComparable<VSafetyHandle>
     {
         [NativeDisableUnsafePtrRestriction]
@@ -44,11 +45,20 @@ namespace VLib
             return UnsafeUtility.As<long, ulong>(ref previousAsLong) == safetyIDCopy;
         }
 
+        /// <summary> Assert that the handle is valid. </summary>
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public void ConditionalCheckValid()
         {
             if (!IsValid)
-                throw new InvalidOperationException("VSafetyHandle is not created!");
+                throw new InvalidOperationException("VSafetyHandle is not valid when it should be!");
+        }
+        
+        /// <summary> Assert that the handle is not valid. </summary>
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public void ConditionalCheckNotValid()
+        {
+            if (IsValid)
+                throw new InvalidOperationException("VSafetyHandle is valid when it shouldn't be!");
         }
 
         public override string ToString() => $"VSafetyHandle: ID:{safetyIDCopy}|Index:{truthLocation.ListIndex}";

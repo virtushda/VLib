@@ -421,6 +421,14 @@ namespace VLib
             T* bufferPtr = (T*) bufferVoidPtr;
             return new UnsafeList<T>(bufferPtr, array.Length);
         }
+        
+        public static NativeArray<T> AsNativeArray<T>(this UnsafeList<T> list) 
+            where T : unmanaged
+        {
+            if (!list.IsCreated)
+                throw new ArgumentException("Safety Exception: UnsafeList is not created!");
+            return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(list.Ptr, list.Length, Allocator.TempJob);
+        }
 
         /*/// <summary>Does not dispose the passed nativearray!</summary>
         public static void DisposeElements<T>(this NativeArray<T> array, int start = 0, int count = -1)
@@ -480,11 +488,18 @@ namespace VLib
         }
 
         /// <summary> Good for when you want to clear the memory behind disposing a struct. BE CAREFUL that you actually have the right ref and you're not disposing a local copy! </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DisposeRefToDefault<T>(ref this T value)
             where T : struct, IDisposable
         {
             value.Dispose();
             value = default;
+        }
+        
+        public static ref UnsafeList<T> GetUnsafeListRef<T>(this NativeList<T> list)
+            where T : unmanaged
+        {
+            return ref UnsafeUtility.AsRef<UnsafeList<T>>(list.GetUnsafeList());
         }
 
         public static void IndexValidOrThrow<T>(this NativeList<T> list, int index) 
@@ -791,6 +806,17 @@ namespace VLib
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
             return ref UnsafeUtility.AsRef<UnsafeList<T>>(list.GetUnsafeList());
+        }
+        
+        /// <summary> Returns a reference to the element at a given index. </summary>
+        /// <param name="index">The index to access. Must be in the range of [0..Length).</param>
+        /// <returns>A reference to the element at the index.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref T ElementAtReadOnly<T>(in this UnsafeList<T> list, int index)
+            where T : unmanaged
+        {
+            VCollectionUtils.ConditionalCheckIndexValid(index, list.Length);
+            return ref list.Ptr[index];
         }
 
         public static bool TryGet<T>(this UnsafeList<T> list, int index, out T value, bool logError = true)

@@ -11,6 +11,7 @@ using static Unity.Mathematics.math;
 using Debug = UnityEngine.Debug;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
+using float4 = Unity.Mathematics.float4;
 using int2 = Unity.Mathematics.int2;
 using quaternion = Unity.Mathematics.quaternion;
 
@@ -414,7 +415,10 @@ namespace VLib
         {
             var v = p1 - p0;
             var w = position - p0;
-            return dot(w, v) / dot(v, v);
+            var dotVV = dot(v, v);
+            if (dotVV < EPSILON)
+                return 0; // p0 and p1 are the same point, so we can't sample along the line segment
+            return dot(w, v) / dotVV;
         }
 
         /// <summary> Constrains a given position to lie on the line segment defined by points `a` and `b`. </summary>
@@ -457,6 +461,7 @@ namespace VLib
         #region Checks / Defensive
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float DivideChecked(this float numerator, float denominator, float epsilon = EPSILON, bool logError = true)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
@@ -469,8 +474,51 @@ namespace VLib
 #endif
             return numerator / denominator;
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float2 DivideChecked(this float2 numerator, float2 denominator, float epsilon = EPSILON, bool logError = true)
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
+            if (any(abs(denominator) < epsilon))
+            {
+                if (logError)
+                    Debug.LogError("Division by zero!");
+                return float2.zero;
+            }
+#endif
+            return numerator / denominator;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 DivideChecked(this float3 numerator, float3 denominator, float epsilon = EPSILON, bool logError = true)
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
+            if (any(abs(denominator) < epsilon))
+            {
+                if (logError)
+                    Debug.LogError("Division by zero!");
+                return float3.zero;
+            }
+#endif
+            return numerator / denominator;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float4 DivideChecked(this float4 numerator, float4 denominator, float epsilon = EPSILON, bool logError = true)
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
+            if (any(abs(denominator) < epsilon))
+            {
+                if (logError)
+                    Debug.LogError("Division by zero!");
+                return float4.zero;
+            }
+#endif
+            return numerator / denominator;
+        }
 
         /// <summary> Divide, but if the denominator is zero, return 0. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float DivideSafe(this float numerator, float denominator, float epsilon = EPSILON)
         {
             return select(numerator / denominator, 0, abs(denominator) < epsilon);
@@ -481,6 +529,7 @@ namespace VLib
         }
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int DivideChecked(this int numerator, int denominator, bool logError = true)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
@@ -495,6 +544,7 @@ namespace VLib
         }
 
         /// <summary> Divide, but if the denominator is zero, return 0. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int DivideSafe(this int numerator, int denominator)
         {
             if (denominator == 0)
@@ -503,6 +553,7 @@ namespace VLib
         }
 
         /// <summary> <inheritdoc cref="ModuloChecked(int,int)"/> </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float ModuloChecked(this float numerator, float denominator, float epsilon = EPSILON)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
@@ -516,6 +567,7 @@ namespace VLib
         }
 
         /// <summary> Perform a modulo operator, but in the editor, check that we're not dividing by zero! </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ModuloChecked(this int numerator, int denominator)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
@@ -529,6 +581,7 @@ namespace VLib
         }
         
         /// <summary> Modulo, but if the denominator is zero, return 0. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float ModuloSafe(this float numerator, float denominator, float epsilon = EPSILON)
         {
             if (abs(denominator) < epsilon)
@@ -537,6 +590,7 @@ namespace VLib
         }
         
         /// <summary> <inheritdoc cref="ModuloSafe"/> </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ModuloSafe(this int numerator, int denominator)
         {
             if (denominator == 0)

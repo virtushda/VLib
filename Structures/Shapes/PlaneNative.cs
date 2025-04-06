@@ -65,10 +65,10 @@ namespace VLib
             return planeToPointDir > 0;
         }
 
-        public bool SphereOutside(float4 sphere)
+        public bool SphereOutside(in SphereNative sphere)
         {
             // Find point on sphere that is deepest in plane
-            float3 deepestPoint = sphere.xyz - normal * sphere.w; // w is radius
+            float3 deepestPoint = sphere.Position - normal * sphere.Radius; // w is radius
             return PointOutside(deepestPoint);
         }
  

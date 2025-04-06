@@ -1,18 +1,22 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using Sirenix.Utilities;
 using UnityEngine;
 using UnityEngine.Profiling;
+using VLib.Utility;
 using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
     public static class VUtil
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T GetOrThrow<T>(this T reference, string exceptionMessageOnNull)
+            where T : class
         {
-            return reference != null ? reference : throw new NullReferenceException(exceptionMessageOnNull);
+            return reference ?? throw new NullReferenceException(exceptionMessageOnNull);
         }
 
         public static class IO
@@ -272,6 +276,20 @@ namespace VLib
                 Debug.LogException(new UnityException($"{caller}: Directory MUST exist, but does not, at path: {path}"));
                 return false;
             }
+        }
+
+        [Conditional("UNITY_EDITOR")]
+        public static void CheckIsPlayMode()
+        {
+            if (!VApplicationMonitor.IsPlayingSafe)
+                throw new InvalidOperationException("This method can only be called in play mode.");
+        }
+        
+        [Conditional("UNITY_EDITOR")]
+        public static void CheckIsEditMode()
+        {
+            if (VApplicationMonitor.IsPlayingSafe)
+                throw new InvalidOperationException("This method can only be called in edit mode.");
         }
     }
 }

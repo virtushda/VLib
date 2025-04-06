@@ -16,6 +16,7 @@ using Unity.IL2CPP.CompilerServices;
 using Unity.Jobs;
 using VLib.Jobs;
 using VLib.Systems;
+using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
@@ -28,7 +29,7 @@ namespace VLib
     {
         public const float DefaultTimeout = 5f;
         
-        private VUnsafeBufferedRef<long> m_LockHolder;
+        private RefStruct<long> m_LockHolder;
         
         /// <summary> Checks locked buffer length as well to detect corruption </summary>
         public bool IsCreated => m_LockHolder.IsCreated; // NOTE: If this check is changed to anything other than using the reference holder's 'IsCreated', conditional checks may be needed once again!!!
@@ -38,7 +39,7 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public BurstSpinLock(Allocator allocator)
         {
-            m_LockHolder = new VUnsafeBufferedRef<long>(0, allocator);
+            m_LockHolder = RefStruct<long>.Create(0, allocator);
         }
 
         /// <summary> Dispose this spin lock. <see cref="IDisposable"/> </summary>
@@ -86,8 +87,11 @@ namespace VLib
             while (Interlocked.CompareExchange(ref lockVar, threadId, 0) != 0)
             {
                 if (VTime.intraFrameTime > forceExitTime)
+                {
+                    Debug.LogError("SpinLock timed out");
                     return false;
-                
+                }
+
                 Common.Pause();
                     
                 // Don't have access for some reason, thanks Unity

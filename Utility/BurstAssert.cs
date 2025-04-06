@@ -37,6 +37,15 @@ namespace VLib
             if (!condition)
                 UnityEngine.Debug.LogError("BurstAssert.True, received false");
         }
+
+        /// <summary> <inheritdoc cref="True"/> </summary>
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void TrueThrowing(bool condition)
+        {
+            if (!condition)
+                throw new System.Exception("BurstAssert.TrueThrowing, received false");
+        }
         
         /// <summary> Cheaper version of false, but provides less debugging data. </summary>
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
@@ -45,6 +54,15 @@ namespace VLib
         {
             if (condition)
                 UnityEngine.Debug.LogError("BurstAssert.False, received true");
+        }
+        
+        /// <summary> <inheritdoc cref="False"/> </summary>
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void FalseThrowing(bool condition)
+        {
+            if (condition)
+                throw new System.Exception("BurstAssert.FalseThrowing, received true");
         }
         
         [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]

@@ -70,5 +70,12 @@ namespace VLib
 
             return new string(charArray);
         }
+        
+        public static string TruncateWithEllipsis(this string str, int maxLength)
+        {
+            if (string.IsNullOrEmpty(str) || str.Length <= maxLength)
+                return str;
+            return str.Substring(0, maxLength - 3) + "...";
+        }
     } 
 }

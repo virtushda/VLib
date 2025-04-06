@@ -28,7 +28,7 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IndexIsValid(int index, int length)
         {
-            if (index >= 0 && index < length)
+            if ((uint)index < length)
                 return true;
             Debug.LogError($"Invalid index {index}, collection length is {length}");
             return false;
@@ -74,7 +74,7 @@ namespace VLib
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckIndexValid(int index, int length)
         {
-            if (index < 0 || index >= length)
+            if ((uint)index >= length)
                 throw new IndexOutOfRangeException($"{index} out of range [0..{length}] (inclusive, exclusive)");
         }
 
@@ -82,7 +82,7 @@ namespace VLib
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
         public static void ConditionalCheckLengthValid(int length, int capacity)
         {
-            if (length < 0 || length > capacity)
+            if ((uint)length > capacity)
                 throw new ArgumentOutOfRangeException(nameof(length), "Length must be >= 0 and <= capacity.");
         }
 

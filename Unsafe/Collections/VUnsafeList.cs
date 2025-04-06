@@ -706,7 +706,7 @@ namespace VLib
         /// Returns an enumerator over the elements of this list.
         /// </summary>
         /// <returns>An enumerator over the elements of this list.</returns>
-        public unsafe Enumerator GetEnumerator() => new Enumerator { sourceList = this, m_Index = -1 };
+        public Enumerator GetEnumerator() => new Enumerator { sourceList = this, m_Index = -1 };
 
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
@@ -996,7 +996,7 @@ namespace VLib
 
         /// <summary> An unsafe window into a portion of the list. <br/>
         /// Providing a length allocator allows the slice to act like its own list with constrained capacity, but at the cost of a small allocation. </summary>
-        public VUnsafeListSlice<T> Slice(int start, int length, Allocator lengthAllocator)
+        public readonly VUnsafeListSlice<T> Slice(int start, int length, Allocator lengthAllocator)
         {
             CheckIndexInRange(start, Length); // Implicitly checks is created
             // Allow for empty slices, but put logic in conditional so it is stripped with the conditional
@@ -1072,7 +1072,7 @@ namespace VLib
         /// <param name="value">The value to locate.</param>
         /// <returns>The index of the first occurrence of the value in this list. Returns -1 if no occurrence is found.</returns>
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int), typeof(int)})]
-        public static unsafe int IndexOf<T, U>(this VUnsafeList<T> list, U value)
+        public static unsafe int IndexOf<T, U>(in this VUnsafeList<T> list, U value)
             where T : unmanaged, IEquatable<U>
         {
             return NativeArrayExtensions.IndexOf<T, U>(list.ListData.Ptr, list.Length, value); // Implicitly checks is created

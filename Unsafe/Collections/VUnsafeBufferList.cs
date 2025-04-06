@@ -17,7 +17,7 @@ namespace VLib
         UnsafeList<T> listData;
         VPackedIndexProvider packedIndices;
         UnsafeList<bool> indicesActive;
-        volatile int count;
+        int count;
 
         public readonly UnsafeList<T> ListDataUnsafe
         {
@@ -52,17 +52,7 @@ namespace VLib
                 this.ConditionalCheckIsCreated();
                 return listData.Capacity;
             }
-            set
-            {
-                this.ConditionalCheckIsCreated();
-                
-                // If shrinking, need to maintain count
-                if (value < Length)
-                    DisableRange(value, Length);
-                
-                listData.Capacity = value;
-                indicesActive.Capacity = value;
-            }
+            set => Resize(value);
         }
         
         public bool IsEmpty => count == 0;
@@ -73,7 +63,7 @@ namespace VLib
             listData = new UnsafeList<T>(capacity, allocator, NativeArrayOptions.ClearMemory);
             packedIndices = VPackedIndexProvider.Create(reportAllNotDisposed: logStillActiveOnDispose);
             indicesActive = new(capacity, allocator);
-            indicesActive.Length = capacity;
+            indicesActive.Resize(capacity, NativeArrayOptions.ClearMemory); // Ensure memory is all initialized to false
             count = 0;
         }
 

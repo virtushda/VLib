@@ -30,9 +30,13 @@ namespace VLib
     
     public static class DuplicationsUtils
     {
-        /// <summary> WARNING: Doesn't work any objects that aren't properly serializable! </summary> 
+        /*/// <summary> WARNING: Doesn't work any objects that aren't properly serializable! </summary> 
         public static T DuplicateSerialized<T>(this T serializableObject)
         {
+            var type = typeof(T);
+            if (!type.IsSerializable)
+                throw new ArgumentException($"Type {type.FullName} is not marked as [Serializable]");
+
             if (serializableObject == null)
                 return default;
 
@@ -41,7 +45,7 @@ namespace VLib
             formatter.Serialize(stream, serializableObject);
             stream.Seek(0, SeekOrigin.Begin);
             return (T)formatter.Deserialize(stream);
-        }
+        }*/
         
         /// <summary> Based on the input type, create a new instance of that type. </summary> 
         public static T CreateNewInstance<T>(this T instance) where T : new() => new();

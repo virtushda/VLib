@@ -1,9 +1,16 @@
 ﻿#if UNITY_EDITOR
 //#define SAFETY_TRACKING // Enable this for each lock scope to be tracked, catching any double-disposal issues.
+#if SAFETY_TRACKING
+#define STACKTRACE_CLAIM_TRACKING
+#endif
+//#define LOCK_TIMING
 #endif
 
 using System;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading;
+using Unity.Burst;
 using Unity.Mathematics;
 using Unity.Profiling;
 
@@ -14,14 +21,13 @@ namespace VLib
     public class VReaderWriterLockSlim
     {
         const int DefaultTimeoutMS = 2000;
-        
-        //const int ThreadSafeArrayLength = JobsUtility.MaxJobThreadCount * 2;
+        const int LOCK_TIMING_LOGTHRESHOLD = 100;
 
         public ReaderWriterLockSlim internalLock;
-        
+
 #if SAFETY_TRACKING
         long wrapperIDSource;
-        internal ConcurrentDictionary<long, bool> activeIDTracking = new();
+        internal ConcurrentDictionary<long, string> activeIDTracking = new();
 #endif
 
         public VReaderWriterLockSlim(LockRecursionPolicy supportsRecursion = LockRecursionPolicy.SupportsRecursion)
@@ -29,11 +35,11 @@ namespace VLib
 #if SAFETY_TRACKING
             wrapperIDSource = 0;
 #endif
-            
+
             // Create Objects
             internalLock = new(supportsRecursion);
         }
-        
+
         public void Dispose()
         {
             internalLock?.Dispose();
@@ -42,30 +48,42 @@ namespace VLib
 
         public VRWLockHoldScoped ScopedReadLock(int timeoutMS = DefaultTimeoutMS)
         {
+#if LOCK_TIMING
+            var watch = ValueStopwatch.StartNew();
+#endif
             // Get lock
             if (!internalLock.TryEnterReadLock(timeoutMS))
                 throw new TimeoutException($"Failed to acquire read lock within {timeoutMS}ms!");
-            
+#if LOCK_TIMING
+            var timeMS = watch.ElapsedMillisecondsF;
+            if (timeMS > LOCK_TIMING_LOGTHRESHOLD)
+                UnityEngine.Debug.LogError($"Read lock took {(timeMS / 1000f).AsTimeToPrint()} to acquire!");
+#endif
+
 #if SAFETY_TRACKING
-            SetupValidation(out var wrapperID/*, out var idStoreIndex*/);
-            if (!activeIDTracking.TryAdd(wrapperID, true))
-                throw new InvalidOperationException($"Failed to add ID {wrapperID} to tracking dictionary!");
+            var wrapperID = CreateValidation();
             return new VRWLockHoldScoped(this, false, wrapperID);
 #else
             return new VRWLockHoldScoped(this, false);
 #endif
         }
-        
+
         public VRWLockHoldScoped ScopedExclusiveLock(int timeoutMS = DefaultTimeoutMS)
         {
+#if LOCK_TIMING
+            var watch = ValueStopwatch.StartNew();
+#endif
             // Get lock
             if (!internalLock.TryEnterWriteLock(timeoutMS))
                 throw new TimeoutException($"Failed to acquire write lock within {timeoutMS}ms!");
-            
+#if LOCK_TIMING
+            var timeMS = watch.ElapsedMillisecondsF;
+            if (timeMS > LOCK_TIMING_LOGTHRESHOLD)
+                UnityEngine.Debug.LogError($"Write lock took {(timeMS / 1000f).AsTimeToPrint()} to acquire!");
+#endif
+
 #if SAFETY_TRACKING
-            SetupValidation(out var wrapperID);
-            if (!activeIDTracking.TryAdd(wrapperID, true))
-                throw new InvalidOperationException($"Failed to add ID {wrapperID} to tracking dictionary!");
+            var wrapperID = CreateValidation();
             return new VRWLockHoldScoped(this, true, wrapperID);
 #else
             return new VRWLockHoldScoped(this, true);
@@ -73,6 +91,7 @@ namespace VLib
         }
 
         static readonly ProfilerMarker TryEnterReadWithWriteRequiredConditionMarker = new("TryEnterReadWithWriteRequiredCondition");
+
         /// <summary> In a fully concurrent-safe way, this method obtains the read-lock, while ensuring that a condition is true. <br/>
         /// This is to handle the complex case, where changing the condition must happen behind a write lock! </summary>
         /// <param name="conditionEvaluator"> The condition that must be true for the read lock to be obtained. (This MUST be safe to call inside the read-lock!) </param>
@@ -85,7 +104,7 @@ namespace VLib
         public VRWLockHoldScoped TryEnterReadWithWriteLockCondition(Func<bool> conditionEvaluator, Action conditionChanger, int timeoutMS = DefaultTimeoutMS, int attempts = 64)
         {
             using var _ = TryEnterReadWithWriteRequiredConditionMarker.Auto();
-            
+
             attempts = math.max(attempts, 1);
             while (--attempts >= 0)
             {
@@ -105,12 +124,21 @@ namespace VLib
                     internalLock.ExitReadLock();
                     throw new InvalidOperationException("Failed to evaluate condition!", e);
                 }
-                
+
                 // If condition is true, return the lock
                 if (conditionPassed)
                     // VALID EXIT POINT, construct a scope struct from the current state
-                    return new VRWLockHoldScoped(this, false);
-                
+                {
+#if SAFETY_TRACKING
+                    var wrapperID = CreateValidation();
+#endif
+                    return new VRWLockHoldScoped(this, false
+#if SAFETY_TRACKING
+                        , wrapperID
+#endif
+                    );
+                }
+
                 // Past this point we've failed to acquire a readlock together with a valid condition, we have to now try to change the condition. 
                 // Release read lock
                 internalLock.ExitReadLock();
@@ -130,17 +158,85 @@ namespace VLib
                     internalLock.ExitWriteLock();
                     throw new InvalidOperationException("Failed to change condition!", e);
                 }
-                
+
                 // Release write lock
                 internalLock.ExitWriteLock();
                 // Loop back to try to acquire the read lock again
             }
+
             return default; // This failure case must be handled by the caller, 'IsCreated' will be false.
         }
 
 #if SAFETY_TRACKING
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void SetupValidation(out long wrapperID) => wrapperID = Interlocked.Increment(ref wrapperIDSource);
+        long CreateValidation()
+        {
+            var wrapperID = Interlocked.Increment(ref wrapperIDSource);
+            string trace = null;
+#if STACKTRACE_CLAIM_TRACKING
+            trace = Environment.StackTrace;
 #endif
+            if (!activeIDTracking.TryAdd(wrapperID, trace))
+                throw new InvalidOperationException($"Failed to add ID {wrapperID} to tracking dictionary!");
+            return wrapperID;
+        }
+#endif
+    }
+
+    [DebuggerDisplay("IsWrite: {isWrite}, ID: {wrapperID}")]
+    public readonly struct VRWLockHoldScoped : IDisposable
+    {
+        readonly VReaderWriterLockSlim rwLock;
+        public readonly bool isWrite;
+#if SAFETY_TRACKING
+        internal readonly long wrapperID;
+#endif
+
+        public bool IsCreated => rwLock != null;
+        public static implicit operator bool(VRWLockHoldScoped lockScope) => lockScope.IsCreated;
+
+        public bool IsLockedForRead => IsCreated && rwLock.internalLock.IsReadLockHeld;
+        public bool IsLockedForWrite => IsCreated && rwLock.internalLock.IsWriteLockHeld;
+        public bool IsLockedAny => IsLockedForRead || IsLockedForWrite;
+
+        internal VRWLockHoldScoped(VReaderWriterLockSlim rwLock, bool isWrite
+#if SAFETY_TRACKING
+            , long wrapperID
+#endif
+        )
+        {
+            this.rwLock = rwLock;
+            this.isWrite = isWrite;
+
+            // Is it valid for recursive lock to enter read lock while write lock is held
+            //BurstAssert.True(this.isWrite == rwLock.internalLock.IsWriteLockHeld); // Lock state mismatch check
+
+#if SAFETY_TRACKING
+            this.wrapperID = wrapperID;
+#endif
+        }
+
+        [BurstDiscard]
+        public void Dispose()
+        {
+            if (rwLock == null)
+                return;
+#if SAFETY_TRACKING
+            if (!rwLock.activeIDTracking.TryRemove(wrapperID, out _))
+                throw new InvalidOperationException($"{(isWrite ? "Write" : "Read")} scope lock is not active and cannot be invalidated twice! (This is an editor-only safety feature)");
+#endif
+            try
+            {
+                // Release the lock
+                if (isWrite)
+                    rwLock.internalLock.ExitWriteLock();
+                else
+                    rwLock.internalLock.ExitReadLock();
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"Failed to release {(isWrite ? "write" : "read")} lock! Logging exception...");
+                UnityEngine.Debug.LogException(e);
+            }
+        }
     }
 }

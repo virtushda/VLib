@@ -2,6 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Unity.Mathematics;
+using UnityEngine;
 
 namespace VLib.Collections
 {
@@ -9,7 +11,7 @@ namespace VLib.Collections
     /// - Ref access for performant handling of value types. (must be used carefully of course) <br/>
     /// - Direct array access for performant custom operations. (must be used carefully of course) </summary>
     [Serializable]
-    public class VList<T> : IList<T>
+    public class VList<T> : IList<T>, IReadOnlyList<T>
     {
         T[] internalArray;
         int length;
@@ -118,22 +120,29 @@ namespace VLib.Collections
             }
             return -1;
         }
+        
+        public int FindIndex(Predicate<T> predicate) => Array.FindIndex(internalArray, 0, length, predicate);
 
         /// <summary> The slowest remove method because it must linearly search and potentially box elements to find the element to remove. </summary>
         public bool Remove(T element)
         {
-            for (int i = 0; i < length; i++)
-            {
-                if (internalArray[i].Equals(element))
-                {
-                    RemoveAt(i);
-                    return true;
-                }
-            }
-            return false;
+            var elementIndex = IndexOf(element);
+            if (elementIndex == -1)
+                return false;
+            RemoveAt(elementIndex);
+            return true;
+        }
+        
+        public bool RemoveSwapBack(T element)
+        {
+            var elementIndex = IndexOf(element);
+            if (elementIndex == -1)
+                return false;
+            RemoveAtSwapBack(elementIndex);
+            return true;
         }
 
-        /// <summary> Remove a given element and shift all following elements back in memory. If order is not important, prefer <see cref="RemoveAtSwapback"/>. </summary>
+        /// <summary> Remove a given element and shift all following elements back in memory. If order is not important, prefer <see cref="RemoveAtSwapBack"/>. </summary>
         public void RemoveAt(int index)
         {
             VCollectionUtils.ConditionalCheckIndexValid(index, length);
@@ -144,7 +153,7 @@ namespace VLib.Collections
         }
 
         /// <summary> The highest performance remove method, but alters list order. </summary>
-        public void RemoveAtSwapback(int index)
+        public void RemoveAtSwapBack(int index)
         {
             VCollectionUtils.ConditionalCheckIndexValid(index, length);
             // Swap the last element into the gap.
@@ -155,10 +164,15 @@ namespace VLib.Collections
             --length;
         }
         
-        public void EnsureCapacity(int newCapacity)
+        public void EnsureCapacity(int minCapacity)
         {
-            if (newCapacity > internalArray.Length)
-                Array.Resize(ref internalArray, internalArray.Length * 2);
+            if (minCapacity > internalArray.Length)
+            {
+                var newCapacity = internalArray.Length * 2;
+                if (newCapacity < minCapacity)
+                    newCapacity = math.ceilpow2(minCapacity);
+                Array.Resize(ref internalArray, newCapacity);
+            }
         }
         
         public void Clear()
@@ -212,6 +226,17 @@ namespace VLib.Collections
         public ref readonly T TryGetReadOnlyRefUnsafe(int index, out bool success) => ref TryGetRefUnsafe(index, out success);
         
         public void CopyTo(T[] array, int arrayIndex) => Array.Copy(this.internalArray, 0, array, arrayIndex, length);
+        
+        public T[] ToArray(int startIndex = 0, int count = -1)
+        {
+            if (count < 0)
+                count = length;
+            if (count == 0)
+                return Array.Empty<T>();
+            var array = new T[count];
+            Array.Copy(internalArray, startIndex, array, 0, count);
+            return array;
+        }
 
         #region Enumeration
 
@@ -348,6 +373,25 @@ namespace VLib.Collections
 
     public static class VListExt
     {
+        /// <summary> A version of Add that first searches for the element in the list and only adds it if it's not already present. </summary>
+        /// <returns> Valid index if added successfully, -1 if the element was already in the list. </returns>
+        public static int AddUnique<T>(this VList<T> list, in T objElement)
+        {
+            if (list.Contains(objElement))
+                return -1;
+            return list.AddIndexed(objElement);
+        }
+        
+        /// <summary> Must perform a linear search, expensive! </summary>
+        /// <returns> Valid index if added successfully, -1 if the element was already in the list. </returns>
+        public static int AddUniqueEquatable<T>(this VList<T> list, in T element)
+            where T : IEquatable<T>
+        {
+            if (list.ContainsEquatable(element))
+                return -1;
+            return list.AddIndexed(element);
+        }
+        
         /// <summary> A version of IndexOf that expects IEquatable. This version can ensure zero-boxing. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int IndexOfEquatable<T>(this VList<T> list, T element) 

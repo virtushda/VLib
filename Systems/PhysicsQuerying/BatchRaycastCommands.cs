@@ -84,7 +84,13 @@ namespace VLib.Physics
 
         public void Dispose()
         {
-            CheckJobInactive();
+            //CheckJobInactive();
+            if (jobActive)
+            {
+                Debug.Log("Forcing job completion...");
+                CompleteJob();
+            }
+            
             opEnforcer.StartOp();
             unsafeCommands = null;
             commands.Dispose();

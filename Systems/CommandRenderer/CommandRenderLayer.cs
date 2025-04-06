@@ -105,8 +105,6 @@ namespace VLib
         {
             if (buffer != null)
                 Graphics.ExecuteCommandBuffer(buffer);
-            else
-                Debug.LogError("Buffer is null...");
         }
     }
 }

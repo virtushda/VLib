@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
+using System.Threading;
 
-namespace VLib.Libraries.VLib.Collections
+namespace VLib.Collections
 {
     internal sealed class PooledObjectListObj
     {
@@ -18,12 +19,17 @@ namespace VLib.Libraries.VLib.Collections
             count = 0;
         }
 
-        public void Dispose()
+        public bool TryDispose()
         {
-            id = 0;
+            // Exchange the value atomically to guard against double-disposal from two or more threads, shouldn't happen but this ensures no race condition
+            var originalValue = Interlocked.Exchange(ref id, 0);
+            if (originalValue == 0)
+                return false;
+            
             ArrayPool<object>.Shared.Return(objects, true);
             objects = null;
             count = 0;
+            return true;
         }
     }
 }

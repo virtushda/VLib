@@ -2,12 +2,14 @@
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
+using VLib.Unsafe.Utility;
 
 namespace Libraries.KeyedAccessors.Lightweight
 {
     ///<summary> Generates a compact list of values, where values can be added or removed based on a given key. <br/>
     /// Has key->value mapping behaviour as well. <br/>
-    /// Adds, removes, iterations, and contains checks are all very fast. Removes are the least fast, but still use a quick swapback pattern. </summary>
+    /// Adds, removes, iterations, and contains checks are all very fast. Removes are the least fast, but still use a quick swapback pattern. <br/>
+    /// Not copy-safe! </summary>
     public struct UnsafeKeyedMap<TKey, TValue> : IDisposable
         where TKey : unmanaged, IEquatable<TKey>
         where TValue : unmanaged
@@ -92,14 +94,13 @@ namespace Libraries.KeyedAccessors.Lightweight
         }
 
         ///<summary> A spooky version of try get, do NOT use the ref if success is false.
-        /// Don't hold onto the ref for long! (You are responsible for thread safety).
-        /// Returns a ref to the first element if the key could not be found, so make sure the collection isn't empty!</summary>
+        /// Don't hold onto the ref for long! (You are responsible for thread safety)</summary>
         public ref TValue TryGetValueRef(TKey key, out bool success)
         {
             if (!keyIndexMap.TryGetValue(key, out var keyIndex))
             {
                 success = false;
-                return ref values.ElementAt(0);
+                return ref VUnsafeUtil.NullRef<TValue>();
             }
             success = true;
             return ref values.ElementAt(keyIndex);

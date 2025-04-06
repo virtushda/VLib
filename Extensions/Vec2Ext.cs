@@ -1,5 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
+using Unity.Mathematics;
 using UnityEngine;
+using Random = Unity.Mathematics.Random;
 
 namespace VLib
 {
@@ -26,5 +28,8 @@ namespace VLib
         
         /// <summary>Extension method to lerp a given vector2 to a target by an amount</summary> 
         public static Vector2 LerpTo(this Vector2 a, Vector2 b, float amount) => Vector2.Lerp(a, b, amount);
+        
+        public static float GetValueAsMinMax(this Vector2 minMax, float t) => math.lerp(minMax.x, minMax.y, t);
+        public static float GetValueAsMinMax(this Vector2 minMax, ref Random random) => math.lerp(minMax.x, minMax.y, random.NextFloat());
     }
 }

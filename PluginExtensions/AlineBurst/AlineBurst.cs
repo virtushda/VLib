@@ -18,7 +18,7 @@ namespace VLib.Aline
         static readonly SharedStatic<AlineBurstNative> Shared = SharedStatic<AlineBurstNative>.GetOrCreate<AlineBurst>();
         class AlineBurstNativeID {}
         
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         static void Init()
         {
             Shared.Data.InitNative();

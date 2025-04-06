@@ -6,7 +6,7 @@ namespace VLib
     /// <summary> Wrapped for native collections that integrates with the Native Sentinel Seth Shit, Simplifies chaining unrelated jobs.
     /// Multiply to create compound job handle.
     /// Add to create lists of Tracked-T. </summary>
-    public unsafe struct Tracked<TVal> : IAllocating, ITracked, IComparable<Tracked<TVal>>
+    public struct Tracked<TVal> : IAllocating, ITracked, IComparable<Tracked<TVal>>
         where TVal : unmanaged, IDisposable
     {
         public static implicit operator bool(Tracked<TVal> tracked) => tracked.IsCreated;
@@ -44,17 +44,17 @@ namespace VLib
             }
         }
         
-        public readonly TVal* ValuePtr
+        /*public readonly TVal* ValuePtr
         {
             get
             {
 /*#if UNITY_EDITOR
                 if (!IsCreated)
                     throw new UnityException("CRITICAL: Something is calling 'ValuePtrUnsafe' on a Tracked<T> that is not created, in a build this would be a rogue pointer!");
-#endif*/
+#endif#1#
                 return valueHolder.ValuePtr;
             }
-        }
+        }*/
         
         // Removed for now with addition of RefStruct
         /// <summary> Safety checks in editor AND build. </summary>

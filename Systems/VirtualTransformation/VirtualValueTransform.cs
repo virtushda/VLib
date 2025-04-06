@@ -68,14 +68,7 @@ namespace VLib
                 throw new ArgumentNullException(nameof(t), "Transform is NULL!");
 
             if (!data.IsCreated)
-            {
-                var internalValue = new Internal
-                {
-                    _children = new UnsafeList<VirtualValueTransform>(4, Allocator.Persistent),
-                };
-                data = new VUnsafeKeyedRef<Internal>(internalValue, key, Allocator.Persistent);
-                //data = RefStruct<Internal>.Create(internalValue);
-            }
+                data = new VUnsafeKeyedRef<Internal>(default, key, Allocator.Persistent);
 
             // The virtual transform will be able to be related efficiently via this ID
             DataRef.transformID = t.GetInstanceID();
@@ -108,9 +101,8 @@ namespace VLib
                 if (p.IsCreated && p.TransformID != 0)
                     p.RemoveChild(this);
                 DataRef._parent = value;
-                if (value == default)
-                    return;
-                DataRef._parent.AddChild(this);
+                if (value != default)
+                    DataRef._parent.AddChild(this);
             }
         }
 
@@ -136,20 +128,29 @@ namespace VLib
         
         public readonly void AddChild(VirtualValueTransform child)
         {
-            if (DataRef._children.Contains(child))
+            ref var dataRef = ref DataRef;
+            // If not initialized, we can safely assume that it needs to be
+            if (!dataRef._children.IsCreated)
+                dataRef._children = new UnsafeList<VirtualValueTransform>(1, Allocator.Persistent);
+            else if (dataRef._children.Contains(child))
                 return;
-            DataRef._children.Add(child);
+            dataRef._children.Add(child);
             if (child.parent != this)
                 child.parent = this; // TODO: Ensure recursive call doesn't cause infinite loop or performance issues
         }
 
         public readonly void RemoveChild(VirtualValueTransform child)
         {
-            if (!DataRef._children.RemoveValue(child))
-                return;
+            ref var dataRef = ref DataRef;
+            if (dataRef._children.IsCreated)
+                dataRef._children.RemoveValue(child);
             ref var childRef = ref child.DataRef;
             if (childRef._parent == this)
                 childRef._parent = default;
+            
+            // Deallocate if empty
+            if (dataRef._children.IsEmpty)
+                dataRef._children.Dispose();
         }
 
         /// <summary> <inheritdoc cref="Internal.localMatrix"/> </summary>
@@ -217,27 +218,34 @@ namespace VLib
         }
         
         // The red axis of the VirtualTransform in world space.
-        public readonly Vector3 right
+        public readonly float3 right
         {
-            get => rotation * Vector3.right;
-            set => rotation = Quaternion.FromToRotation(Vector3.right, value);
+            get => rotate(rotationNative, math.right());
+            set => rotation = Quaternion.FromToRotation(Vector3.right, UnsafeUtility.As<float3, Vector3>(ref value));
         }
 
         // The green axis of the VirtualTransform in world space.
-        public readonly Vector3 up
+        public readonly float3 up
         {
-            get => rotation * Vector3.up;
-            set => rotation = Quaternion.FromToRotation(Vector3.up, value);
+            get => rotate(rotationNative, math.up());
+            set => rotation = Quaternion.FromToRotation(Vector3.up, UnsafeUtility.As<float3, Vector3>(ref value));
         }
 
         // The blue axis of the VirtualTransform in world space.
-        public readonly Vector3 forward
+        public readonly float3 forward
         {
-            get => rotation * Vector3.forward;
-            set => rotation = Quaternion.LookRotation(value);
+            get => rotate(rotationNative, math.forward());
+            set => rotation = Quaternion.LookRotation(UnsafeUtility.As<float3, Vector3>(ref value));
         }
         
-        public readonly float4x4 localToWorldMatrix => GetFullToWorldMatrix();
+        public readonly float4x4 localToWorldMatrix
+        {
+            get
+            {
+                GetFullToWorldMatrix(out var matrix);
+                return matrix;
+            }
+        }
         
         public readonly AffineTransform localToWorldAffineTransform => new(localToWorldMatrix);
 
@@ -300,17 +308,20 @@ namespace VLib
             return new float3(InverseSafe(v.x), InverseSafe(v.y), InverseSafe(v.z));
         }
 
-        // VirtualTransforms /position/ from local space to world space.
+        /// <summary> Transforms <see cref="inPoint"/> from local space to world space. </summary>
         public readonly float3 TransformPoint(float3 inPoint)
         {
             return transform(localToWorldMatrix, inPoint);
             //return = localToWorldMatrix.MultiplyPoint(inPoint);
         }
 
-        // VirtualTransforms /position/ from world space to local space. The opposite of VirtualTransform.VirtualTransformPoint.
+        /// <summary> Transforms <see cref="inPosition"/> from world space to local space. The opposite of <see cref="TransformPoint"/>. </summary>
         public readonly float3 InverseTransformPoint(float3 inPosition)
         {
-            float3 newPosition, localPosTemp;
+            return transform(inverse(localToWorldMatrix), inPosition);
+            
+            // Old implementation, did not seem to be correct...
+            /*float3 newPosition, localPosTemp;
             if (parent)
                 localPosTemp = parent.InverseTransformPoint(inPosition);
             else
@@ -321,7 +332,7 @@ namespace VLib
             //newPosition = Quaternion.RotateVectorByQuat(Quaternion.Inverse(m_LocalRotation), localPosition);
             ((Vector3)newPosition).Scale(InverseSafe(localScale));
 
-            return newPosition;
+            return newPosition;*/
         }
 
         /// <summary> Copies Translations, Rotations and Scales from the given transform with safety checks for (in editor only). </summary>
@@ -421,19 +432,25 @@ namespace VLib
 
         #region Internal Methods
         
-        readonly float4x4 GetFullToWorldMatrix()
+        readonly void GetFullToWorldMatrix(out float4x4 t)
         {
-            float4x4 t = DataRef.localMatrix; //float4x4.TRS(localPosition, m_LocalRotation, m_LocalScale);
-            if (parent)
-                t = mul(parent.GetFullToWorldMatrix(), t); //parent.GetLocalToWorldMatrix() * t;
-
-            return t;
+            t = DataRef.localMatrix;
+            var parentTransform = parent;
+            if (parentTransform)
+            {
+                parentTransform.GetFullToWorldMatrix(out var parentMatrix);
+                t = mul(parentMatrix, t);
+            }
         }
         
         readonly float3 GetPosition()
         {
-            if (parent)
-                return transform(parent.GetFullToWorldMatrix(), localPosition);
+            var parentTransform = parent;
+            if (parentTransform)
+            {
+                parentTransform.GetFullToWorldMatrix(out var parentMatrix);
+                return transform(parentMatrix, localPosition);
+            }
             return localPosition;
         }
 
@@ -442,7 +459,6 @@ namespace VLib
             var p = parent;
             if (p)
                 newPosition = p.InverseTransformPoint(newPosition);
-
             localPosition = newPosition;
         }
 

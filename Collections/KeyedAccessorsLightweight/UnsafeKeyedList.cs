@@ -1,6 +1,7 @@
 ﻿using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using VLib;
 
 namespace Libraries.KeyedAccessors.Lightweight
 {
@@ -52,6 +53,8 @@ namespace Libraries.KeyedAccessors.Lightweight
 
         public bool RemoveAtSwapBack(TKey key, int removalIndex)
         {
+            // Verify correctness of passed in index
+            BurstAssert.True(keyIndexMap.TryGetValue(key, out var keyIndex) && keyIndex == removalIndex);
             keyIndexMap.Remove(key);
 
             // Handle case: Only element

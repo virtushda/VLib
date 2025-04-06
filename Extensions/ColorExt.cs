@@ -8,7 +8,7 @@ namespace VLib
         public static readonly Color orange = new Color(1, 0.5f, 0);
         public static readonly Color gold = new Color(1, 0.84f, 0);
         public static readonly Color greenDeep = new Color(0, 0.65f, 0);
-        public static readonly Color blueBright = new Color(0, 0.5f, 1);
+        public static readonly Color blueBright = new Color(0, 0.7f, 1);
         public static readonly Color normalMapDefault = new Color(0.5f, 0.5f, 1);
         public static readonly Color purple = new Color(0.5f, 0, 1);
         

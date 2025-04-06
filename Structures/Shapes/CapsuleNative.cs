@@ -30,6 +30,12 @@ namespace VLib
             this.pointA = pointA;
             this.pointB = pointB;
         }
+        
+        public CapsuleNative(float3 pointA, float3 pointB, float radius)
+        {
+            this.pointA = new float4(pointA, radius);
+            this.pointB = new float4(pointB, radius);
+        }
 
         /// <summary> Generate a capsule from a world transform and some local points. </summary>
         public CapsuleNative(in AffineTransform transform, float3 localPointA, float3 localPointB, float radiusA, float radiusB)

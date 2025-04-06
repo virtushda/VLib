@@ -75,34 +75,55 @@ namespace VLib
         void EnsureList() => InvocationList ??= ListPool.Depool();
     }
     
-    public class EventContainer<T>
+    public class EventContainer<TArgs>
     {
-        static readonly ConcurrentVPoolParameterless<List<Action<T>>> ListPool = new();
+        static readonly ConcurrentVPoolParameterless<List<(object, Action<object, TArgs>)>> ListPool = new();
         
-        public static EventContainer<T> operator +(EventContainer<T> eventContainer, Action<T> action)
+        /*public static EventContainer<TArgs> operator +(EventContainer<TArgs> eventContainer, Action<TArgs> action)
         {
             eventContainer.EnsureList();
             eventContainer.InvocationList.Add(action);
             return eventContainer;
         }
         
-        public static EventContainer<T> operator -(EventContainer<T> eventContainer, Action<T> action)
+        public static EventContainer<TArgs> operator -(EventContainer<TArgs> eventContainer, Action<TArgs> action)
         {
             eventContainer.EnsureList();
             eventContainer.InvocationList.Remove(action);
             return eventContainer;
+        }*/
+        
+        public void Subscribe(object context, Action<object, TArgs> action)
+        {
+            EnsureList();
+            InvocationList.Add((context, action));
         }
         
-        public List<Action<T>> InvocationList;
+        public void Unsubscribe(object context, Action<object, TArgs> action = null)
+        {
+            EnsureList();
+            for (int i = InvocationList.Count - 1; i >= 0; i--)
+            {
+                var invocation = InvocationList[i];
+                if(!context.Equals(invocation.context))
+                    continue;
+                if(action != null && !action.Equals(invocation.action))
+                    continue;
+                
+                InvocationList.RemoveAt(i);
+            }
+        }
+        
+        public List<(object context, Action<object, TArgs> action)> InvocationList;
 
-        public void Invoke(T arg)
+        public void Invoke(TArgs args)
         {
             if (InvocationList == null)
                 return;
             
-            foreach (var action in InvocationList)
+            foreach (var invocation in InvocationList)
             {
-                action?.Invoke(arg);
+                invocation.action?.Invoke(invocation.context, args);
             }
         }
 
@@ -117,7 +138,7 @@ namespace VLib
             return true;
         }
 
-        public bool CopyTo(EventContainer<T> other)
+        public bool CopyTo(EventContainer<TArgs> other)
         {
             if (InvocationList == null)
                 return false;
@@ -130,7 +151,7 @@ namespace VLib
             }
             return true;
         }
-        public bool CopyFrom(EventContainer<T> other)
+        public bool CopyFrom(EventContainer<TArgs> other)
         {
             if (other.InvocationList == null)
                 return false;
