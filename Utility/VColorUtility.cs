@@ -1,19 +1,10 @@
-﻿using System.Threading;
-using Unity.Mathematics;
+﻿using Unity.Mathematics;
 using UnityEngine;
 
 namespace VLib.Utility
 {
     public static class VColorUtility
     {
-        static int debugColorHash;
-        
-        public static Color NextDebugColor()
-        {
-            var hash = Interlocked.Increment(ref debugColorHash);
-            return HashToColor((uint)hash);
-        }
-
         public static Color HashToColor(uint hash, 
             float saturationMin = 0.5f, float saturationMax = 1f, 
             float valueMin = 0.5f, float valueMax = 1f,
