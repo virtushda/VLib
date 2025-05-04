@@ -23,9 +23,9 @@ namespace VLib
 {
     /// <summary> Implement a very basic, Burst-compatible SpinLock that mirrors the basic .NET SpinLock API. </summary>
     [BurstCompile]
-    [Il2CppSetOption(Option.NullChecks, false)]
+    /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [Il2CppSetOption(Option.DivideByZeroChecks, false)]
+    [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
     public struct BurstSpinLock
     {
         public const float DefaultTimeout = 5f;

@@ -9,9 +9,9 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace VLib
 {
-    [Il2CppSetOption(Option.NullChecks, false)]
+    /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [Il2CppSetOption(Option.DivideByZeroChecks, false)]
+    [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
     public static class BurstSpinLockCheckFunctions
     {
         /*[Conditional("DEBUG_ADDITIONAL_CHECKS")]
