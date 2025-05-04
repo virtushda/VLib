@@ -2,6 +2,7 @@
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
 #define DEBUG_ADDITIONAL_CHECKS
+#define CLAIM_TRACKING
 #endif
 
 using System;
@@ -37,9 +38,17 @@ namespace VLib
         /// <summary> Constructor for the spin lock </summary>
         /// <param name="allocator">allocator to use for internal memory allocation. Usually should be Allocator.Persistent</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public BurstSpinLock(Allocator allocator)
+        public BurstSpinLock(Allocator allocator
+#if CLAIM_TRACKING
+            , [CallerLineNumber] int callerLine = -1
+#endif
+            )
         {
-            m_LockHolder = RefStruct<long>.Create(0, allocator);
+            m_LockHolder = RefStruct<long>.Create(0, allocator
+#if CLAIM_TRACKING
+                , callerLine
+#endif
+                );
         }
 
         /// <summary> Dispose this spin lock. <see cref="IDisposable"/> </summary>

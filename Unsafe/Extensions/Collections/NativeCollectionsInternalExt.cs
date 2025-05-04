@@ -54,7 +54,7 @@ namespace Libraries.VLib.Unsafe.Extensions.Collections
         }
 
         ///<summary> You must call <see cref="ManualReleaseSafetyHandle{T}"/> on the returned native array, or you will anger the dimwitted Unity gods!!!!!! </summary>
-        public static NativeArray<T> AsArrayCustomReadonly<T>(this UnsafeList<T> list, int size = -1)
+        public static NativeArray<T> AsArrayCustomReadonly<T>(in this UnsafeList<T> list, int size = -1)
             where T : unmanaged
         {
             if (size < 1)

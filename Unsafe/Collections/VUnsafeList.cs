@@ -229,6 +229,19 @@ namespace VLib
             
             ListData.AddRange(otherList.ListData.Ptr + startIndex, count); // This line check this list is created implicitly
         }
+        
+        public unsafe void AddRange(UnsafeList<T> otherList, int startIndex = 0, int count = 0)
+        {
+            this.ConditionalCheckIsCreated();
+            otherList.ConditionalCheckIsCreated();
+            
+            if (count <= 0)
+                count = otherList.Length - startIndex;
+            
+            VCollectionUtils.ConditionalCheckRangeValid(startIndex, count, otherList.Length);
+            
+            ListData.AddRange(otherList.Ptr + startIndex, count);
+        }
 
         /// <summary>
         /// Appends the elements of a buffer to the end of this list.
@@ -403,7 +416,21 @@ namespace VLib
         public readonly unsafe bool IsCreated
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => listData != null;
+            get
+            {
+#if UNITY_EDITOR
+                if (listData == null)
+                    return false;
+                if (!listData->IsCreated)
+                {
+                    UnityEngine.Debug.LogError("listData != null, but listData->IsCreated is false!");
+                    return false;
+                }
+                return true;
+#else
+                return listData != null;
+#endif
+            }
         }
 
         /// <summary> Releases all resources. </summary>
@@ -606,7 +633,7 @@ namespace VLib
         public void CopyFrom(in NativeArray<T> other)
         {
             other.ConditionalCheckIsCreated();
-            VCollectionUtils.CopyFromTo(other.AsUnsafeList(NativeSafety.ReadOnly), this);
+            VCollectionUtils.CopyFromTo(other.AsUnsafeList_UNSAFE(NativeSafety.ReadOnly), this);
         }
 
         /// <summary>

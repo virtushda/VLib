@@ -21,6 +21,7 @@ namespace VLib
     public abstract class CmdRenderMeshStructProcBase<TPropStruct> : ICmdRenderInstancedProcBase
         where TPropStruct : unmanaged, ICmdPropStruct, IEquatable<TPropStruct>
     {
+        static readonly int PropBuffer = Shader.PropertyToID("_PropBuffer");
         protected bool needsRefresh = true;
         protected Mesh mesh;
         protected Material material;
@@ -81,7 +82,7 @@ namespace VLib
 
             propertiesBuffer.SetData(properties.AsArray());
 
-            propBlock.SetBuffer("_PropBuffer", propertiesBuffer);
+            propBlock.SetBuffer(PropBuffer, propertiesBuffer);
             //material.SetBuffer("_PropBuffer", propertiesBuffer);
             needsRefresh = false;
         }

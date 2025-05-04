@@ -37,18 +37,17 @@ namespace VLib
             _ => throw new ArgumentOutOfRangeException(nameof(edgeIndex), edgeIndex, "Edge Index must be 0, 1, or 2")
         };
 
-        public readonly float Area => GetArea(new float3 (math.length(AToB), math.length(BToC), math.length(CToA)));
+        public readonly float Area => GetArea(new float3 (length(AToB), length(BToC), length(CToA)));
 
-        public readonly float3 EdgeLengths => new float3(math.length(AToB), math.length(BToC), math.length(CToA));
-        public readonly half3 EdgeLengthsHalf => new half3((half)math.length(AToB), (half)math.length(BToC), (half)math.length(CToA));
+        public readonly float3 EdgeLengths => new(length(AToB), length(BToC), length(CToA));
 
         public static float GetArea(in float3 edgeLengths)
         {
-            float a = edgeLengths.x;
-            float b = edgeLengths.y;
-            float c = edgeLengths.z;
-            float s = (a + b + c) / 2f;
-            var area = math.sqrt(math.abs(s * (s - a) * (s - b) * (s - c)));
+            var a = edgeLengths.x;
+            var b = edgeLengths.y;
+            var c = edgeLengths.z;
+            var s = (a + b + c) / 2f;
+            var area = sqrt(abs(s * (s - a) * (s - b) * (s - c)));
             BurstAssert.True(area >= 0);
             return area;
         }
@@ -115,7 +114,7 @@ namespace VLib
             return true;
         }
         
-        public readonly bool ContainsXZInHeight(float3 pos, float heightBelowThres, float heightAboveThres)
+        public readonly bool ContainsXZInHeight(float3 pos, float2 heightLimits)
         {
             // Check XZ Containment
             var tri2D = To2D_XZ;
@@ -123,7 +122,7 @@ namespace VLib
                 return false;
             
             // Check Height Containment
-            return PointInHeightRangeXZ(pos, heightBelowThres, heightAboveThres, false);
+            return PointInHeightRangeXZ(pos, heightLimits, false);
             
             /*var center = Center;
             if (center.y > pos.y + heightAboveThres)
@@ -134,31 +133,30 @@ namespace VLib
             return true;*/
         }
         
-        public readonly bool ContainsXZInHeightOffset(float3 pos, float heightBelowThres, float heightAboveThres, out float3 pointOnTri, float barycentricOffset = 0)
+        public readonly bool ContainsXZInHeightOffset(float3 pos, float2 heightLimits, out float3 pointOnTri,
+            out float3 unclampedBarycentricCoords, float barycentricOffset = 0)
         {
-            pointOnTri = ProjectPointToSurfaceXZ(pos.xz, out var barycentricCoords);
+            pointOnTri = ProjectPointToSurfaceXZClamped(pos.xz, out unclampedBarycentricCoords, out _);
             
             // Check Barycentric XZ Containment
-            if (math.cmin(barycentricCoords) < barycentricOffset)
+            if (cmin(unclampedBarycentricCoords) < barycentricOffset)
                 return false;
             
             // Check Height Containment
-            return PointInHeightRangeOfSurfacePoint(pos.y, heightBelowThres, heightAboveThres, pointOnTri);
+            return PointInHeightRangeOfSurfacePoint(pos.y, heightLimits, pointOnTri);
         }
 
-        public readonly bool PointInHeightRangeXZ(float3 point, float heightBelowThres, float heightAboveThres, bool clampBarycentric)
+        public readonly bool PointInHeightRangeXZ(float3 point, float2 heightLimits, bool clampBarycentric)
         {
             var surfacePointXZ = clampBarycentric ?
                 ProjectPointToSurfaceXZClamped(point.xz, out _, out _) :
                 ProjectPointToSurfaceXZ(point.xz, out _);
-            return PointInHeightRangeOfSurfacePoint(point.y, heightBelowThres, heightAboveThres, surfacePointXZ);
+            return PointInHeightRangeOfSurfacePoint(point.y, heightLimits, surfacePointXZ);
         }
 
-        static bool PointInHeightRangeOfSurfacePoint(float pointY, float heightBelowThres, float heightAboveThres, float3 surfacePointXZ)
-        {
-            return !(surfacePointXZ.y > pointY + heightAboveThres || surfacePointXZ.y < pointY - heightBelowThres);
-        }
-        
+        static bool PointInHeightRangeOfSurfacePoint(float pointY, float2 heightLimits, float3 surfacePointXZ) =>
+            !(surfacePointXZ.y < pointY - heightLimits.x || surfacePointXZ.y > pointY + heightLimits.y);
+
         public static float3 ClampBarycentric(float3 coords)
         {
             var positiveCoords = math.max(coords, 0);
@@ -200,6 +198,19 @@ namespace VLib
                 random01B = 1f - random01B;
             }
             return a - random01A * (c - b) + (random01B - 1f) * (a - c);
+        }
+
+        public static float CalculateBarycentricMultiplier(float3 edgeLengths)
+        {
+            // Calculate heights from each vertex to the opposite edge
+            var areaMult = GetArea(edgeLengths) * 4f;
+            var heightA = areaMult / edgeLengths.y;
+            var heightB = areaMult / edgeLengths.z;
+            var heightC = areaMult / edgeLengths.x;
+    
+            // Find the minimum height
+            var minHeight = min(min(heightA, heightB), heightC);
+            return 2f / minHeight;
         }
 
         /*/// <summary> Returns true if the input line overlaps any edge of the triangle in XZ space, where the intersection point returned is the one closest to the end of the input line.

@@ -105,6 +105,8 @@ namespace Libraries.KeyedAccessors.Lightweight
             success = true;
             return ref values.ElementAt(keyIndex);
         }
+        
+        public ref TValue ElementAt(int index) => ref values.ElementAt(index);
 
         public bool RemoveSwapback(TKey key, out TValue removedValue)
         {

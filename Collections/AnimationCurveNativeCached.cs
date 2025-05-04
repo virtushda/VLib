@@ -10,15 +10,15 @@ namespace VLib
     /// <summary> Legacy native version that caches animation curve values into an array. </summary>
     public struct AnimationCurveNativeCached : IAllocating
     {
-        public UnsafeList<float> curveData;
+        public VUnsafeList<float> curveData;
         public WrapMode wrapMode;
         
-        public int Resolution => curveData.m_length;
+        public int Resolution => curveData.Length;
 
         public AnimationCurveNativeCached(AnimationCurve curve, int resolution = 256, WrapMode wrapMode = WrapMode.Clamp, float sampleScale = 1f, Allocator allocator = Allocator.Persistent)
         {
             resolution = math.max(4, resolution);
-            curveData = new UnsafeList<float>(resolution, allocator);
+            curveData = new (resolution, allocator);
             curveData.Length = resolution;
             this.wrapMode = wrapMode;
 
@@ -58,9 +58,14 @@ namespace VLib
 
         public void Resample(AnimationCurve sourceCurve, float sampleScale = 1f)
         {
+            BurstAssert.True(curveData.IsCreated);
+            BurstAssert.True(curveData.Length > 0);
+            BurstAssert.True(sourceCurve != null);
+            BurstAssert.True(sampleScale > 0f);
+            
             sourceCurve.preWrapMode = WrapMode.Clamp;
             sourceCurve.postWrapMode = WrapMode.Clamp;
-            float resolutionF = curveData.m_length - 1; //We want last index to evaluate at 1 exactly
+            float resolutionF = curveData.Length - 1; //We want last index to evaluate at 1 exactly
                 
             for (int i = 0; i < curveData.Length; i++)
             {

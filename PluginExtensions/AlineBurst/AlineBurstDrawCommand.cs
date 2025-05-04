@@ -2,6 +2,7 @@
 using Unity.Mathematics;
 using UnityEngine;
 using VLib.Aline.Drawers;
+using VLib.Unsafe.Structures;
 
 namespace VLib.Aline
 {
@@ -10,12 +11,12 @@ namespace VLib.Aline
     {
         public AlineDrawShape shape;
         /// <summary> A portion of memory to store drawing data, not an actual matrix. Usage defined by <see cref="shape"/> </summary>
-        public float4x4 drawData;
+        public UnmanagedData64 drawData;
         public Color color;
         public float duration;
         public byte lineThickness;
         
-        public AlineBurstDrawCommand(AlineDrawShape shape, in float4x4 drawData, in Color color, float duration, byte lineThickness)
+        public AlineBurstDrawCommand(AlineDrawShape shape, in UnmanagedData64 drawData, in Color color, float duration, byte lineThickness)
         {
             this.shape = shape;
             this.drawData = drawData;

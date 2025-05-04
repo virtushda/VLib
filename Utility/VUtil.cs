@@ -21,12 +21,37 @@ namespace VLib
 
         public static class IO
         {
-            public static string PathNavUpDir(string path, int stepsUpward = 1)
+            public static string PathNavUpDirToAbsolute(string path, int stepsUpward = 1)
             {
                 for (int i = 0; i < stepsUpward; i++)
                     path = Path.Combine(path, @"../");
 
                 return Path.GetFullPath(path);
+            }
+
+            /// <summary> Step up one directory </summary>
+            public static string PathNavUpDir(string path)
+            {
+                if (string.IsNullOrEmpty(path))
+                    return path;
+                // Check first separator
+                var lastSeparatorIndex = path.LastIndexOf(Path.DirectorySeparatorChar);
+                if (lastSeparatorIndex < 0)
+                {
+                    // Oh no, check for alt separator
+                    lastSeparatorIndex = path.LastIndexOf(Path.AltDirectorySeparatorChar);
+                    if (lastSeparatorIndex < 0)
+                        return path;
+                }
+                return path.Substring(0, lastSeparatorIndex);
+            }
+
+            /// <summary> Compatible with relative paths, will not navigate above root. </summary>
+            public static string PathNavUpDir(string path, int stepsUpward)
+            {
+                for (int i = 0; i < stepsUpward; i++)
+                    path = PathNavUpDir(path);
+                return path;
             }
             
             public static bool PathsAreEqual(string path1, string path2)
@@ -48,10 +73,45 @@ namespace VLib
                 
                 return fullPath1.Equals(fullPath2);
             }
+            
+            public static string ChangeAllDirSeparatorsTo(string path, char separator)
+            {
+                if (separator == Path.DirectorySeparatorChar)
+                    path = path.Replace(Path.AltDirectorySeparatorChar, separator);
+                else if (separator == Path.AltDirectorySeparatorChar)
+                    path = path.Replace(Path.DirectorySeparatorChar, separator);
+                else
+                {
+                    path = path.Replace(Path.DirectorySeparatorChar, separator);
+                    path = path.Replace(Path.AltDirectorySeparatorChar, separator);
+                }
+                return path;
+            }
 
             public static string PathCombineToAbsolute(string pathBase, string pathAddition)
             {
                 return Path.GetFullPath(Path.Combine(pathBase, pathAddition));
+            }
+
+            public static string RelativizePathToUnity(string absolutePath, bool keepAssetsFolder)
+            {
+                if (absolutePath.IsNullOrWhitespace())
+                    return absolutePath;
+                if (!Path.IsPathRooted(absolutePath))
+                {
+                    Debug.LogError($"Path is not rooted: {absolutePath}");
+                    return absolutePath;
+                }
+                
+                // Find Assets
+                var assetsIndex = absolutePath.IndexOf("Assets");
+                if (assetsIndex < 0)
+                {
+                    Debug.LogError($"Path does not contain 'Assets': {absolutePath}");
+                    return absolutePath;
+                }
+                
+                return absolutePath.Substring(assetsIndex + (keepAssetsFolder ? 0 : "Assets/".Length));
             }
 
             /// <summary> Defensive method to ensure a directory exists. </summary>

@@ -2,6 +2,7 @@
 #define DEBUG_ADDITIONAL_CHECKS
 //#define DEADLOCK_DEBUG // Reports additional information during lock timeouts. Enables a mechanism to identify who is holding the exclusive lock.
 //#define RECURSIVE_READ_DEBUG // IF ORDERED, it is not safe to recursively read lock within one thread, this causes a circular deadlock with another thread's write lock.
+#define CLAIM_TRACKING // Pass through line IDs to refstruct system
 #endif
 
 #if ENABLE_PROFILER
@@ -211,12 +212,20 @@ namespace VLib
         /// This allows recursive reads to push through, and the write lock can come back around to try again. </para>
         /// <para> Orderless locks are ideal for complex situations where you need to protect a resource, and access order is not strictly important. </para> </param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public BurstSpinLockReadWrite(Allocator allocator, bool isOrdered = true)
+        public BurstSpinLockReadWrite(Allocator allocator, bool isOrdered = true
+#if CLAIM_TRACKING
+            , [CallerLineNumber] int callerLine = -1
+#endif
+            )
         {
             // Create a list, then create a separate double-buffered pointer to it
             var lockBuffer = new Data {m_LockHolder = new UnsafeList<long>(MemorySize, allocator), ordered = isOrdered};
             lockBuffer.InitRecursiveReadLock(allocator);
-            m_LockHolder = RefStruct<Data>.Create(lockBuffer, allocator);
+            m_LockHolder = RefStruct<Data>.Create(lockBuffer, allocator
+#if CLAIM_TRACKING
+                    , callerLine
+#endif
+                    );
 
             ref var lockedCache = ref m_Locked;
             for (var i = 0; i < MemorySize; i++)

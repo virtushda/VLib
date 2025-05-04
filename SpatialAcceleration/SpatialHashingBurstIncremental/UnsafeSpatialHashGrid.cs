@@ -5,6 +5,7 @@ using Libraries.KeyedAccessors.Lightweight;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using VLib.Iterators;
 
@@ -60,8 +61,13 @@ namespace VLib.SpatialAcceleration
             cells.Dispose();
         }
 
+        static readonly ProfilerMarker AddUpdateMarker = new ProfilerMarker("UnsafeSpatialHashGrid.AddUpdate");
         public bool AddUpdate(in T value)
         {
+#if ENABLE_PROFILER
+            using var profileScope = AddUpdateMarker.Auto();
+#endif
+            
             var boundsIncExc = ComputeCellBoundsIncExc(cellSize, value.SpatialHashPosition, value.SpatialHashHalfSize);
 
             // ADD

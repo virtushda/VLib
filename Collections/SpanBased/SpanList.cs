@@ -55,11 +55,13 @@ namespace VLib
         public void RemoveAt(int index)
         {
             VCollectionUtils.ConditionalCheckIndexValid(index, count);
+            // If not last index, we need to shift memory
             if (index < count - 1)
             {
                 var memoryPastIndex = span.Slice(index + 1, count - index - 1);
                 memoryPastIndex.CopyTo(span.Slice(index));
             }
+            --count;
         }
         
         public void Clear() => count = 0;
@@ -69,7 +71,7 @@ namespace VLib
     {
         /// <summary> Be warned that stack allocations MUST be quite small! </summary>
         public static SpanList<T> AsList<T>(in this Span<T> span) where T : unmanaged => new(span);
-        
+
         public static long MemoryUseBytes<T>(in this SpanList<T> list) where T : unmanaged => list.span.Length * UnsafeUtility.SizeOf<T>();
     }
 }

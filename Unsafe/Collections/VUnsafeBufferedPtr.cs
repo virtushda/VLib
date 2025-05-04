@@ -9,18 +9,18 @@ namespace VLib
     public struct VUnsafeBufferedPtr : IEquatable<VUnsafeBufferedPtr>
     {
         /// <summary> This must be added to a void* or IntPtr, NOT a T* </summary>
-        const int BufferedOffset = 337; // Little prime number nudge
+        const int BufferedOffset = 37; // Little prime number nudge
         
         [NativeDisableUnsafePtrRestriction]
-        unsafe void* ptr;
+        readonly unsafe void* ptr;
         /// <summary> The pointer copy that is expected to be at a specific offset. Random memory is extremely unlikely to produce this same offset. </summary>
-        [NativeDisableUnsafePtrRestriction]
-        IntPtr ptrOffset;
+        [NativeDisableUnsafePtrRestriction] 
+        readonly unsafe void* ptrOffset;
         
-        readonly unsafe IntPtr MainPtrWithOffset
+        readonly unsafe byte* MainPtrWithOffset
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ((IntPtr) ptr) + BufferedOffset;
+            get => (byte*)ptr + BufferedOffset;
         }
 
         public unsafe VUnsafeBufferedPtr(void* ptr) : this()
@@ -35,9 +35,10 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                // Check for offset, equality and NOT NULL
+                // Constructor does not allow null
+                /*// Check for offset, equality and NOT NULL
                 if (ptr == null)
-                    return false;
+                    return false;*/
                 // OFFSET AND EQUALITY
                 return ptrOffset == MainPtrWithOffset;
             }
@@ -64,15 +65,11 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly unsafe bool TryGetPtr(out void* ptr)
+        public readonly unsafe bool TryGetPtr(out void* outPtr)
         {
-            if (IsCreated)
-            {
-                ptr = this.ptr;
-                return true;
-            }
-            ptr = default;
-            return false;
+            bool isValid = IsCreated;
+            outPtr = isValid ? ptr : null;
+            return isValid;
         }
 
         public unsafe bool Equals(VUnsafeBufferedPtr other) => ptr == other.ptr && ptrOffset == other.ptrOffset;
@@ -83,7 +80,7 @@ namespace VLib
         {
             unchecked
             {
-                return ((int) (long) ptr) * 397;
+                return (((long) ptr).GetHashCode() * 397) ^ ((long)ptrOffset).GetHashCode();
             }
         }
 

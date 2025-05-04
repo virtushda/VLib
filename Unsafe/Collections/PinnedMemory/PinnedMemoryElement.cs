@@ -4,6 +4,7 @@
 
 using System;
 using System.Diagnostics;
+using VLib.Unsafe.Utility;
 
 namespace VLib
 {
@@ -41,6 +42,32 @@ namespace VLib
                 CheckCreated();
                 *tPtr = value;
             }
+        }
+
+        /// <summary> Avoid creation check, only appropriate in cases where you are 100% certain the element is created. </summary>
+        public T UNSAFE_ValueUnchecked
+        {
+            get => *tPtr;
+            set => *tPtr = value;
+        }
+        
+        public ref T TryGetRef(out bool hasValue)
+        {
+#if EXTRA_SAFE_MODE
+            if (defensivePointer.TryGetPtr(out var ptr))
+            {
+                hasValue = true;
+                return ref *(T*)ptr;
+            }
+#else
+            if (tPtr != null)
+            {
+                hasValue = true;
+                return ref *tPtr;
+            }
+#endif
+            hasValue = false;
+            return ref VUnsafeUtil.NullRef<T>();
         }
         
         public ref T Ref

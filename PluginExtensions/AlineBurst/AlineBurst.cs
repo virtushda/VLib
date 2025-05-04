@@ -1,4 +1,5 @@
-﻿using Drawing;
+﻿using System.Runtime.CompilerServices;
+using Drawing;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -6,6 +7,7 @@ using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
 using VLib.Aline.Drawers;
+using VLib.Systems;
 using VLib.Threading;
 using VLib.Utility;
 
@@ -82,15 +84,16 @@ namespace VLib.Aline
         
         public static bool IsInitialized => Shared.Data.IsCreated;
         
-        public static void EnqueueRay(in Ray ray, float length, Color color = default, float duration = default, byte lineThickness = default)
+        public static void EnqueueRay(in Ray ray, float length, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
         {
             if (!IsInitialized)
                 return;
+            HandleDurationWhilePaused(ref duration, allowDurationWhilePaused);
             var rayCommand = AlineBurstCommands.Rays.Create(ray, length, color, duration, lineThickness);
             Shared.Data.Add(rayCommand);
         }
         
-        public static void EnqueueLine(in float3 start, in float3 end, Color color = default, float duration = default, byte lineThickness = default)
+        public static void EnqueueLine(in float3 start, in float3 end, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
         {
             if (!IsInitialized)
                 return;
@@ -99,29 +102,33 @@ namespace VLib.Aline
             // Prevent division by zero
             if (length < 0.0001f)
                 return;
+            HandleDurationWhilePaused(ref duration, allowDurationWhilePaused);
             EnqueueRay(new Ray(start, startToEnd / length), length, color, duration, lineThickness);
         }
         
-        public static void EnqueueSphere(in float3 position, float radius, Color color = default, float duration = default, byte lineThickness = default)
+        public static void EnqueueSphere(in float3 position, float radius, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
         {
             if (!IsInitialized)
                 return;
+            HandleDurationWhilePaused(ref duration, allowDurationWhilePaused);
             var sphereCommand = AlineBurstCommands.Spheres.Create(new SphereNative(position, radius), color, duration, lineThickness);
             Shared.Data.Add(sphereCommand);
         }
         
-        public static void EnqueueBox(in float3 position, in quaternion rotation, in float3 size, Color color = default, float duration = default, byte lineThickness = default)
+        public static void EnqueueBox(in float3 position, in quaternion rotation, in float3 size, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
         {
             if (!IsInitialized)
                 return;
+            HandleDurationWhilePaused(ref duration, allowDurationWhilePaused);
             var cubeCommand = AlineBurstCommands.Boxes.Create(position, size, rotation, color, duration, lineThickness);
             Shared.Data.Add(cubeCommand);
         }
         
-        public static void EnqueueCapsule(in CapsuleNative capsule, Color color = default, float duration = default, byte lineThickness = default)
+        public static void EnqueueCapsule(in CapsuleNative capsule, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
         {
             if (!IsInitialized)
                 return;
+            HandleDurationWhilePaused(ref duration, allowDurationWhilePaused);
             var capsuleCommand = AlineBurstCommands.Capsules.Create(capsule, color, duration, lineThickness);
             Shared.Data.Add(capsuleCommand);
         }
@@ -141,6 +148,17 @@ namespace VLib.Aline
         {
             using var _ = DrawAllProfileMarker.Auto();
             Shared.Data.DrawAllInternal(ref draw);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static void HandleDurationWhilePaused(ref float duration, bool allowDurationWhilePaused)
+        {
+            if (duration > 0)
+            {
+                // If time is paused, it's incredibly dangerous to continuously build up commands with duration
+                if (VTime.deltaTime == 0 && !allowDurationWhilePaused)
+                    duration = 0;
+            }
         }
     }
 }

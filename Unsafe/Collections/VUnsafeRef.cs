@@ -1,5 +1,6 @@
 ﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
 #define SAFETY
+//#define ULTRA_SAFETY_CHECKS // Makes every VUnsafeRef include a VSafetyHandle
 #endif
 
 using System;
@@ -20,6 +21,11 @@ namespace VLib
     {
         [NativeDisableUnsafePtrRestriction]
         T* ptr;
+        
+#if ULTRA_SAFETY_CHECKS
+        [MarshalAs(UnmanagedType.U1)] bool requiresSafetyHandle; // The safety handle system itself uses one of these, so we need to special-case disable the safety.
+        VSafetyHandle safetyHandle;
+#endif
 
         internal AllocatorManager.AllocatorHandle m_AllocatorLabel;
         public AllocatorManager.AllocatorHandle AllocatorLabel => m_AllocatorLabel;
@@ -47,10 +53,22 @@ namespace VLib
 
         static void Allocate(AllocatorManager.AllocatorHandle allocator, out VUnsafeRef<T> reference, bool clearMemory = true)
         {
-            //CollectionHelper.CheckAllocator(allocator);
             reference = default;
             AllocateMemory(ref reference.ptr, Allocator.Persistent, clearMemory);
             reference.m_AllocatorLabel = allocator;
+#if ULTRA_SAFETY_CHECKS
+            if (VSafetyHandleManager.InternalMemoryField.Data.IsCreated)
+            {
+                reference.safetyHandle = VSafetyHandle.Create();
+                reference.requiresSafetyHandle = true;
+            }
+            else
+            {
+                Debug.LogError("VSafetyHandleManager is not created!");
+                reference.safetyHandle = default;
+                reference.requiresSafetyHandle = false;
+            }
+#endif
         }
 
         public readonly void* Ptr
@@ -103,7 +121,24 @@ namespace VLib
         /// Whether this reference has been allocated (and not yet deallocated).
         /// </summary>
         /// <value>True if this reference has been allocated (and not yet deallocated).</value>
-        public readonly bool IsCreated => ptr != null;
+        public readonly bool IsCreated
+        {
+            get
+            {
+#if ULTRA_SAFETY_CHECKS
+                if (requiresSafetyHandle && !safetyHandle.IsValid)
+                    return false;
+                // Safety handle is valid past this point
+                if (requiresSafetyHandle && ptr == null)
+                {
+                    Debug.LogError("Safety handle is valid, but ptr is null!");
+                    return false;
+                }
+#endif
+                return ptr != null;
+            }
+        }
+
         public static implicit operator bool(in VUnsafeRef<T> unsafeRef) => unsafeRef.IsCreated;
         
         /// <summary>Releases all resources (memory and safety handles). Inherently safe, will not throw exception if already disposed.</summary>
@@ -113,6 +148,10 @@ namespace VLib
             {
                 DisposeMemory(ref ptr, m_AllocatorLabel);
                 m_AllocatorLabel = default;
+#if ULTRA_SAFETY_CHECKS
+                if (requiresSafetyHandle)
+                    safetyHandle.Dispose();
+#endif
             }
             else
                 Debug.LogError("You're trying to dispose a VUnsafeRef that has already been disposed! (It holds a null ptr)");
@@ -169,8 +208,7 @@ namespace VLib
         {
             return IsCreated ? (int)(IntPtr)ptr : 0;
         }
-
-
+        
         /// <summary>
         /// Returns true if the values stored in two references are equal.
         /// </summary>

@@ -132,61 +132,6 @@ namespace VLib
             T Execute(int index, T singleValue);
         }
 
-        public interface IVectIterationAction<T, V> : IIterationAction<T>
-            where T : unmanaged
-            where V : unmanaged
-        {
-            void ExecuteVectorized(int index, V vectorizedValue);
-        }
-
-        /// <summary> Be careful with type alignment! </summary>
-        /// <param name="array"></param>
-        /// <param name="action"></param>
-        /// <typeparam name="TSingle"></typeparam>
-        /// <typeparam name="TVec"></typeparam>
-        /// <typeparam name="TAction"></typeparam>
-        [GenerateTestsForBurstCompatibility]
-        public static void IterateVectorized<TSingle, TVec, TAction>(this ref NativeArray<TSingle> array, ref TAction action)
-            where TSingle : unmanaged
-            where TVec : unmanaged
-            where TAction : struct, IVectIterationAction<TSingle, TVec>
-        {
-            if (!array.IsCreated)
-            {
-                Debug.LogError("Attempted to Iterate an uncreated native array...");
-                return;
-            }
-
-            int vecArrayLength4 = array.Length / 4;
-            int vecArrayLengthSingle = vecArrayLength4 * 4;
-
-            if (vecArrayLength4 > 0)
-            {
-                //Read Vectorized
-                NativeArray<TVec> vectorizedView = array.GetSubArray(0, vecArrayLengthSingle).Reinterpret<TVec>(UnsafeUtility.SizeOf<TSingle>());
-                for (int i = 0; i < vecArrayLength4; i++)
-                    action.ExecuteVectorized(i, vectorizedView[i]);
-
-                //Read Last Few
-                for (int i = vecArrayLength4 * 4; i < array.Length; i++)
-                    action.Execute(i, array[i]);
-            }
-            else
-            {
-                //Read Last Few
-                for (int i = 0; i < array.Length; i++)
-                    action.Execute(i, array[i]);
-            }
-
-            //Read Vectorized
-            /*for (i = 0; i + 3 < array.Length; i += 4)
-                action.ExecuteVectorized(i, array.ReinterpretLoad<TVec>(i));*/
-
-            //Read Last Few
-            /*for (; i < array.Length; i++)
-                action.Execute(i, array[i]);*/
-        }
-
     #endregion
 
     #region Native List
@@ -245,21 +190,19 @@ namespace VLib
             }
         }
 
-        /// <summary> WARNING - NO SAFETY: Does not check list size or state. </summary>
         public static T PopUnsafe<T>(this NativeList<T> list)
             where T : unmanaged, IEquatable<T>
         {
             int index = list.Length - 1;
-            T element = list[index];
+            T element = list[index]; // Implicitly checks is created and index range
             list.RemoveAt(index);
             return element;
         }
 
-        /// <summary> No range checks, will pop first list element. </summary>
         public static T PopFirstUnsafe<T>(this NativeList<T> list)
             where T : unmanaged, IEquatable<T>
         {
-            T element = list[0];
+            T element = list[0]; // Implicitly checks is created and index range
             list.RemoveAt(0);
             return element;
         }
@@ -297,9 +240,10 @@ namespace VLib
         }
         
         /// <summary>Enforces fitting length, then write value. Treats the list like an array of unlimited size.</summary> 
-        public static void Write<T>(this NativeList<T> list, int index, T value) 
+        public static void WriteResizing<T>(this NativeList<T> list, int index, T value) 
             where T : unmanaged
         {
+            BurstAssert.True((uint)index < int.MaxValue);
             if (list.Length <= index)
                 list.Length = index + 1;
             list[index] = value;
@@ -356,7 +300,7 @@ namespace VLib
                 sortedList.AddSorted(valuesToAdd[i], out _);
         }
 
-        public static void AddRangeSorted<T>(this NativeList<T> sortedList, UnsafeList<T> valuesToAdd)
+        public static void AddRangeSorted<T>(this NativeList<T> sortedList, in UnsafeList<T> valuesToAdd)
             where T : unmanaged, IComparable<T>
         {
             sortedList.Capacity = math.max(sortedList.Capacity, sortedList.Length + valuesToAdd.Length);
@@ -680,7 +624,7 @@ namespace VLib
             sortedList.ResortComparables();
         }
 
-        public static void PopulateWithUnsortedArray<T>(this ref UnsafeList<T> sortedList, UnsafeList<T> unsortedList)
+        public static void PopulateWithUnsortedArray<T>(this ref UnsafeList<T> sortedList, in UnsafeList<T> unsortedList)
             where T : unmanaged, IComparable<T>
         {
             sortedList.Clear();

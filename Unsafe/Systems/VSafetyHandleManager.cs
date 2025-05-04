@@ -28,26 +28,26 @@ namespace VLib
         {
             long idBasis;
             VUnsafeParallelPinnedMemory<ulong> safetyMemory;
-            long takenHandles;
             
             public bool IsCreated => safetyMemory.IsCreated;
-            public long TakenHandles => takenHandles;
+            public int TakenHandles => safetyMemory.TakenCount();
 
             internal void Initialize()
             {
                 Dispose();
                 safetyMemory = new VUnsafeParallelPinnedMemory<ulong>(SafetyListCount, SafetyListSize);
                 idBasis = -long.MaxValue;
-                takenHandles = 0;
             }
 
             internal void Dispose()
             {
-                if (takenHandles != 0)
-                    Debug.LogError($"VSafetyHandleManager is being disposed with {takenHandles} active handles!");
                 if (safetyMemory.IsCreated)
+                {
+                    var takenCount = safetyMemory.TakenCount();
+                    if (takenCount != 0)
+                        Debug.LogError($"VSafetyHandleManager is being disposed with {takenCount} active handles!");
                     safetyMemory.Dispose();
-                takenHandles = 0;
+                }
                 
 #if STACKTRACE_CLAIM_TRACKING
                 LogAllTraces();
@@ -60,7 +60,6 @@ namespace VLib
                 CheckCreated();
                 var pinnedMemory = safetyMemory.GetPinnedAddress();
                 pinnedMemory.Value = GetUniqueID();
-                Interlocked.Increment(ref takenHandles);
                 
 #if STACKTRACE_CLAIM_TRACKING
                 TrackStackTrace(pinnedMemory.Value);
@@ -76,7 +75,6 @@ namespace VLib
 #if STACKTRACE_CLAIM_TRACKING
                 UntrackStackTrace(handle.safetyIDCopy);
 #endif
-                Interlocked.Decrement(ref takenHandles);
                 bool returned = safetyMemory.ReturnAddress(handle.truthLocation);
                 BurstAssert.True(returned);
                 return true;

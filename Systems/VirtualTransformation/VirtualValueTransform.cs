@@ -3,6 +3,7 @@
 #endif
 
 using System;
+using System.Runtime.CompilerServices;
 using Unity.Burst.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -36,7 +37,7 @@ namespace VLib
         }
 
         /// <summary> Protected native buffer that must be keyed by an external collection for safety. </summary>
-        VUnsafeKeyedRef<Internal> data;
+        RefStruct<Internal> data;
 
         readonly ref Internal DataRef
         {
@@ -55,27 +56,31 @@ namespace VLib
         public readonly bool IsCreated => data.IsCreated;
         
         /// <summary> Creates a new VirtualTransform. </summary>
-        public unsafe VirtualValueTransform(byte* key, Transform t, VirtualValueTransform parent = default)
+        public VirtualValueTransform(Transform t, VirtualValueTransform parent = default, VSafetyHandle safetyHandle = default)
         {
             data = default;
-            SetData(key, t, parent);
+            SetData(t, parent, safetyHandle);
         }
 
         /// <summary> Allows you to create null (or default) virtual transforms and populate them later. Be careful not to call this on a copy! </summary>
-        public unsafe void SetData(byte* key, Transform t, VirtualValueTransform newParent = default)
+        public void SetData(Transform t, VirtualValueTransform newParent = default, VSafetyHandle safetyHandle = default)
         {
             if (t == null)
                 throw new ArgumentNullException(nameof(t), "Transform is NULL!");
 
             if (!data.IsCreated)
-                data = new VUnsafeKeyedRef<Internal>(default, key, Allocator.Persistent);
-
+            {
+                if (safetyHandle.IsValid)
+                    data = RefStruct<Internal>.CreateWithExistingHandle(safetyHandle);
+                else
+                    data = RefStruct<Internal>.Create();
+            }
             // The virtual transform will be able to be related efficiently via this ID
             DataRef.transformID = t.GetInstanceID();
             parent = newParent;
 
             //localMatrix = float4x4.TRS(t.localPosition, t.localRotation, t.localScale);
-            CopyTRSFrom(t);
+            CopyLocalTRSFrom(t);
         }
         
         public void Dispose()
@@ -248,6 +253,23 @@ namespace VLib
         }
         
         public readonly AffineTransform localToWorldAffineTransform => new(localToWorldMatrix);
+        
+        public readonly void GetPositionAndRotation(out float3 pos, out quaternion q)
+        {
+            var parentTransform = parent;
+            if (parentTransform)
+            {
+                parentTransform.GetFullToWorldMatrix(out var parentMatrix);
+                pos = transform(parentMatrix, localPosition);
+                var parentRotation = quaternion(parentMatrix.ToRotScale3X3());
+                q = mul(parentRotation, localRotationNative);
+            }
+            else
+            {
+                pos = localPosition;
+                q = localRotation;
+            }
+        }
 
         // VirtualTransforms /direction/ from local space to world space.
         public readonly float3 TransformDirection(float3 inDirection)
@@ -336,10 +358,12 @@ namespace VLib
         }
 
         /// <summary> Copies Translations, Rotations and Scales from the given transform with safety checks for (in editor only). </summary>
-        public readonly void CopyTRSFrom(ref TransformAccess transformAccess)
+        public readonly void CopyLocalTRSFrom(ref TransformAccess transformAccess, out TRS trs)
         {
             transformAccess.GetLocalPositionAndRotation(out var tLocalPos, out var tLocalRot);
             var tLocalScale = transformAccess.localScale;
+            
+            trs = new TRS(tLocalPos, tLocalRot, tLocalScale);
             
             DataRef.localMatrix = float4x4.TRS(
                 UnsafeUtility.As<Vector3, float3>(ref tLocalPos), 
@@ -371,7 +395,7 @@ namespace VLib
         }
 
         /// <summary> Copies Translations, Rotations and Scales from the given transform with safety checks for (in editor only). </summary>
-        public readonly void CopyTRSFrom(Transform transform)
+        public readonly void CopyLocalTRSFrom(Transform transform)
         {
             transform.GetLocalPositionAndRotation(out var tLocalPos, out var tLocalRot);
             var tLocalScale = transform.localScale;

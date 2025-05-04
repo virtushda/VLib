@@ -1,5 +1,6 @@
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 #define SAFETY
+// TODO: VSafetyHandle mode for in-depth safety checks
 #endif
 
 using System;

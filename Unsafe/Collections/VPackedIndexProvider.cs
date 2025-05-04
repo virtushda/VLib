@@ -63,8 +63,8 @@ namespace VLib
             locker.Dispose();
             recyclables.Dispose();
         }
-        
-        public void ReportAllOutstanding() //[CallerMemberName] string callerName = default, [CallerLineNumber] int callerLine = -1)
+
+        void ReportAllOutstanding() //[CallerMemberName] string callerName = default, [CallerLineNumber] int callerLine = -1)
         {
             var recyclableCount = recyclables.Count;
             var takenIndices = nextIndex - recyclableCount;
@@ -75,7 +75,7 @@ namespace VLib
             }
         }
 
-        public int CountRecyclable()
+        public int TakenCount()
         {
             this.ConditionalCheckIsCreated();
             using var lockHold = locker.ScopedAtomicLock();

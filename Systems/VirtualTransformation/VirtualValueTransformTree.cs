@@ -18,8 +18,6 @@ namespace VLib
             public UnsafeList<VirtualValueTransform> transforms;
             public UnsafeParallelHashMap<int, int> idToIndexMap;
             
-            public byte accessKey;
-            
             public UnsafeParallelHashMap<int, byte> hyperAccessIDsTaken;
             public bool HyperAccessActive => hyperAccessIDsTaken.IsCreated;
         }
@@ -36,8 +34,6 @@ namespace VLib
 
         public ulong OwnerIndex => InternalRef.ownerIndex;
 
-        unsafe byte* AccessKey => (byte*) UnsafeUtility.AddressOf(ref data.ValueRef.accessKey);
-
         public VirtualValueTransformTree(ulong ownerID, List<Transform> transforms) : this()
         {
             var dataStruct = new Internal
@@ -45,8 +41,6 @@ namespace VLib
                 ownerIndex = ownerID,
                 transforms = new UnsafeList<VirtualValueTransform>(transforms.Count, Allocator.Persistent),
                 idToIndexMap = new UnsafeParallelHashMap<int, int>(transforms.Count, Allocator.Persistent),
-                // Create key with access granted
-                accessKey = 1,
             };
             data = RefStruct<Internal>.Create(dataStruct);
             
@@ -64,7 +58,6 @@ namespace VLib
             VirtualValueTransformTreeEvents.InvokePreDispose(this);
             
             ref var dataRef = ref InternalRef;
-            dataRef.accessKey = 0;
             
             DisableHyperAccess();
             
@@ -242,10 +235,8 @@ namespace VLib
 
                 dataRef.idToIndexMap.Add(instanceID, i);
                 // Create virtual transforms without parents or children, these will be established later as a given parent could not be created before its children or vice-versa
-                unsafe
-                {
-                    dataRef.transforms.Add(new VirtualValueTransform(AccessKey, transform));
-                }
+                // Child transforms will use the same safety handle as the tree itself
+                dataRef.transforms.Add(new VirtualValueTransform(transform, safetyHandle: data.safetyHandle));
             }
 
             // Establish relationships

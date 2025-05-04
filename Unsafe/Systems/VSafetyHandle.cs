@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Unity.Collections.LowLevel.Unsafe;
 
@@ -18,8 +19,18 @@ namespace VLib
             return handle.safetyIDCopy;
         }
 
-        public bool IsValid => truthLocation.IsCreated && truthLocation.Value == safetyIDCopy;
-        
+        public bool IsValid
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                ref var truthValueRef = ref truthLocation.TryGetRef(out var hasValue);
+                if (!hasValue)
+                    return false;
+                return truthValueRef == safetyIDCopy;
+            }
+        }
+
         internal VSafetyHandle(PinnedMemoryElement<ulong> truthLocation)
         {
             this.truthLocation = truthLocation;

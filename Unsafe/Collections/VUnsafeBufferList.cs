@@ -258,6 +258,31 @@ namespace VLib
             
             SetActive(index, false);
             listData[index] = defaultValue;
+            
+            // If we removed the last active element, we need to correct the length to fit the active range
+            if (listData.Length == index + 1)
+            {
+                // If the first index, no backscan
+                if (index == 0)
+                    Length = 0;
+                else
+                {
+                    // Backscan
+                    bool found = false;
+                    for (int i = index - 1; i >= 0; i--)
+                    {
+                        if (indicesActive[i])
+                        {
+                            Length = i + 1;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                        Length = 0;
+                }
+            }
+
             packedIndices.ReturnIndex(index);
         }
 

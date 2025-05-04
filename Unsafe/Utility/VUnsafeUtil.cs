@@ -19,7 +19,8 @@ namespace VLib.Unsafe.Utility
             where TB : struct
         {
             // Ensure that the size of TA is less than or equal to the size of TB, so we can safely copy TA into TB
-            BurstAssert.ValueGreaterOrEqualTo(UnsafeUtility.SizeOf<TB>(), UnsafeUtility.SizeOf<TA>());
+            BurstAssert.ValueLessOrEqualTo(UnsafeUtility.SizeOf<TA>(), UnsafeUtility.SizeOf<TB>());
+            // Write A value into B memory
             ref var bAsA = ref UnsafeUtility.As<TB, TA>(ref b);
             bAsA = a;
         }

@@ -8,6 +8,28 @@ namespace VLib
 {
     public static class HashSetExt
     {
+        public static bool TryGetFirst<T>(this HashSet<T> hashSet, out T first)
+        {
+            foreach (var item in hashSet)
+            {
+                first = item;
+                return true;
+            }
+            first = default;
+            return false;
+        }
+        
+        public static bool TryTakeFirst<T>(this HashSet<T> hashSet, out T first)
+        {
+            if (hashSet.TryGetFirst(out first))
+            {
+                hashSet.Remove(first);
+                return true;
+            }
+            first = default;
+            return false;
+        }
+        
         public static long MemoryFootprintBytes<T>(this HashSet<T> hashSet)
             where T : unmanaged
         {

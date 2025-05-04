@@ -24,7 +24,7 @@ namespace VLib
         // Data
         VUnsafeRef<T> refData;
         // Security
-        readonly VSafetyHandle safetyHandle;
+        public readonly VSafetyHandle safetyHandle;
 
         public readonly ulong SafetyID => safetyHandle.safetyIDCopy;
         public readonly bool IsCreated => safetyHandle.IsValid;
@@ -69,6 +69,13 @@ namespace VLib
             refData = new VUnsafeRef<T>(value, allocator);
             safetyHandle = VSafetyHandle.Create();
         }
+        
+        RefStruct(T value, Allocator allocator, VSafetyHandle safetyHandle)
+        {
+            BurstAssert.True(safetyHandle.IsValid);
+            this.safetyHandle = safetyHandle;
+            refData = new VUnsafeRef<T>(value, allocator);
+        }
 
         /// <summary> Dispose with the instance's <see cref="Dispose"/> method. </summary>
         public static RefStruct<T> Create(T value = default, Allocator allocator = Allocator.Persistent
@@ -81,6 +88,24 @@ namespace VLib
 #if CLAIM_TRACKING
             RefStructTracker.Track(refStruct.safetyHandle.safetyIDCopy, callerLine);
 #endif
+            return refStruct;
+        }
+
+        public static RefStruct<T> CreateWithExistingHandle(VSafetyHandle safetyHandle, T value = default, Allocator allocator = Allocator.Persistent
+            /*#if CLAIM_TRACKING
+            , [CallerLineNumber] int callerLine = -1
+#endif
+            */
+            )
+        {
+            RefStruct<T> refStruct = new RefStruct<T>(value, allocator, safetyHandle);
+            
+            // NOTE:
+            // Does not use claim tracking because safety handle is presumably being shared and is tracked already
+            
+/*#if CLAIM_TRACKING
+            RefStructTracker.Track(refStruct.safetyHandle.safetyIDCopy, callerLine);
+#endif*/
             return refStruct;
         }
 

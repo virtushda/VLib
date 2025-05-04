@@ -16,6 +16,7 @@ namespace VLib.Collections
         internal readonly long id;
 
         public bool IsValid => pooledList != null && id == pooledList.id;
+        public static implicit operator bool(in PooledObjectList<T> list) => list.IsValid;
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal PooledObjectList(PooledObjectListObj pooledList, long id)
@@ -71,6 +72,9 @@ namespace VLib.Collections
                 pooledList.count = value;
             }
         }
+
+        /// <summary> Gets the count of elements if valid, or zero if the list is not valid. </summary>
+        public int CountSafe => IsValid ? Count : 0;
 
         public int Capacity
         {
@@ -149,19 +153,13 @@ namespace VLib.Collections
         /// Returns an enumerator over the elements of this list.
         /// </summary>
         /// <returns>An enumerator over the elements of this list.</returns>
-        public Enumerator GetEnumerator()
-        {
-            AssertValidID();
-            return new Enumerator(this);
-        }
-
+        public Enumerator GetEnumerator() => new(this);
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
         /// </summary>
         /// <returns>Throws NotImplementedException.</returns>
         /// <exception cref="NotImplementedException">Method is not implemented.</exception>
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
         /// </summary>
@@ -173,9 +171,17 @@ namespace VLib.Collections
         {
             readonly PooledObjectList<T> list;
             int index;
+            readonly bool valid;
 
             public Enumerator(PooledObjectList<T> list)
             {
+                valid = list.IsValid;
+                if (!list.IsValid)
+                {
+                    this = default;
+                    return;
+                }
+                
                 this.list = list;
                 index = -1;
             }
@@ -186,7 +192,7 @@ namespace VLib.Collections
 
             object IEnumerator.Current => Current;
 
-            public bool MoveNext() => ++index < list.Count;
+            public bool MoveNext() => valid && ++index < list.Count;
 
             public void Reset() => index = -1;
         }
@@ -213,6 +219,8 @@ namespace VLib.Collections
         [Conditional("UNITY_EDITOR"), MethodImpl(MethodImplOptions.AggressiveInlining)]
         void AssertValidID()
         {
+            if (pooledList == null)
+                throw new InvalidOperationException("SharedObjectList is not initialized!");
             if (pooledList.id == 0)
                 throw new InvalidOperationException("SharedObjectList has been disposed!");
         }

@@ -127,7 +127,7 @@ namespace VLib
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void ConditionalCheckIsCreated<T>(this UnsafeList<T> list)
+        public static void ConditionalCheckIsCreated<T>(in this UnsafeList<T> list)
             where T : unmanaged
         {
             if (!list.IsCreated)
@@ -145,7 +145,7 @@ namespace VLib
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void ConditionalCheckIsCreated<T>(this UnsafeHashSet<T> set)
+        public static void ConditionalCheckIsCreated<T>(in this UnsafeHashSet<T> set)
             where T : unmanaged, IEquatable<T>
         {
             if (!set.IsCreated)
@@ -164,7 +164,7 @@ namespace VLib
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void ConditionalCheckIsCreated<T, U>(this UnsafeHashMap<T, U> set)
+        public static void ConditionalCheckIsCreated<T, U>(in this UnsafeHashMap<T, U> set)
             where T : unmanaged, IEquatable<T>
             where U : unmanaged
         {
@@ -215,8 +215,8 @@ namespace VLib
         #region Centralized implementations for IVLibUnsafeContainer interfaces
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void EnsureCapacity<TCollection>(this TCollection collection, int capacity)
-            where TCollection : IVLibUnsafeContainer
+        public static void EnsureCapacity<TCollection>(ref this TCollection collection, int capacity)
+            where TCollection : unmanaged, IVLibUnsafeContainer
         {
             if (collection.Capacity < capacity)
                 collection.Capacity = capacity;
@@ -313,7 +313,7 @@ namespace VLib
         /// Copies all elements of specified container to this container additively.
         /// </summary>
         /// <param name="source">An container to copy into this container.</param>
-        internal static void AddRange<TCollection, T>(UnsafeList<T> source, TCollection dest)
+        internal static void AddRange<TCollection, T>(in UnsafeList<T> source, TCollection dest)
             where TCollection : IVLibUnsafeContainer
             where T : unmanaged
         {
@@ -325,7 +325,7 @@ namespace VLib
             CopyFromAsArray(dest, source, 0, currentLength, source.Length);
         }
 
-        internal static void CopyFromTo<TCollection, T>(UnsafeList<T> source, TCollection dest, int sourceStart = 0, int count = 0)
+        internal static void CopyFromTo<TCollection, T>(in UnsafeList<T> source, TCollection dest, int sourceStart = 0, int count = 0)
             where TCollection : IVLibUnsafeContainer
             where T : unmanaged
         {
@@ -356,7 +356,7 @@ namespace VLib
         }
 
         /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
-        public static unsafe void CopyToAsArray<TCollection, T>(TCollection source, UnsafeList<T> dest, int sourceStart = 0, int destStart = 0, int count = 0)
+        public static unsafe void CopyToAsArray<TCollection, T>(TCollection source, in UnsafeList<T> dest, int sourceStart = 0, int destStart = 0, int count = 0)
             where TCollection : IVLibUnsafeContainerReadOnly
             where T : unmanaged
         {
@@ -374,7 +374,7 @@ namespace VLib
         }
         
         /// <summary> Treats the list like an array. Length MUST accommodate the copy range. </summary>
-        public static unsafe void CopyFromAsArray<TCollection, T>(TCollection dest, UnsafeList<T> source, int sourceStart = 0, int destStart = 0, int count = 0)
+        public static unsafe void CopyFromAsArray<TCollection, T>(TCollection dest, in UnsafeList<T> source, int sourceStart = 0, int destStart = 0, int count = 0)
             where TCollection : IVLibUnsafeContainerReadOnly
             where T : unmanaged
         {

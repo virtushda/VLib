@@ -62,7 +62,7 @@ namespace VLib
             gcHandle.Free();
         }*/
 
-        public static void CopyTo<T>(this UnsafeList<T> src, int srcIndex, UnsafeList<T> dst, int dstIndex, int length)
+        public static void CopyTo<T>(in this UnsafeList<T> src, int srcIndex, UnsafeList<T> dst, int dstIndex, int length)
             where T : unmanaged
         {
             src.ConditionalCheckIsCreated();
@@ -73,7 +73,7 @@ namespace VLib
             VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, dst.Ptr, dstIndex, length);
         }
 
-        public static void CopyToUnsafe<T>(this UnsafeList<T> src, int srcIndex, GCHandle dstHandlePinnedType, int dstIndex, int length)
+        public static void CopyToUnsafe<T>(in this UnsafeList<T> src, int srcIndex, GCHandle dstHandlePinnedType, int dstIndex, int length)
             where T : unmanaged
         {
             if (!dstHandlePinnedType.IsAllocated)
@@ -89,12 +89,29 @@ namespace VLib
             BurstAssert.True(src.Length >= srcIndex + length);
             
             VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, (T*) dstHandlePinnedType.AddrOfPinnedObject(), dstIndex, length);
-            /*UnsafeUtility.MemCpy((void*)((IntPtr)(void*)dstHandlePinnedType.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()),
-                                 (void*)((IntPtr)src.Ptr + srcIndex * UnsafeUtility.SizeOf<T>()),
-                                 length * UnsafeUtility.SizeOf<T>());*/
         }
 
-        public static void CopyToUnsafe<T>(this NativeArray<T> src, int srcIndex, ref UnsafeList<T> dst, int dstIndex, int length)
+        public static void CopyToUnsafe<T>(in this UnsafeList<T> src, int srcIndex, T[] dstArray, int dstIndex, int length)
+            where T : unmanaged
+        {
+            if (dstArray == null)
+            {
+                UnityEngine.Debug.LogError("Safety Exception: Array is null!");
+                return;
+            }
+
+            BurstAssert.True(length > 0);
+            BurstAssert.True(src.IsCreated);
+            VCollectionUtils.ConditionalCheckRangeValid(srcIndex, length, src.Length);
+            VCollectionUtils.ConditionalCheckRangeValid(dstIndex, length, dstArray.Length);
+            
+            fixed (T* targetArrayPtr = dstArray)
+            {
+                VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, targetArrayPtr, dstIndex, length);
+            }
+        }
+
+        public static void CopyToUnsafe<T>(in this NativeArray<T> src, int srcIndex, ref UnsafeList<T> dst, int dstIndex, int length)
             where T : unmanaged
         {
             src.ConditionalCheckIsCreated();
@@ -143,7 +160,6 @@ namespace VLib
             int length)
             where T : unmanaged
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (source.Length < sourceIndex + length)
                 throw new ArgumentException("Source array is smaller than the length of the copy!");
             if (dest == null)
@@ -154,7 +170,6 @@ namespace VLib
                 throw new ArgumentOutOfRangeException($"Source index '{sourceIndex}' is less than 0!");
             if (destIndex < 0)
                 throw new ArgumentOutOfRangeException($"Destination index '{destIndex}' is less than 0!");
-#endif
             
             GCHandle gcHandle = GCHandle.Alloc((object) source, GCHandleType.Pinned);
             IntPtr num = gcHandle.AddrOfPinnedObject();
@@ -174,27 +189,18 @@ namespace VLib
             int length)
             where T : unmanaged
         {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (dest == null)
                 throw new ArgumentNullException(nameof(dest));
-            if (dest.Length < destIndex + length)
-                throw new ArgumentException("Destination array is smaller than the length of the copy!");
+            VCollectionUtils.ConditionalCheckRangeValid(destIndex, length, dest.Length);
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
             if (sourceIndex < 0)
                 throw new ArgumentOutOfRangeException($"Source index '{sourceIndex}' is less than 0!");
-            if (destIndex < 0)
-                throw new ArgumentOutOfRangeException($"Destination index '{destIndex}' is less than 0!");
-#endif
             
-            var gcHandle = GCHandle.Alloc(dest, GCHandleType.Pinned);
-            VCollectionUtils.MemcpyTyped(source, sourceIndex, (T*) gcHandle.AddrOfPinnedObject(), destIndex, length);
-            //IntPtr num = gcHandle.AddrOfPinnedObject();
-            /*UnsafeUtility.MemCpy(
-                (void*) ((IntPtr) (void*) num + destIndex * UnsafeUtility.SizeOf<T>()), 
-                (void*) ((IntPtr) source + sourceIndex * UnsafeUtility.SizeOf<T>()), 
-                (long) (length * UnsafeUtility.SizeOf<T>()));*/
-            gcHandle.Free();
+            fixed (T* targetPtr = dest)
+            {
+                VCollectionUtils.MemcpyTyped(source, sourceIndex, targetPtr, destIndex, length);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -256,7 +262,7 @@ namespace VLib
             if (Hint.Unlikely(!arrayIsCreated)) //!arrayIsCreated)
                 UnityEngine.Debug.LogError("Safety Exception: Array is not created!");
             
-            var indexIsValid = index >= 0 && index < array.Length;
+            var indexIsValid = (uint)index < array.Length;
             if (Hint.Unlikely(!indexIsValid))
                 UnityEngine.Debug.LogError($"Safety Exception: Index '{index}' is not valid within array of length '{array.Length}'");
 #endif
@@ -404,8 +410,8 @@ namespace VLib
         }
         //(T*) ((IntPtr) array.ForceGetUnsafePtrNOSAFETY() + index * sizeof(T));
 
-        /// <summary>WARNING: Very unsafe! Do not dispose returned list! This is a view into a nativearray buffer.</summary>
-        public static UnsafeList<T> AsUnsafeList<T>(in this NativeArray<T> array, NativeSafety safety = NativeSafety.ReadWrite) 
+        /// <summary>WARNING: Very unsafe! Do not dispose returned list or hold onto it outside very tight scopes! This is a view into a nativearray buffer.</summary>
+        public static UnsafeList<T> AsUnsafeList_UNSAFE<T>(in this NativeArray<T> array, NativeSafety safety = NativeSafety.ReadWrite) 
             where T : unmanaged
         {
             void* bufferVoidPtr = null;
@@ -422,7 +428,7 @@ namespace VLib
             return new UnsafeList<T>(bufferPtr, array.Length);
         }
         
-        public static NativeArray<T> AsNativeArray<T>(this UnsafeList<T> list) 
+        public static NativeArray<T> AsNativeArray<T>(in this UnsafeList<T> list) 
             where T : unmanaged
         {
             if (!list.IsCreated)
@@ -522,14 +528,14 @@ namespace VLib
             return !(!list.IsCreated || index < 0 || index >= list.Length);
         }
 
-        public static bool IsIndexValid<T>(this UnsafeList<T> list, int index, bool logError = true) 
+        public static bool IsIndexValid<T>(in this UnsafeList<T> list, int index, bool logError = true) 
             where T : unmanaged
         {
 #if CORRUPTION_CHECKS
             if (logError && !math.ispow2(list.Capacity))
                 UnityEngine.Debug.LogError($"Capacity {list.Capacity} is not a power of 2!");
 #endif
-            return !(!list.IsCreated || index < 0 || index >= list.Length);
+            return !(!list.IsCreated || (uint)index >= list.Length);
         }
 
         public static bool IsIndexValid<T>(this VUnsafeList<T> list, int index, bool logError = true) 
@@ -819,7 +825,7 @@ namespace VLib
             return ref list.Ptr[index];
         }
 
-        public static bool TryGet<T>(this UnsafeList<T> list, int index, out T value, bool logError = true)
+        public static bool TryGet<T>(in this UnsafeList<T> list, int index, out T value, bool logError = true)
             where T : unmanaged
         {
 #if CORRUPTION_CHECKS
@@ -836,14 +842,14 @@ namespace VLib
             return false;
         }
         
-        public static ref T TryGetRef<T>(this UnsafeList<T> list, int index, out bool success)
+        public static ref T TryGetRef<T>(ref this UnsafeList<T> list, int index, out bool success)
             where T : unmanaged
         {
             success = list.IsIndexValid(index);
             return ref success ? ref list.ElementAt(index) : ref UnsafeUtility.AsRef<T>(null);
         }
         
-        public static bool TryGetElementPtr<T>(this UnsafeList<T> list, int index, out T* valuePtr)
+        public static bool TryGetElementPtr<T>(in this UnsafeList<T> list, int index, out T* valuePtr)
             where T : unmanaged
         {
             var isValidIndex = list.IsIndexValid(index);
@@ -886,7 +892,7 @@ namespace VLib
         }
         
         /// <summary> Will return 'default' on a 0-length list. </summary>
-        public static T Peek<T>(this UnsafeList<T> list, bool logError = true)
+        public static T Peek<T>(in this UnsafeList<T> list, bool logError = true)
             where T : unmanaged
         {
 #if CORRUPTION_CHECKS
@@ -919,7 +925,7 @@ namespace VLib
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void CheckReinterpretLoadRange<T, U>(this UnsafeList<T> list, int sourceIndex) 
+        public static void CheckReinterpretLoadRange<T, U>(in this UnsafeList<T> list, int sourceIndex) 
             where T : unmanaged 
             where U : struct
         {
@@ -934,7 +940,7 @@ namespace VLib
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void CheckReinterpretStoreRange<T, U>(this UnsafeList<T> list, int destIndex)
+        public static void CheckReinterpretStoreRange<T, U>(in this UnsafeList<T> list, int destIndex)
             where T : unmanaged
             where U : struct
         {
@@ -948,13 +954,13 @@ namespace VLib
                 throw new ArgumentOutOfRangeException(nameof (destIndex), "stored byte range must fall inside container bounds");
         }
 
-        public static U ReinterpretLoad<T, U>(this UnsafeList<T> list, int sourceIndex) where U : struct where T : unmanaged
+        public static U ReinterpretLoad<T, U>(in this UnsafeList<T> list, int sourceIndex) where U : struct where T : unmanaged
         {
             list.CheckReinterpretLoadRange<T, U>(sourceIndex);
             return ReinterpretLoadUnsafe<T, U>(list, sourceIndex);
         }
 
-        static U ReinterpretLoadUnsafe<T, U>(this UnsafeList<T> list, int sourceIndex, bool logError = true) 
+        static U ReinterpretLoadUnsafe<T, U>(in this UnsafeList<T> list, int sourceIndex, bool logError = true) 
             where U : struct where T : unmanaged
         {
 #if CORRUPTION_CHECKS
@@ -965,13 +971,14 @@ namespace VLib
         }
 
         /// <summary> Write with type interpretation. </summary>
-        public static void ReinterpretStore<T, U>(this UnsafeList<T> list, int destIndex, U data) where U : struct where T : unmanaged
+        public static void ReinterpretStore<T, U>(in this UnsafeList<T> list, int destIndex, U data) 
+            where U : struct where T : unmanaged
         {
             list.CheckReinterpretStoreRange<T, U>(destIndex);
             ReinterpretStoreUnsafe(list, destIndex, data);
         }
 
-        static void ReinterpretStoreUnsafe<T, U>(this UnsafeList<T> list, int destTIndex, U data, bool logError = true) 
+        static void ReinterpretStoreUnsafe<T, U>(in this UnsafeList<T> list, int destTIndex, U data, bool logError = true) 
             where U : struct where T : unmanaged
         {
 #if CORRUPTION_CHECKS
@@ -993,7 +1000,7 @@ namespace VLib
         }
         
         /// <summary> Clears memory (memclear, writes 0s) from length to capacity. </summary>
-        public static void ClearUnusedMemory<T>(this UnsafeList<T> list)
+        public static void ClearUnusedMemory<T>(in this UnsafeList<T> list)
             where T : unmanaged
         {
             if (!list.IsCreated)

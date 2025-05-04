@@ -37,7 +37,5 @@ namespace VLib
             
             return 0;
         }
-
-        public static bool IsNanOrInf(this in float4 value) => any(isnan(value)) || any(isinf(value));
     }
 }

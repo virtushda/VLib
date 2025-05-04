@@ -102,7 +102,7 @@ namespace VLib
         }
 
         /// <summary> Special scheduler for tracked IJobParallelFors </summary>
-        public static JobHandle ScheduleTracked_ParallelForBatch<J>(ref this J job, int arrayLength, List<TrackedDependency> dependencies, JobHandle addInDeps = default, float approxBatchesPerThread = 4f, int minBatchSize = 2)
+        public static JobHandle ScheduleTracked_ParallelForBatch<J>(this J job, int arrayLength, List<TrackedDependency> dependencies, JobHandle addInDeps = default, float approxBatchesPerThread = 4f, int minBatchSize = 2)
             where J : struct, IJobParallelForBatch, ITrackedJob
         {
             Profiler.BeginSample(nameof(ScheduleTracked_ParallelForBatch));

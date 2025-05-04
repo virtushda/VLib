@@ -366,18 +366,25 @@ namespace VLib
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsNan(in this float4x4 matrix) => 
-            any(new bool4(
-            any(isnan(matrix.c0)), 
-            any(isnan(matrix.c1)), 
-            any(isnan(matrix.c2)), 
-            any(isnan(matrix.c3))));
+        public static bool IsNanOrInf(in this float4x4 matrix) => IsNanOrInf(matrix, out _);
+        
+        public static bool IsNanOrInf(in this float4x4 matrix, out bool falseNan_trueInf)
+        {
+            if (matrix.c0.IsNanOrInf(out falseNan_trueInf))
+                return true;
+            if (matrix.c1.IsNanOrInf(out falseNan_trueInf))
+                return true;
+            if (matrix.c2.IsNanOrInf(out falseNan_trueInf))
+                return true;
+            if (matrix.c3.IsNanOrInf(out falseNan_trueInf))
+                return true;
+            return false;
+        }
 
         /// <summary> Returns true if was able to draw. False if matrix contains NANs. </summary>
         public static bool DrawAline(in this float4x4 matrix, CommandBuilder aline, bool normalized = true, float scale = 1)
         {
-            if (matrix.IsNan())
+            if (matrix.IsNanOrInf())
                 return false;
            
             var vectorX = normalized ? math.normalize(matrix.c0.xyz) : matrix.c0.xyz;

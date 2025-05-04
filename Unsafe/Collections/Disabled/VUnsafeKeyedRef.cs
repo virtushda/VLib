@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Unity.Collections;
@@ -92,7 +92,7 @@ namespace VLib
                 ConditionalCheckIsCreated();
                 return ptr;
             }
-        }*/
+        }#1#
 
         /*public readonly unsafe T* TPtr
         {
@@ -101,7 +101,7 @@ namespace VLib
                 ConditionalCheckIsCreated();
                 return ptr;
             }
-        }*/
+        }#1#
 
         /// <summary> The value stored in this reference. </summary>
         public unsafe T Value
@@ -142,7 +142,7 @@ namespace VLib
             }
             ptrOut = null;
             return false;
-        }*/
+        }#1#
         
         /// <summary>Releases all resources (memory and safety handles). Inherently safe, will not throw exception if already disposed.</summary>
         public unsafe void Dispose()
@@ -277,4 +277,4 @@ namespace VLib
         
         #endregion
     }
-}
+}*/

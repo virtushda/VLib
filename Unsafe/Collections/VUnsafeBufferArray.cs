@@ -20,7 +20,7 @@ namespace VLib
     public struct VUnsafeBufferArray<T> : IAllocating, INativeList<T>, IEnumerable<T> // Used by collection initializers.
         where T : unmanaged
     {
-        VUnsafeRef<Data> data;
+        RefStruct<Data> data;
 
         /// <summary> Inherently checks IsCreated </summary>
         readonly ref Data DataRef
@@ -37,7 +37,7 @@ namespace VLib
         readonly ref readonly Data DataReadRef => ref DataRef;
         readonly ref readonly Data DataReadRefUnsafe => ref data.ValueRef;
 
-        struct Data : IAllocating
+        public struct Data : IAllocating
         {
             internal VUnsafeBufferList<T> list;
             UnsafeHashMap<int, SafePtr<T>> bufferRenters;
@@ -287,7 +287,7 @@ namespace VLib
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(AllocatorManager.AllocatorHandle)})]
         void Initialize(int initialCapacity, Allocator allocator, bool supportsRenting, bool logStillActiveOnDispose)
         {
-            data = new VUnsafeRef<Data>(new Data(initialCapacity, allocator, supportsRenting, logStillActiveOnDispose), allocator);
+            data = RefStruct<Data>.Create(new Data(initialCapacity, allocator, supportsRenting, logStillActiveOnDispose), allocator);
         }
 
         /// <summary> Releases all resources. </summary>
@@ -295,7 +295,7 @@ namespace VLib
         {
             if (!IsCreated)
                 return;
-            DataRef.Dispose();
+            data.DisposeFullToDefault();
         }
 
         /// <summary> Whether this list has been allocated (and not yet deallocated). </summary>
@@ -603,7 +603,7 @@ namespace VLib
 
         /// <summary> Returns an enumerator over the active elements of this list. Does NOT include inactive elements. </summary>
         /// <returns>An enumerator over the elements of this list.</returns>
-        public VUnsafeBufferList<T>.Enumerator GetEnumerator() => new(DataRef.list);
+        public Enumerator GetEnumerator() => new(data);
 
         /// <summary>
         /// This method is not implemented. Use <see cref="GetEnumerator"/> instead.
@@ -618,6 +618,31 @@ namespace VLib
         /// <returns>Throws NotImplementedException.</returns>
         /// <exception cref="NotImplementedException">Method is not implemented.</exception>
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+
+        public struct Enumerator : IEnumerator<T>
+        {
+            RefStruct<Data> data;
+            VUnsafeBufferList<T>.Enumerator listEnumerator;
+            readonly bool created;
+            
+            public Enumerator(RefStruct<Data> data)
+            {
+                this.data = data;
+                listEnumerator = new(data.ValueRef.list);
+                created = data.IsCreated;
+            }
+
+            public void Dispose() => listEnumerator.Dispose();
+            
+            public bool MoveNext() => created && listEnumerator.MoveNext();
+            public void Reset() => listEnumerator.Reset();
+
+            public T Current => listEnumerator.Current;
+            object IEnumerator.Current => Current;
+            
+            public int CurrentIndex => listEnumerator.CurrentIndex;
+            public ref T CurrentRef => ref listEnumerator.CurrentRef;
+        }
 
         #endregion
 

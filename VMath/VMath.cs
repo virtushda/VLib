@@ -601,40 +601,82 @@ namespace VLib
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         [Conditional("UNITY_DOTS_DEBUG")]
         [Conditional("DEVELOPMENT_BUILD")]
-        public static void CheckNAN(this float value)
+        public static void CheckNANOrInf(this float value)
         {
             if (isnan(value))
                 Debug.LogError("VALUE NAN");
+            else if (isinf(value))
+                Debug.LogError("VALUE INFINITE");
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         [Conditional("UNITY_DOTS_DEBUG")]
         [Conditional("DEVELOPMENT_BUILD")]
-        public static void CheckNAN(this float2 value)
+        public static void CheckNANOrInf(this float2 value)
         {
             if (any(isnan(value)))
                 Debug.LogError("VALUE NAN");
+            else if (any(isinf(value)))
+                Debug.LogError("VALUE INFINITE");
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         [Conditional("UNITY_DOTS_DEBUG")]
         [Conditional("DEVELOPMENT_BUILD")]
-        public static void CheckNAN(this float3 value)
+        public static void CheckNANOrInf(this float3 value)
         {
             if (any(isnan(value)))
                 Debug.LogError("VALUE NAN");
+            else if (any(isinf(value)))
+                Debug.LogError("VALUE INFINITE");
+        }
+
+        public static bool IsNanOrInf(in this float4 value) => IsNanOrInf(value, out _);
+        
+        public static bool IsNanOrInf(in this float4 value, out bool falseNan_trueInf)
+        {
+            if (any(isnan(value)))
+            {
+                falseNan_trueInf = true;
+                return true;
+            }
+            if (any(isinf(value)))
+            {
+                falseNan_trueInf = false;
+                return true;
+            }
+            falseNan_trueInf = false;
+            return false;
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         [Conditional("UNITY_DOTS_DEBUG")]
         [Conditional("DEVELOPMENT_BUILD")]
-        public static void CheckNAN(this float4 value)
+        public static void CheckNANOrInf(this float4 value)
         {
             if (any(isnan(value)))
                 Debug.LogError("VALUE NAN");
+            else if (any(isinf(value)))
+                Debug.LogError("VALUE INFINITE");
         }
         
         #endregion
+
+        public static class Curve
+        {
+            /// <summary> Produces a simple bendable curve that travels from 0 to 1. The multiplier and offset can be used to transform the curve to do multiple things. <br/>
+            /// Equivalent to: 'y=\left(x^{r}\right)m+b' on Desmos (copy and paste) </summary>
+            public static float SimpleAdjustExponent_01(float x, float xExponent, float multiplier = 1f, float offset = 0) => (pow(x, xExponent) * multiplier) + offset;
+
+            /// <summary> Faster version of <see cref="SimpleAdjustExponent_01"/> without the 'pow', but exponent is fixed to 2. </summary>
+            public static float SimpleExponent2_01(float x, float multiplier = 1f, float offset = 0) => (x * x) * multiplier + offset;
+            
+            /// <summary> Faster version of <see cref="SimpleAdjustExponent_01"/> without the 'pow', but exponent is fixed to 3. </summary>
+            public static float SimpleExponent3_01(float x, float multiplier = 1f, float offset = 0) => (x * x * x) * multiplier + offset;
+            
+            /// <summary> Faster version of <see cref="SimpleAdjustExponent_01"/> without the 'pow', but exponent is fixed to 4. </summary>
+            public static float SimpleExponent4_01(float x, float multiplier = 1f, float offset = 0) => (x * x * x * x) * multiplier + offset;
+        }
         
         public static class Grid
         {

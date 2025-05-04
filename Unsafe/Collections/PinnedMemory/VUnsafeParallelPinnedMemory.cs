@@ -130,5 +130,11 @@ namespace VLib
 
             return new PinnedMemoryElement<T>(globalIndex, subListRef.GetListElementPtr(subListSubIndex));
         }
+
+        public int TakenCount()
+        {
+            this.ConditionalCheckIsCreated();
+            return packedIndices.TakenCount();
+        }
     }
 }

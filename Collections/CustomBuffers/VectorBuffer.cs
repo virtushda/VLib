@@ -63,6 +63,7 @@ namespace VLib
 
             public void Write(int index, T value)
             {
+                BurstAssert.True(index >= 0);
                 // EnsureCap checks for null
                 if (!EnsureCapacity(index + 1))
                     return;
@@ -72,6 +73,7 @@ namespace VLib
 
             public void WriteNoResize(int index, T value)
             {
+                BurstAssert.True(index >= 0);
                 var requiredLength = index + 1;
                 if (cpuBufferUnsafe.Capacity < requiredLength)
                     throw new ArgumentOutOfRangeException($"VectorBuffer CPU buffer capacity is too small! Required: {requiredLength}, Current: {cpuBufferUnsafe.Capacity}");
@@ -106,6 +108,8 @@ namespace VLib
             /// <param name="count">How many indices to reset. Less than one will reset all indices from start to the end of the buffer.</param>
             public void ResetRangeToDefaultNoDirty(int start, int count)
             {
+                BurstAssert.True((uint)start < cpuBufferUnsafe.Capacity); // Handle negatives and check under capacity
+                
                 // If unspecified count, reset all values from start to the end of the buffer
                 if (count < 1)
                     count = cpuBufferUnsafe.Capacity - start;
@@ -152,6 +156,10 @@ namespace VLib
             ResetRangeToDefaultNoDirty(0, -1);
         }
 
+        #if UNITY_EDITOR
+        private bool isDisposed;
+        #endif
+        
         public void Dispose()
         {
             // CPU
@@ -164,14 +172,26 @@ namespace VLib
             // GPU
             gpuBuffer?.Release();
             gpuBuffer = null;
+        
+        #if UNITY_EDITOR
+            isDisposed = true;
+        #endif
         }
-
+        
+        #if UNITY_EDITOR
+        ~VectorBuffer()
+        {
+            if (!isDisposed)
+                Debug.LogError($"VectorBuffer<{typeof(T)}> was not disposed! You must call Dispose() when done with the buffer.");
+        }
+        #endif
+        
         public T this[int index]
         {
             get
             {
 #if SAFETY
-                if (native == null)
+                if (!native.IsCreated)
                     throw new NullReferenceException("VectorBuffer native ptr is null!");
 #endif
                 return native.ValueRef.Read(index);
@@ -179,11 +199,21 @@ namespace VLib
             set
             {
 #if SAFETY
-                if (native == null)
+                if (!native.IsCreated)
                     throw new NullReferenceException("VectorBuffer native ptr is null!");
 #endif
                 native.ValueRef.Write(index, value);
             }
+        }
+        
+        public bool TryGetValue(int index, out T value)
+        {
+            native.ConditionalCheckValid();
+            ref var nativeRef = ref native.ValueRef;
+            nativeRef.cpuBufferUnsafe.ConditionalCheckIsCreated();
+            VCollectionUtils.ConditionalCheckIndexValid(index, nativeRef.cpuBufferUnsafe.Length);
+            
+            return nativeRef.cpuBufferUnsafe.TryGet(index, out value);
         }
 
         //public void WriteNoResize(int index, T value) => native->WriteNoResize(index, value);
@@ -239,15 +269,16 @@ namespace VLib
         public void UpdateGPUBuffer()
         {
             Profiler.BeginSample("VectorBuffer-UpdateGPUBuffer");
+            
             //If buffer is modified on the native-end, we need to ensure the GPUBuffer still fits.
             EnsureGPUBufferFitsCPUBuffer(true);
 
             ref var nativeRef = ref native.ValueRef;
-
+            
             // Absolutely ensure that the dirty range is within the bounds of the CPU buffer
             nativeRef.dirtyRange.x = max(nativeRef.dirtyRange.x, 0);
             nativeRef.dirtyRange.y = min(nativeRef.dirtyRange.y, CapacityCPU);
-            if (nativeRef.dirtyRange.x >= nativeRef.dirtyRange.y)
+            if (nativeRef.dirtyRange.x >= nativeRef.dirtyRange.y || nativeRef.cpuBufferUnsafe.Length < 1)
             {
                 // No need to update the GPU buffer if the dirty range is empty
                 if (nativeRef.dirtyRange.x > nativeRef.dirtyRange.y)
@@ -260,8 +291,9 @@ namespace VLib
             var writeBuffer = gpuBuffer.BeginWrite<T>(nativeRef.dirtyRange.x, count);
             
             // Get write view
-            var writeBufferAsUnsafeList = writeBuffer.AsUnsafeList(NativeSafety.ReadWrite);
+            var writeBufferAsUnsafeList = writeBuffer.AsUnsafeList_UNSAFE(NativeSafety.ReadWrite);
             // Get read view
+            VCollectionUtils.ConditionalCheckRangeValid(nativeRef.dirtyRange.x, count, nativeRef.cpuBufferUnsafe.Length);
             var readBuffer = new UnsafeList<T>(nativeRef.cpuBufferUnsafe.Ptr + nativeRef.dirtyRange.x, count);
             //Copy between buffers fast
             writeBufferAsUnsafeList.CopyFrom(readBuffer);

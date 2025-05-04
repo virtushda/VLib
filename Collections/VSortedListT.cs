@@ -188,8 +188,8 @@ namespace VLib
             }
         }
 
-        public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)list).GetEnumerator();
-
+        public List<T>.Enumerator GetEnumerator() => list.GetEnumerator(); 
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => ((IEnumerable<T>)list).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)list).GetEnumerator();
         
         /// <summary> Much faster than .Contains, especially for struct/unmanaged types. But the IComparer must be water-tight! </summary>

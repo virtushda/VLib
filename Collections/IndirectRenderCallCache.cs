@@ -50,7 +50,11 @@ namespace VLib.Collections
         public void Render()
         {
             for (int i = 0; i < callCount; i++)
-                renderCalls[i].Render();
+            {
+                // Ensure large call structs are referenced and not copied
+                ref var call = ref renderCalls[i];
+                call.Render();
+            }
         }
     }
 }
