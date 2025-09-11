@@ -6,6 +6,16 @@ namespace VLib.Systems
     [DefaultExecutionOrder(-32000)]
     public class VTimeUpdater : MonoBehaviour
     {
-        void Update() => VTime.OnEarlyUpdate();
+        bool hasRun = false;
+
+        void Update()
+        {
+            if (!hasRun)
+            {
+                Debug.LogError("Do not use this long-term!");
+                hasRun = true;
+            }
+            VTime.OnEarlyUpdate();
+        }
     }
 }

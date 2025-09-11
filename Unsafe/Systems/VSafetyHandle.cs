@@ -30,7 +30,8 @@ namespace VLib
                 return truthValueRef == safetyIDCopy;
             }
         }
-
+        public static implicit operator bool(VSafetyHandle handle) => handle.IsValid;
+        
         internal VSafetyHandle(PinnedMemoryElement<ulong> truthLocation)
         {
             this.truthLocation = truthLocation;

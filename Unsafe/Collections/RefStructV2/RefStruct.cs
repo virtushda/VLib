@@ -11,6 +11,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
+using VLib.SyncPrimitives.IntRef;
 using VLib.Unsafe.Utility;
 using Debug = UnityEngine.Debug;
 
@@ -91,11 +92,16 @@ namespace VLib
             return refStruct;
         }
 
-        public static RefStruct<T> CreateWithExistingHandle(VSafetyHandle safetyHandle, T value = default, Allocator allocator = Allocator.Persistent
+        // NOTE: This creates a stealthy set of problems where multiple memory locations can be guarded by the same safety handle.
+        // Problem A: The safety handle cannot stop someone from accessing a ref var acquired before disposal, but this is way more dangerous and common with multiple memory locations.
+        // Problem B: You've got multiple memory locations, but disposals after the first will early exit due to the handle being invalidated by the first disposal.
+        // Problem C: The refstruct tracking system is effectively lied to and may fail to report leaks.
+        // Final thought: If safety handles are too slow, do not share them, instead implement a high-speed caching system to feed requestors more quickly.
+        /*public static RefStruct<T> CreateWithExistingHandle(VSafetyHandle safetyHandle, T value = default, Allocator allocator = Allocator.Persistent
             /*#if CLAIM_TRACKING
             , [CallerLineNumber] int callerLine = -1
 #endif
-            */
+            #1#
             )
         {
             RefStruct<T> refStruct = new RefStruct<T>(value, allocator, safetyHandle);
@@ -105,9 +111,9 @@ namespace VLib
             
 /*#if CLAIM_TRACKING
             RefStructTracker.Track(refStruct.safetyHandle.safetyIDCopy, callerLine);
-#endif*/
+#endif#1#
             return refStruct;
-        }
+        }*/
 
         public void Dispose() => TryDispose();
 
@@ -150,7 +156,7 @@ namespace VLib
 
         public readonly ref readonly T TryGetReadOnlyRef(out bool success) => ref TryGetRef(out success);
 
-        public readonly unsafe SafePtr<T> AsSafePtr() => new SafePtr<T>(ValuePtr, safetyHandle);
+        public readonly unsafe SafePtr<T> AsSafePtr() => new SafePtr<T>(refData.RawPtr, safetyHandle);
 
         public override string ToString() => $"RefStruct|{safetyHandle} of type {typeof(T)}";
 

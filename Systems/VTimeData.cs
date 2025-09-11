@@ -20,17 +20,19 @@ namespace VLib.Systems
 
         internal struct TimeData
         {
+            internal bool timeUpdateInvoked;
+            
             /// <summary> This value comes from Time class, but the time class value should be set by <see cref="VTime.SetTimeScale"/> </summary>
-            public float currentTimeScale;
-            public float time;
-            public double timePrecise;
-            public float timeUnscaled;
-            public double timeUnscaledPrecise;
-            public float deltaTime;
-            public float smoothDeltaTime;
-            public float unscaledDeltaTime;
-            public int frameCount;
-            public float maximumDeltaTime;
+            internal float currentTimeScale;
+            internal float time;
+            internal double timePrecise;
+            internal float timeUnscaled;
+            internal double timeUnscaledPrecise;
+            internal float deltaTime;
+            internal float smoothDeltaTime;
+            internal float unscaledDeltaTime;
+            internal int frameCount;
+            internal float maximumDeltaTime;
 
             /// <summary> <inheritdoc cref="externallyUpdatedUnscaledTime"/> <br/>
             /// This version is constrained by maximumDeltaTime. </summary>
@@ -42,6 +44,8 @@ namespace VLib.Systems
 
             public void SetFromMain()
             {
+                timeUpdateInvoked = true;
+                
                 time = Time.time;
                 timePrecise = Time.timeAsDouble;
                 timeUnscaled = Time.unscaledTime;

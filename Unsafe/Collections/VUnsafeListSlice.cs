@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -86,7 +86,7 @@ namespace VLib.UnsafeListSlicing
             CheckStartLength(start, length);
         }
 
-        /*/// <summary> Create a slice with manually provided memory for length tracking. Moving the provided memory will cause dangerous behaviour. </summary>
+        /#1#// <summary> Create a slice with manually provided memory for length tracking. Moving the provided memory will cause dangerous behaviour. </summary>
         public VUnsafeListSlice(VUnsafeList<T> mainList, int start, int length, VUnsafeRef<int> externalLengthMemory)
         {
             this.mainList = mainList;
@@ -95,7 +95,7 @@ namespace VLib.UnsafeListSlicing
             lengthMemory = externalLengthMemory;
             CheckMainList();
             CheckStartLength(start, length);
-        }*/
+        }#1#
             
         /// <summary> Create from another slice. <br/>
         /// Passing None/Invalid write allocator will make this slice read-only.</summary>
@@ -128,7 +128,7 @@ namespace VLib.UnsafeListSlicing
         }
 
         // Can bring this back if needed...
-        /*/// <summary> Value at last index will be discarded if capacity is reached. </summary>
+        /#1#// <summary> Value at last index will be discarded if capacity is reached. </summary>
         public void InsertDiscardLast(int index, T value)
         {
             CheckLengthModifiable();
@@ -140,7 +140,7 @@ namespace VLib.UnsafeListSlicing
             // Insert, discarding last value
             mainList
             sublist.Insert(index, value);
-        }*/
+        }#1#
         
         /// <summary> Requires length allocation. </summary>
         public bool TryAddNoResize(in T value)
@@ -186,7 +186,7 @@ namespace VLib.UnsafeListSlicing
             LengthInternalRef--;
         }
 
-        /*/// <summary> Shifts all memory within the slice that is beyond the index, toward zero by one index. Overwrites the value at 'index'. <br/>
+        /#1#// <summary> Shifts all memory within the slice that is beyond the index, toward zero by one index. Overwrites the value at 'index'. <br/>
         /// Cannot affect length, length will be invalid. <br/>
         /// This method is intended to facilitate 'RemoveAt' behaviour when the length is tracked externally. </summary>
         public unsafe void RemoveAtMemShiftUnsafe(int index)
@@ -195,7 +195,7 @@ namespace VLib.UnsafeListSlicing
             var start = sliceStartIndex + index;
             var end = sliceStartIndex + Capacity;
             UnsafeUtility.MemMove(mainList.listData->Ptr + start, mainList.listData->Ptr + start + 1, (end - start - 1) * sizeof(T));
-        }*/
+        }#1#
 
         /// <summary> Requires length allocation. </summary>
         public void ClearFast()
@@ -384,7 +384,7 @@ namespace VLib.UnsafeListSlicing
     public static class VUnsafeListSliceExt
     {
         // Bring this back if needed...
-        /*/// <summary> Could be accelerated with a binary search if needed... </summary>
+        /#1#// <summary> Could be accelerated with a binary search if needed... </summary>
         public static bool InsertSorted<T>(this VUnsafeListSlice<T> slice, T value)
             where T : unmanaged, System.IComparable<T>
         {
@@ -397,6 +397,6 @@ namespace VLib.UnsafeListSlicing
                 }
             }
             return false;
-        }*/
+        }#1#
     }
-}
+}*/

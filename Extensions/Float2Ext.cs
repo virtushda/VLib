@@ -44,5 +44,8 @@ namespace VLib
 
         [GenerateTestsForBurstCompatibility]
         public static float Average(this float2 vec) => math.csum(vec * .5f);
+        
+        [GenerateTestsForBurstCompatibility]
+        public static float Diff(this float2 vec) => vec.y - vec.x;
     }
 }

@@ -34,6 +34,25 @@ namespace VLib
                         continue;
                 }
                 requestor.GatherTransforms(ref gatheredTransforms, ref gatheredWriteTransforms);
+                
+                // Validate roots, ensure transforms passed in are part of the animal instance current transform tree
+                var rootTransform = gatherer.gameObject.transform.root;
+                for (var i = gatheredTransforms.list.Count - 1; i >= 0; i--)
+                {
+                    var transform = gatheredTransforms.list[i];
+                    if (!transform)
+                    {
+                        Debug.LogError($"Transform is null! From requestor of type: {requestor.GetType()}");
+                        gatheredTransforms.Remove(transform);
+                        continue;
+                    }
+                    if (transform.root != rootTransform)
+                    {
+                        Debug.LogError($"Transform {transform.name} is not part of the animal instance transform tree! (root: {transform.root.name}, expected: {rootTransform.name})" +
+                                       $"From requestor of type: {requestor.GetType()}");
+                        gatheredTransforms.Remove(transform);
+                    }
+                }
             }
         }
         

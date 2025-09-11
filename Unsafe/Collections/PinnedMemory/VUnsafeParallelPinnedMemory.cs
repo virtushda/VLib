@@ -1,6 +1,7 @@
 ﻿using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine.Profiling;
+using VLib.SyncPrimitives.IntRef;
 
 namespace VLib
 {

@@ -6,6 +6,8 @@
         Ray,
         Sphere,
         CubeSolid,
-        Capsule
+        Capsule,
+        DashedLine,
+        Arc
     }
 }

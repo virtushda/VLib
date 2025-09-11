@@ -8,6 +8,8 @@ namespace VLib.Structures
     [Serializable]
     public struct HierarchicalChildPosition
     {
+        public const string startingfrom = "starting from ";
+        
         public enum TransitDir : byte { Sibling, Child }
 
         [Flags]
@@ -57,7 +59,10 @@ namespace VLib.Structures
         }
         
         /// <summary> Inserts a transit step at the beginning of the list. </summary>
-        public void Record(bool wasChild) => transitBits.InsertBitAtStart(wasChild);
+        public void RecordAtBeginning(bool wasChild) => transitBits.InsertBitAtStart(wasChild);
+        
+        /// <summary> Inserts a transit step at the end of the list. </summary>
+        public void RecordAtEnd(bool wasChild) => transitBits.AddNoResize(wasChild);
 
         /// <summary> Steps in-order from first-move to last-move to reach the destination. </summary>
         public bool TryGetTransit(int transitIndex, out TransitDir transitDir)
@@ -81,6 +86,33 @@ namespace VLib.Structures
                 str += transitBits[i] ? "->Child" : "->Sib";
             str += "->Dest";
             return str;
+        }
+
+        public static void RoundTripTestAllDescendants(Transform startingTransform)
+        {
+            var children = startingTransform.GetComponentsInChildren<Transform>();
+            foreach (var child in children)
+            {
+                if (child == startingTransform)
+                    continue;
+                
+                var result = TryRoundTripTest(startingTransform, child);
+                if (result != RoundTripResult.Success)
+                    Debug.LogError($"Failed round trip test for {child} from {startingTransform}. Result: {result}");
+            }
+        }
+
+        public enum RoundTripResult : byte { Success, ComputeFailed, GetChildFailed, GetChildSucceedMismatch }
+        
+        public static RoundTripResult TryRoundTripTest(Transform startingTransform, Transform childTransform)
+        {
+            if (!startingTransform.TryComputeChildHierarchicalPosition(childTransform, out var position))
+                return RoundTripResult.ComputeFailed;
+            if (!startingTransform.TryGetChildHierarchical(position, out var foundChild))
+                return RoundTripResult.GetChildFailed;
+            if (foundChild != childTransform)
+                return RoundTripResult.GetChildSucceedMismatch;
+            return RoundTripResult.Success;
         }
     }
 
@@ -112,13 +144,13 @@ namespace VLib.Structures
                 // Sibling steps
                 while (siblingIndex > 0)
                 {
-                    position.Record(false);
+                    position.RecordAtBeginning(false);
                     --siblingIndex;
                 }
                 
                 // Child steps
                 currentTransform = parent;
-                position.Record(true);
+                position.RecordAtBeginning(true);
                 
                 // Reached the starting transform
                 if (currentTransform == startingParentTransform)

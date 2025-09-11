@@ -14,6 +14,7 @@ using float3 = Unity.Mathematics.float3;
 using float4 = Unity.Mathematics.float4;
 using int2 = Unity.Mathematics.int2;
 using quaternion = Unity.Mathematics.quaternion;
+using Random = Unity.Mathematics.Random;
 
 namespace VLib
 {
@@ -25,6 +26,8 @@ namespace VLib
         public static readonly float3 One3 = 1;
         public static readonly float3 Right3 = Vector3.right;
         public static readonly float3 Up3 = Vector3.up;
+        /// <summary> A slightly rotated up vector. </summary>
+        public static readonly float3 SecondaryUp3 = mul(quaternion.Euler(radians(1f), 0, 0), Up3);
         public static readonly float3 Forward3 = Vector3.forward;
 
         #endregion
@@ -211,37 +214,89 @@ namespace VLib
             return maxVectorScalePastRect < 1 ? vector : vector / maxVectorScalePastRect; // Flip the scale to shrink the vector to fit into the rect
         }
         
+        /// <summary> Adapted directly from <see cref="Vector3.ProjectOnPlane"/> </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static quaternion FromToRotation(float3 from, float3 to) =>
-            quaternion.AxisAngle(
-                                 angle: acos(
-                                                  clamp(
-                                                             dot(
-                                                                      normalize(from),
-                                                                      normalize(to)
-                                                                     ),
-                                                             -1f,
-                                                             1f)
-                                                 ),
-                                 axis: normalize(cross(from, to))
-                                );
+        public static float3 ProjectOnPlane(float3 vector, float3 planeNormal)
+        {
+            float num1 = dot(planeNormal, planeNormal);
+            if (num1 <= Mathf.Epsilon)
+                return vector;
+            float num2 = dot(vector, planeNormal);
+            return vector - planeNormal * num2 / num1;
+        }
+        
+        /// <summary> Adapted directly from <see cref="Vector3.ProjectOnPlane"/> </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryProjectOnPlane(float3 vector, float3 planeNormal, out float3 projectedVector)
+        {
+            float num1 = dot(planeNormal, planeNormal);
+            if (num1 <= Mathf.Epsilon)
+            {
+                projectedVector = float3.zero;
+                return false;
+            }
+            float num2 = dot(vector, planeNormal);
+            projectedVector = vector - planeNormal * num2 / num1;
+            return true;
+        }
+
+        /// <summary> Preserves the components of a rotation that do not deviate from a specified plane. (Experimental method) </summary>
+        /// <param name="inputRotation">The rotation to restrict.</param>
+        /// <param name="planeNormal">The normal of the plane to restrict the rotation to.</param>
+        /// <param name="orthogonalFallback">If the rotation is orthogonal to the plane, this fallback rotation will be used instead. If null, input rotation will be returned.</param>
+        public static quaternion RestrictRotationToPlane(quaternion inputRotation, float3 planeNormal, quaternion? orthogonalFallback = null)
+        {
+            // Get direction
+            var rotationPrimaryDir = rotate(inputRotation, Forward3);
+            // Safe exit if orthogonal, no way to project
+            if (!TryProjectOnPlane(rotationPrimaryDir, planeNormal, out var projectedRotationDir))
+                return orthogonalFallback ?? inputRotation;
+            // Now compute delta to align the rotation with the plane
+            projectedRotationDir = normalize(projectedRotationDir);
+            var correctionRotation = FromToRotationFast(rotationPrimaryDir, projectedRotationDir);
+            return mul(correctionRotation, inputRotation);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static quaternion FromToRotation(float3 from, float3 to) => FromToRotationFast(normalizesafe(from), normalizesafe(to));
 
         /// <summary> FromToRotation without normalizing input vectors </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static quaternion FromToRotationFast(float3 fromNormalized, float3 toNormalized) =>
-            quaternion.AxisAngle(
-                                 angle: acos(
-                                                  clamp(
-                                                             dot(
-                                                                      fromNormalized,
-                                                                      toNormalized
-                                                                     ),
-                                                             -1f,
-                                                             1f)
-                                                 ),
-                                 axis: normalize(cross(fromNormalized, toNormalized))
-                                );
-        
+        public static quaternion FromToRotationFast(float3 fromNormalized, float3 toNormalized)
+        {
+            // Already checked in DirectionalCollinearity
+            /*fromNormalized.CheckNormalized();
+            toNormalized.CheckNormalized();*/
+            
+            var collinearity = DirectionalCollinearity(fromNormalized, toNormalized);
+            // Vectors are not collinear
+            if (collinearity == 0)
+            {
+                // Compute quaternion
+                return quaternion.AxisAngle(
+                    angle: acos(
+                        clamp(
+                            dot(
+                                fromNormalized,
+                                toNormalized
+                            ),
+                            -1f,
+                            1f)
+                    ),
+                    axis: normalize(cross(fromNormalized, toNormalized))
+                );
+            }
+            // Vectors pointing in the same direction
+            if (collinearity == 1)
+                return quaternion.identity;
+            
+            // Vectors must be pointing in opposite directions
+            // Pick an arbitrary orthogonal axis
+            float3 ortho = abs(fromNormalized.x) < 0.99f ? new float3(1, 0, 0) : new float3(0, 1, 0);
+            float3 axis = normalize(cross(fromNormalized, ortho));
+            return quaternion.AxisAngle(axis, PI); // 180 degrees
+        }
+
         /// <summary>Copied from Vector2.Angle. Returns value in degrees.</summary>
         [MethodImpl((MethodImplOptions) 256)]
         public static float Angle(float2 from, float2 to)
@@ -259,16 +314,16 @@ namespace VLib
             return Angle(from, to) * sign((float) (fromDouble.x * toDouble.y - fromDouble.y * toDouble.x));
         }
         
-        /// <summary>Copied from Vector3.Angle. Returns value in degrees.</summary>
+        /// <summary>Copied from Vector3.Angle. Returns value in radians.</summary>
         [MethodImpl((MethodImplOptions) 256)]
         public static float Angle(float3 from, float3 to)
         {
             float num = (float) sqrt(lengthsq(from) * (double) lengthsq(to));
-            return num < 1.0000000036274937E-15 ? 0.0f : (float) acos((double) clamp(dot(from, to) / num, -1f, 1f)) * TODEGREES;
+            return num < 1.0000000036274937E-15 ? 0.0f : (float) acos((double) clamp(dot(from, to) / num, -1f, 1f));
         }
 
-        /// <summary>Copied from Vector3.SignedAngle. Returns value in degrees.</summary>
-        /// <param name="axis"> ONLY DETERMINES THE SIGN, NOT THE AXIS OF ROTATION</param>
+        /// <summary>Copied from Vector3.SignedAngle. Returns angle in RADIANS between from and to, but not the angle around the axis. The axis is only used to determine the sign. </summary>
+        /// <param name="axis"> ONLY DETERMINES THE SIGN, NOT THE ANGLE AROUND THE AXIS OF ROTATION</param>
         [MethodImpl((MethodImplOptions) 256)]
         public static float SignedAngle(float3 from, float3 to, float3 axis)
         {
@@ -284,11 +339,19 @@ namespace VLib
 
         /// <summary> Determine the rotation between two vectors where the second direction is projected onto the plane defined by the rotation axis.
         /// NOTE: EXPECTS NORMALIZED INPUTS.</summary>
-        public static float SignedAngleDoneRight(float3 fromNorm, float3 toNorm, float3 rotationAxisNorm, float epsilon = .0001f, bool projectFrom = true, bool projectTo = true)
+        /// <returns>Angle in radians.</returns>
+        public static float SignedAngleAroundAxis(float3 fromNorm, float3 toNorm, float3 rotationAxisNorm, float epsilon = .0001f, bool projectFrom = true, bool projectTo = true)
         {
+            fromNorm.CheckNormalized();
+            toNorm.CheckNormalized();
+            rotationAxisNorm.CheckNormalized();
+            
+            // TODO: Check for more efficient implementation
             // Project vectors onto axis, unless otherwise specified
-            fromNorm = projectFrom ? Vector3.ProjectOnPlane(fromNorm, rotationAxisNorm) : fromNorm;
-            toNorm = projectTo ? Vector3.ProjectOnPlane(toNorm, rotationAxisNorm) : toNorm;
+            if (projectFrom)
+                fromNorm = ProjectOnPlane(fromNorm, rotationAxisNorm);
+            if (projectTo) 
+                toNorm = ProjectOnPlane(toNorm, rotationAxisNorm);
             
             // Check for values with essentially no rotation along a given axis, like the exact same vectors, or perfectly perpendicular vectors
             var dotOverlapOfProjected = dot(fromNorm, toNorm);
@@ -297,6 +360,73 @@ namespace VLib
             
             float angle = SignedAngle(fromNorm, toNorm, rotationAxisNorm);
             return angle;
+        }
+        
+        public static quaternion RandomRotationInCone(float maxangle)
+        {
+            Random random = new Random((uint) UnityEngine.Random.Range(10000, int.MaxValue));
+            return RandomRotationInCone(ref random, maxangle);
+        }
+        
+        public static quaternion RandomRotationInCone(ref Random random, float maxAngleDegrees)
+        {
+            if (Hint.Unlikely(maxAngleDegrees < 0f))
+                return quaternion.identity;
+            if (Hint.Unlikely(maxAngleDegrees > 180f))
+                maxAngleDegrees = 179.99f;
+            
+            float2 uv = random.NextFloat2();
+            float u = uv.x;
+            float v = uv.y;
+
+            // Evenly distributed sampling
+            float maxCos = cos(radians(maxAngleDegrees));
+            float cosTheta = 1 - u * (1 - maxCos);
+            float theta = acos(cosTheta);
+            
+            float phi = v * 2 * PI;
+
+            // Compute direction vector (along Z-cone)
+            float sinTheta = sin(theta);
+            float3 direction = new float3(
+                sinTheta * cos(phi),
+                sinTheta * sin(phi),
+                cosTheta
+            );
+
+            // Create quaternion rotating (0,0,1) to this direction
+            // Assuming up is (0,1,0); adjust if needed
+            return FromToRotationFast(Forward3, direction);
+        }
+
+        /// <summary> Returns the rotation required to rotate from one rotation to another. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static quaternion FromToRotation(in quaternion fromRotation, in quaternion toRotation)
+        {
+            fromRotation.ConditionalCheckRotationValid();
+            toRotation.ConditionalCheckRotationValid();
+            return mul(inverse(fromRotation), toRotation);
+        }
+
+        /// <summary> Extracts the roll delta between two rotations, given a local forward and up axis. </summary>
+        /// <returns> Signed angle in radians.</returns>
+        public static float SignedRollDeltaBetween(quaternion rotationA, quaternion rotationB, float3 localForwardAxis, float3 localUpAxis)
+        {
+            rotationA.ConditionalCheckRotationValid();
+            rotationB.ConditionalCheckRotationValid();
+            CheckOrthogonal(localForwardAxis, localUpAxis);
+            
+            // Get forward directions
+            var forwardA = rotate(rotationA, localForwardAxis);
+            var forwardB = rotate(rotationB, localForwardAxis);
+            // Extract directional change
+            var directionalRotation = FromToRotationFast(forwardA, forwardB);
+            // Rotate another axis vector and compare to find roll
+            var upA = rotate(rotationA, localUpAxis);
+            var upARotatedToBDir = rotate(directionalRotation, upA);
+            var upB = rotate(rotationB, localUpAxis);
+            // Extract roll
+            return SignedAngle(upARotatedToBDir, upB, forwardB);
         }
         
         public static bool TryGetInfiniteLineIntersection2D(float2 pointA, float2 directionA, float2 pointB, float2 directionB, out float2 intersectionPoint, out float lengthAlongA)
@@ -457,18 +587,201 @@ namespace VLib
             closestPointOnSegCD = ConstrainToSegment(segABtoLineCD, cd.c0, cd.c1, out _);
             closestPointOnSegAB = ConstrainToSegment(closestPointOnSegCD, ab.c0, ab.c1, out lineABLerpT); // Is this second constrain necessary??
         }
+        
+        /*public static float3 ClampDirection(in float3 direction, in float3 referenceDir, float minDot)
+        {
+            BurstAssert.True(abs(length(direction) - 1f) < 0.001f);
+            BurstAssert.True(abs(length(referenceDir) - 1f) < 0.001f);
+        
+            float dot = math.dot(direction, referenceDir);
+            if (dot >= minDot)
+                return direction;
+        
+            // Compute projection and perpendicular component
+            float3 proj = referenceDir * dot;
+            float3 perp = direction - proj;
+        
+            // Compute scale to achieve minDot, avoiding redundant lengthsq
+            float perpLenSq = math.dot(perp, perp);
+            float scale = select(
+                0f, // Return referenceDir if perpLenSq is too small
+                sqrt((1f - minDot * minDot) / perpLenSq),
+                perpLenSq > 0.0001f
+            );
+        
+            // Compute result directly as normalized vector
+            float3 result = proj + perp * scale;
+            return select(referenceDir, result * rsqrt(math.dot(result, result)), perpLenSq > 0.0001f);
+        }*/
+        
+        public static float3 ClampDirectionToCone(float3 dir, float3 controlDir, float minimumDot)
+        {
+            dir.CheckNormalized();
+            controlDir.CheckNormalized();
 
+            float measuredDot = dot(controlDir, dir);
+
+            if (measuredDot >= minimumDot)
+                return dir;
+
+            float3 orthoVector = dir - measuredDot * controlDir;
+            float orthoLength = length(orthoVector);
+            float epsilon = 1e-4f;
+
+            float3 orthoDir;
+            if (orthoLength > epsilon)
+            {
+                orthoDir = orthoVector / orthoLength;
+            }
+            else
+            {
+                // Find a vector orthogonal to controlDir
+                float3 perpendicular = cross(controlDir, new float3(1, 0, 0));
+                if (dot(perpendicular, perpendicular) < 1e-6f)
+                    perpendicular = cross(controlDir, new float3(0, 1, 0));
+                orthoDir = normalize(perpendicular);
+            }
+
+            float3 newDir = minimumDot * controlDir + sqrt(1 - minimumDot * minimumDot) * orthoDir;
+            return normalize(newDir);
+        }
+
+        /// <summary> Clamp a direction to lie along a plane surface, deviating from the plane surface by at most `maxDeviationAngleRadians`. <br/>
+        /// The inverse of clamping a direction within a cone. </summary>
+        public static float3 ClampDirectionFromPlane(float3 dir, float3 planeNormal, float maxDeviationAngleRadians, float3 fallbackDir)
+        {
+            dir.CheckNormalized();
+            planeNormal.CheckNormalized();
+            fallbackDir.CheckNormalized();
+            BurstAssert.True(maxDeviationAngleRadians >= 0f);
+            
+            // Avoid collinearity
+            if (Hint.Unlikely(DirectionalCollinearity(planeNormal, dir) != 0 || maxDeviationAngleRadians > radians(179.99f)))
+                return fallbackDir;
+            
+            var dirOnPlane = normalize(ProjectOnPlane(dir, planeNormal));
+            var angleDeltaRadians = Angle(dirOnPlane, dir);
+            
+            // Already within limit
+            if (angleDeltaRadians <= maxDeviationAngleRadians || angleDeltaRadians < 0.0001f) // Avoid div by zero
+                return dir;
+            
+            // Interpolate to limit
+            var lerpT = maxDeviationAngleRadians / angleDeltaRadians;
+            return normalize(Vector3.Slerp(dirOnPlane, dir, lerpT));
+        }
+
+        /// <summary> Generates a look direction without an up vector, but with minimal twist. Inherently more safe than a normal LookDirection, but no direct control over "twist". </summary>
+        public static quaternion LookDirectionMinimalTwist(in float3 direction)
+        {
+            direction.CheckNormalized();
+            return FromToRotationFast(quaternionExt.DefaultDirection, direction);
+            //return Quaternion.FromToRotation(quaternionExt.DefaultDirectionVec3, direction); // Potentially safer but slower unity version
+        }
+
+        public static quaternion ClampRotationDirection(quaternion rotation, in quaternion guideRotation, float maxAngleRadians)
+        {
+            BurstAssert.True(maxAngleRadians >= 0);
+            
+            // Get directions
+            var rotationDir = rotate(rotation, Forward3);
+            var guideDir = rotate(guideRotation, Forward3);
+            
+            // Determine variance angle
+            var dirAngleDeltaRadians = Angle(rotationDir, guideDir);
+            dirAngleDeltaRadians.CheckNANOrInf();
+            if (dirAngleDeltaRadians <= maxAngleRadians || dirAngleDeltaRadians < 0.0001f)
+                return rotation;
+            
+            // Avoid collinearity
+            if (dirAngleDeltaRadians > radians(179.99f))
+                return guideRotation;
+            
+            // Clamp direction
+            var correctionAngleRadians = dirAngleDeltaRadians - maxAngleRadians;
+            var correctionAxis = normalize(cross(rotationDir, guideDir));
+            var correctionRotation = quaternion.AxisAngle(correctionAxis, correctionAngleRadians);
+            
+            // Bend the rotation to stay in the "cone", but retain roll information
+            return mul(correctionRotation, rotation);
+        }
+
+        /// <summary> Computes a quaternion that aligns the given <paramref name="forward"/> vector, adaptively selecting an up vector to avoid collinearity issues. </summary>
+        public static quaternion LookRotationAdaptive(in float3 forward, float3? upInput = null, float3? secondaryUpInput = null)
+        {
+            var up = upInput ?? Up3;
+            var secondaryUp = secondaryUpInput ?? Right3;
+            
+            const float epsilon = 1e-4f;
+            const float threshold = 1f - epsilon;
+            BurstAssert.True(abs(length(forward) - 1f) < epsilon); // Forward must be normalized
+            BurstAssert.True(abs(length(up) - 1f) < epsilon); // Up must be normalized
+            BurstAssert.True(abs(length(secondaryUp) - 1f) < epsilon); // Secondary up must be normalized
+            BurstAssert.True(abs(dot(forward, secondaryUp)) < threshold); // Forward and secondary up must not be collinear
+            
+            // If forward and up are collinear (or very close to it), use secondary up
+            if (abs(dot(forward, up)) >= threshold)
+                return quaternion.LookRotation(forward, secondaryUp);
+            return quaternion.LookRotation(forward, up);
+        }
+
+        /// <summary> Returns 1 if a and b are pointing in the same direction, -1 if they are pointing in opposite directions, and 0 for anything in between, indicating they are not collinear. </summary>
+        /// <param name="a">A direction vector, MUST be normalized.</param>
+        /// <param name="b">A direction vector, MUST be normalized.</param>
+        public static int DirectionalCollinearity(in float3 a, in float3 b, float epsilon = 1e-4f)
+        {
+            a.CheckNormalized();
+            b.CheckNormalized();
+            var abDot = dot(a, b);
+            return select(0, select(-1, 1, 0f < abDot), abs(abDot) >= 1 - epsilon);
+        }
+        
+        /// <summary> Distributes a total weight in an optimal way across a number of elements, with each element receiving a weight that is a multiple of the previous element's weight. </summary>
+        public static void DistributeWeightAcrossSpan(in Span<float> weightsTarget, float totalWeight, float ratio)
+        {
+            BurstAssert.True(ratio > 0.0001f);
+            BurstAssert.True(totalWeight > 0.0001f);
+            BurstAssert.True(weightsTarget.Length > 0);
+            
+            double sum = 0, current = 1;
+            // First, build the weights
+            for (int i = 0; i < weightsTarget.Length; i++)
+            {
+                weightsTarget[i] = (float)current;
+                sum += current;
+                current *= ratio;
+            }
+            // Normalize
+            var normalizerMultiplier = (float)(totalWeight / sum);
+            for (int i = 0; i < weightsTarget.Length; i++)
+                weightsTarget[i] *= normalizerMultiplier;
+        }
+        
+        public static float3 Bezier(float3 p0, float3 p1, float3 p2, float3 p3, float t)
+        {
+            var oneMinusT = 1f - t;
+            var oneMinusT2 = oneMinusT * oneMinusT;
+            var oneMinusT3 = oneMinusT2 * oneMinusT;
+            var t2 = t * t;
+            var t3 = t2 * t;
+        
+            return oneMinusT3 * p0 + 
+                   3f * oneMinusT2 * t * p1 + 
+                   3f * oneMinusT * t2 * p2 + 
+                   t3 * p3;
+        }
+        
         #region Checks / Defensive
         
         /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float DivideChecked(this float numerator, float denominator, float epsilon = EPSILON, bool logError = true)
+        public static float DivideChecked(this float numerator, float denominator, int errorCode = 0, float epsilon = EPSILON, bool logError = true)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
             if (abs(denominator) < epsilon)
             {
                 if (logError)
-                    Debug.LogError("Division by zero!");
+                    Debug.LogError($"Division by zero! errorCode: {errorCode}");
                 return 0;
             }
 #endif
@@ -476,13 +789,13 @@ namespace VLib
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float2 DivideChecked(this float2 numerator, float2 denominator, float epsilon = EPSILON, bool logError = true)
+        public static float2 DivideChecked(this float2 numerator, float2 denominator, int errorCode = 0, float epsilon = EPSILON, bool logError = true)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
             if (any(abs(denominator) < epsilon))
             {
                 if (logError)
-                    Debug.LogError("Division by zero!");
+                    Debug.LogError($"Division by zero! errorCode: {errorCode}");
                 return float2.zero;
             }
 #endif
@@ -490,13 +803,13 @@ namespace VLib
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float3 DivideChecked(this float3 numerator, float3 denominator, float epsilon = EPSILON, bool logError = true)
+        public static float3 DivideChecked(this float3 numerator, float3 denominator, int errorCode = 0, float epsilon = EPSILON, bool logError = true)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
             if (any(abs(denominator) < epsilon))
             {
                 if (logError)
-                    Debug.LogError("Division by zero!");
+                    Debug.LogError($"Division by zero! errorCode: {errorCode}");
                 return float3.zero;
             }
 #endif
@@ -504,13 +817,13 @@ namespace VLib
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float4 DivideChecked(this float4 numerator, float4 denominator, float epsilon = EPSILON, bool logError = true)
+        public static float4 DivideChecked(this float4 numerator, float4 denominator, int errorCode = 0, float epsilon = EPSILON, bool logError = true)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG || DEVELOPMENT_BUILD
             if (any(abs(denominator) < epsilon))
             {
                 if (logError)
-                    Debug.LogError("Division by zero!");
+                    Debug.LogError($"Division by zero! errorCode: {errorCode}");
                 return float4.zero;
             }
 #endif
@@ -601,34 +914,34 @@ namespace VLib
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         [Conditional("UNITY_DOTS_DEBUG")]
         [Conditional("DEVELOPMENT_BUILD")]
-        public static void CheckNANOrInf(this float value)
+        public static void CheckNANOrInf(this float value, int errorCode = 0)
         {
             if (isnan(value))
-                Debug.LogError("VALUE NAN");
+                Debug.LogError($"VALUE NAN, errorCode: {errorCode}");
             else if (isinf(value))
-                Debug.LogError("VALUE INFINITE");
+                Debug.LogError($"VALUE INFINITE, errorCode: {errorCode}");
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         [Conditional("UNITY_DOTS_DEBUG")]
         [Conditional("DEVELOPMENT_BUILD")]
-        public static void CheckNANOrInf(this float2 value)
+        public static void CheckNANOrInf(this float2 value, int errorCode = 0)
         {
             if (any(isnan(value)))
-                Debug.LogError("VALUE NAN");
+                Debug.LogError($"VALUE NAN, errorCode: {errorCode}");
             else if (any(isinf(value)))
-                Debug.LogError("VALUE INFINITE");
+                Debug.LogError($"VALUE INFINITE, errorCode: {errorCode}");
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         [Conditional("UNITY_DOTS_DEBUG")]
         [Conditional("DEVELOPMENT_BUILD")]
-        public static void CheckNANOrInf(this float3 value)
+        public static void CheckNANOrInf(this float3 value, int errorCode = 0)
         {
             if (any(isnan(value)))
-                Debug.LogError("VALUE NAN");
+                Debug.LogError($"VALUE NAN, errorCode: {errorCode}");
             else if (any(isinf(value)))
-                Debug.LogError("VALUE INFINITE");
+                Debug.LogError($"VALUE INFINITE, errorCode: {errorCode}");
         }
 
         public static bool IsNanOrInf(in this float4 value) => IsNanOrInf(value, out _);
@@ -659,6 +972,41 @@ namespace VLib
             else if (any(isinf(value)))
                 Debug.LogError("VALUE INFINITE");
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsNormalized(this float2 value, float epsilon = 1e-4f) => abs(lengthsq(value) - 1f) < epsilon;
+        
+        /// <summary> Conditional diagnostic check that can report when a value is not normalized. </summary>
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("UNITY_DOTS_DEBUG")]
+        [Conditional("DEVELOPMENT_BUILD")]
+        public static void CheckNormalized(this float2 value, float epsilon = 1e-4f, int errorCode = 0)
+        {
+            if (!IsNormalized(value, epsilon))
+                Debug.LogError($"VALUE NOT NORMALIZED, errorCode: {errorCode}");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsNormalized(this float3 value, float epsilon = 1e-4f) => abs(lengthsq(value) - 1f) < epsilon;
+        
+        /// <summary> Conditional diagnostic check that can report when a value is not normalized. </summary>
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("UNITY_DOTS_DEBUG")]
+        [Conditional("DEVELOPMENT_BUILD")]
+        public static void CheckNormalized(this float3 value, float epsilon = 1e-4f)
+        {
+            if (!IsNormalized(value, epsilon))
+                Debug.LogError("VALUE NOT NORMALIZED");
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        [Conditional("UNITY_DOTS_DEBUG")]
+        [Conditional("DEVELOPMENT_BUILD")]
+        public static void CheckOrthogonal(this float3 value, float3 other, float epsilon = 1e-4f)
+        {
+            if (abs(dot(value, other)) > epsilon)
+                Debug.LogError("VALUE NOT ORTHOGONAL");
+        }
         
         #endregion
 
@@ -682,15 +1030,37 @@ namespace VLib
         {
             // Method to compute coord from index
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public static int2 IndexToCoord(int index, int width) => new(index % width, index / width);
-        
+            public static int2 IndexToCoord(int index, int width)
+            {
+                BurstAssert.True(width > 0, 99437775);
+                return new int2(index % width, index / width);
+            }
+
             // Method to compute index from coord
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public static int CoordToIndex(int x, int y, int width) => y * width + x;
-        
+            public static int CoordToIndex(int x, int y, int width)
+            {
+                BurstAssert.True(width > 0, 78835);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                var index = (long)y * width + x;
+                BurstAssert.TrueThrowing(index <= int.MaxValue, 78836);
+                return (int)index;
+#endif
+                return y * width + x;
+            }
+
             // Method to compute index from coord
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public static int CoordToIndex(int2 xy, int width) => xy.y * width + xy.x;
+            public static int CoordToIndex(int2 xy, int width)
+            {
+                BurstAssert.True(width > 0, 78834);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                var index = (long)xy.y * width + xy.x;
+                BurstAssert.TrueThrowing(index <= int.MaxValue, 78837);
+                return (int)index;
+#endif
+                return xy.y * width + xy.x;
+            }
 
             /*/// <summary> Loop-free method to find the coordinate if you spiral around (0,0) 'index' times in a counter-clockwise direction. </summary>
             public static int2 SpiralIndexToCoord(int index)
@@ -716,7 +1086,7 @@ namespace VLib
 
                 return new int2(layer, layer - (maxIndexInLayer - index - layerSize));
             }
-            
+
             /// <summary> Loop-free method to find the coord if you're spiraling around (0,0) 'index' times in a counter-clockwise direction. </summary>
             public static int SpiralCoordToIndex(int2 coord)
             {

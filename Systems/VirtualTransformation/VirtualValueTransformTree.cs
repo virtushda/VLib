@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
+using UnityEngine.Assertions;
 
 namespace VLib
 {
@@ -17,8 +19,9 @@ namespace VLib
             public ulong ownerIndex;
             public UnsafeList<VirtualValueTransform> transforms;
             public UnsafeParallelHashMap<int, int> idToIndexMap;
-            
-            public UnsafeParallelHashMap<int, byte> hyperAccessIDsTaken;
+
+            /// <summary> Key: TransformID, Value: Accessor unique ID set </summary>
+            public UnsafeParallelHashMap<int, UnsafeHashSet<long>> hyperAccessIDsTaken;
             public bool HyperAccessActive => hyperAccessIDsTaken.IsCreated;
         }
 
@@ -39,7 +42,7 @@ namespace VLib
             var dataStruct = new Internal
             {
                 ownerIndex = ownerID,
-                transforms = new UnsafeList<VirtualValueTransform>(transforms.Count, Allocator.Persistent),
+                transforms = new UnsafeList<VirtualValueTransform>(transforms.Count, Allocator.Persistent, NativeArrayOptions.ClearMemory),
                 idToIndexMap = new UnsafeParallelHashMap<int, int>(transforms.Count, Allocator.Persistent),
             };
             data = RefStruct<Internal>.Create(dataStruct);
@@ -55,7 +58,7 @@ namespace VLib
                 return;
             
             // Other systems are expected to use this event to return guarded refs they've taken out
-            VirtualValueTransformTreeEvents.InvokePreDispose(this);
+            VirtualValueTransformTreeEvents.InvokePreDispose(this, true);
             
             ref var dataRef = ref InternalRef;
             
@@ -67,9 +70,8 @@ namespace VLib
             
             dataRef.transforms.Dispose();
             dataRef.idToIndexMap.Dispose();
+            BurstAssert.True(data.IsCreated, 99779977);
             data.Dispose();
-            
-            VirtualValueTransformTreeEvents.DisposeHandler(this);
         }
 
         // NOTE: If this is reenabled, it will need to support deterministic sorting! (see: AutoConstructTreeFrom)
@@ -110,7 +112,34 @@ namespace VLib
         }
         
         #region Hyper Access - Secure SAFE access to low-level virtual transforms
-        
+
+        public struct TransformAccessor
+        {
+            static long accessIDSource = 0;
+            static long GetNextAccessID() => Interlocked.Increment(ref accessIDSource);
+            
+            readonly VirtualValueTransformTree tree;
+            public readonly VirtualValueTransform transform;
+            public readonly long accessID;
+            
+            public TransformAccessor(VirtualValueTransformTree tree, VirtualValueTransform transform)
+            {
+                this.tree = tree;
+                this.transform = transform;
+                accessID = GetNextAccessID();
+            }
+
+            public void Dispose()
+            {
+                if (accessID <= 0)
+                    return;
+                if (tree.IsCreated)
+                    tree.ReturnGuardedRef(this);
+                else
+                    Debug.LogError("Tree is not created, cannot return guarded ref!");
+            }
+        }
+
         public bool HyperAccessActive => InternalRef.HyperAccessActive;
         
         /// <summary> Incredibly dangerous if used wrong! Must call <see cref="DisableHyperAccess"/> after before trying to dispose the tree! </summary>
@@ -120,7 +149,7 @@ namespace VLib
             if (dataRef.HyperAccessActive)
                 return;
             BurstAssert.False(dataRef.hyperAccessIDsTaken.IsCreated); // Must not be created yet
-            dataRef.hyperAccessIDsTaken = new UnsafeParallelHashMap<int, byte>(dataRef.transforms.Length, Allocator.Persistent);
+            dataRef.hyperAccessIDsTaken = new UnsafeParallelHashMap<int, UnsafeHashSet<long>>(dataRef.transforms.Length, Allocator.Persistent);
         }
 
         public void DisableHyperAccess()
@@ -131,62 +160,69 @@ namespace VLib
             
             // Log any IDs that were not returned
             foreach (var id in dataRef.hyperAccessIDsTaken)
-                Debug.LogError($"Hyper access ID {id.Key} was not returned, held {id.Value} times!");
-            
+            {
+                Assert.IsTrue(id.Value is {IsCreated: true, Count: > 0}, "Hyper access IDs list must be populated to be in the map at all.");
+                string error = $"Hyper access ID {id.Key} was not returned, held by access IDs:\n";
+                foreach (var accessID in id.Value)
+                    error += $"  {accessID}\n";
+                Debug.LogError(error);
+                
+                id.Value.Dispose();
+            }
+
             dataRef.hyperAccessIDsTaken.Dispose();
         }
 
-        /// <summary> Must enable access guard with <see cref="EnableHyperAccess"/> to use. Must also call <see cref="ReturnGuardedRef"/> when done! </summary>
-        public bool TryGetGuardedRef(Transform t, out VirtualValueTransform virtualTransform)
+        /// <summary> Must enable access guard with <see cref="EnableHyperAccess"/> to use. Must dispose! </summary>
+        public bool TryGetGuardedRef(Transform t, out TransformAccessor virtualTransformAccessor)
         {
             if (t == null)
             {
-                virtualTransform = default;
+                virtualTransformAccessor = default;
                 return false;
             }
-            return TryGetGuardedRef(t.GetInstanceID(), out virtualTransform);
+            return TryGetGuardedRef(t.GetInstanceID(), out virtualTransformAccessor);
         }
 
         /// <summary> <inheritdoc cref="TryGetGuardedRef(UnityEngine.Transform,out VLib.VirtualValueTransform)"/> </summary>
-        public bool TryGetGuardedRef(int id, out VirtualValueTransform virtualTransform)
+        bool TryGetGuardedRef(int id, out TransformAccessor virtualTransformAccessor)
         {
             ref var dataRef = ref InternalRef;
             if (!dataRef.HyperAccessActive)
             {
                 Debug.LogError("Hyper access is not active!");
-                virtualTransform = default;
+                virtualTransformAccessor = default;
                 return false;
             }
             
             if (!dataRef.idToIndexMap.TryGetValue(id, out var transformIndex))
             {
-                virtualTransform = default;
+                virtualTransformAccessor = default;
                 return false;
             }
             
-            virtualTransform = dataRef.transforms[transformIndex];
+            var virtualTransform = dataRef.transforms[transformIndex];
+            virtualTransformAccessor = new TransformAccessor(this, virtualTransform);
             
-            // Increment counter
-            if (dataRef.hyperAccessIDsTaken.TryGetValue(id, out var counter))
+            // Track takers
+            if (dataRef.hyperAccessIDsTaken.TryGetValue(id, out var takers))
             {
-                var newCounterValue = (byte)(counter + 1);
-                if (newCounterValue >= 255)
-                {
-                    Debug.LogError($"Hyper access ID {id} has been taken {counter} times, this is the maximum allowed!");
-                    return false;
-                }
-                dataRef.hyperAccessIDsTaken[id] = newCounterValue;
+                takers.Add(virtualTransformAccessor.accessID);
+                Assert.IsFalse(takers.Count > 512, "Ridiculous number of hyper accessors!");
+                dataRef.hyperAccessIDsTaken[id] = takers;
             }
             else
-                dataRef.hyperAccessIDsTaken.Add(id, 1);
+            {
+                var newList = new UnsafeHashSet<long>(1, Allocator.Persistent);
+                newList.Add(virtualTransformAccessor.accessID);
+                dataRef.hyperAccessIDsTaken.Add(id, newList);
+            }
+
             return true;
         }
 
-        /// <summary> <inheritdoc cref="ReturnGuardedRef(int)"/> </summary>
-        public void ReturnGuardedRef(VirtualValueTransform virtualTransform) => ReturnGuardedRef(virtualTransform.TransformID);
-
         /// <summary> Not thread-safe. Required! </summary>
-        public void ReturnGuardedRef(int id)
+        readonly void ReturnGuardedRef(TransformAccessor accessor)
         {
             ref var dataRef = ref InternalRef;
             if (!dataRef.HyperAccessActive)
@@ -194,14 +230,14 @@ namespace VLib
                 Debug.LogError("Hyper access is not active!");
                 return;
             }
-            if (!dataRef.hyperAccessIDsTaken.TryGetValue(id, out var count))
+            if (!dataRef.hyperAccessIDsTaken.TryGetValue(accessor.transform.TransformID, out var takers))
                 return;
             // Decrement and return to map
-            count--;
-            if (count > 0)
-                dataRef.hyperAccessIDsTaken[id] = count;
+            takers.Remove(accessor.accessID);
+            if (takers.IsEmpty)
+                dataRef.hyperAccessIDsTaken.Remove(accessor.transform.TransformID);
             else
-                dataRef.hyperAccessIDsTaken.Remove(id);
+                dataRef.hyperAccessIDsTaken[accessor.transform.TransformID] = takers;
         }
         
         #endregion
@@ -212,6 +248,10 @@ namespace VLib
         [BurstDiscard]
         void AutoConstructTreeFrom(List<Transform> inputTransforms)
         {
+#if ENABLE_PROFILER
+            using var profileScope = ProfileScope.Auto();
+#endif
+            
             if (!data.IsCreated)
             {
                 Debug.LogError("VirtualValueTransformTree not initialized!");
@@ -236,7 +276,7 @@ namespace VLib
                 dataRef.idToIndexMap.Add(instanceID, i);
                 // Create virtual transforms without parents or children, these will be established later as a given parent could not be created before its children or vice-versa
                 // Child transforms will use the same safety handle as the tree itself
-                dataRef.transforms.Add(new VirtualValueTransform(transform, safetyHandle: data.safetyHandle));
+                dataRef.transforms.Add(new VirtualValueTransform(transform));
             }
 
             // Establish relationships
@@ -249,7 +289,7 @@ namespace VLib
                 var virtualTransformIndex = dataRef.idToIndexMap[instanceID];
                 ref var virtualTransformRef = ref dataRef.transforms.ElementAt(virtualTransformIndex);
                 
-                if (transform.parent != null)
+                if (transform.parent)
                 {
                     var parentInstanceID = transform.parent.GetInstanceID();
                     var parentVirtualTransformIndex = dataRef.idToIndexMap[parentInstanceID];

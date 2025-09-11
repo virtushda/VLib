@@ -150,6 +150,8 @@ namespace VLib.Collections
             // Array.Copy uses memmove under the hood, very fast.
             Array.Copy(internalArray, index + 1, internalArray, index, length - index - 1);
             --length;
+            // Clear previous last index
+            internalArray[length] = default;
         }
 
         /// <summary> The highest performance remove method, but alters list order. </summary>
@@ -181,8 +183,7 @@ namespace VLib.Collections
             length = 0;
             
             // If we're working with managed types, we need to clear references for the GC.
-            if (isManagedType)
-                Array.Clear(internalArray, 0, previousLength);
+            Array.Clear(internalArray, 0, previousLength);
         }
         
         public T GetOrDefault(int index)

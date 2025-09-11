@@ -3,11 +3,11 @@ using System.Collections.Generic;
 
 namespace VLib
 {
-    /// <summary> A straight-forward customizable pool that uses a regular List<T> for storage. </summary>
+    /// <summary> A straight-forward customizable pool that uses a regular <see cref="List{T}"/> for storage. </summary>
     public class VPool<T> : VPoolBase<List<T>, T>, IPool<T>
     {
         /// <inheritdoc />
-        protected VPool(
+        public VPool(
             int initPoolCapacity = DefaultInitialCapacity,
             Action<T> depoolPostProcess = null,
             Action<T> repoolPreProcess = null,

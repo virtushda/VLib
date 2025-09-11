@@ -51,6 +51,8 @@ namespace VLib
             if (!IsCreated)
                 throw new InvalidOperationException("VUnsafeBufferedPtr is not valid!");
         }
+        
+        public unsafe bool PrimaryPtrNull => ptr == null;
 
         public unsafe void* Ptr
         {

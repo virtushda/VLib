@@ -60,53 +60,6 @@ namespace VLib
 
         public static string AsTimeToPrint(this int seconds) => ((double) seconds).AsTimeToPrint();
 
-        public struct IntRefScopeLock : IDisposable
-        {
-            VUnsafeRef<int> refValue;
-            
-            public IntRefScopeLock(VUnsafeRef<int> refValue)
-            {
-                refValue.ConditionalCheckIsCreated();
-                this.refValue = refValue;
-                refValue.ValueRef.AtomicLockUnsafe();
-            }
-
-            public void Dispose() => refValue.ValueRef.AtomicUnlockChecked();
-        }
-        
-        public static IntRefScopeLock ScopedAtomicLock(this VUnsafeRef<int> refValue) => new(refValue);
-
-        /// <summary> Recommend <see cref="ScopedAtomicLock"/> over this.
-        /// <br/> For fast thread-safe ops, the lock must be release properly or the application can hang! (Use try-catch, etc)
-        /// This method will block indefinitely until the lock is acquired. USE CAUTION</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void AtomicLockUnsafe(ref this int lockValue)
-        {
-            // If threadlock isn't 0, the lock is taken
-            while (Interlocked.CompareExchange(ref lockValue, 1, 0) != 0) {}
-        }
-
-        /// <summary>Recommend <see cref="ScopedAtomicLock"/> over this.
-        /// <br/>Forcibly exits the atomic lock.</summary> 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void AtomicUnlockChecked(ref this int lockValue)
-        {
-            ConditionalErrorIfZero(lockValue);
-            Interlocked.Exchange(ref lockValue, 0);
-        }
-
-        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        public static void ConditionalErrorIfZero(this int value)
-        {
-            if (value == 0)
-                Debug.LogError($"Value '{value}' is zero!");
-        }
-
-        /// <summary>Recommend <see cref="ScopedAtomicLock"/> over this.
-        /// <br/>Forcibly exits the atomic lock.</summary> 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void AtomicUnlockUnsafe(ref this int lockValue) => Interlocked.Exchange(ref lockValue, 0);
-
         public static ushort ToUshortSafe(this int value, bool logIfBelow0 = true, bool logIfAboveMax = true)
         {
             if (value < 0)

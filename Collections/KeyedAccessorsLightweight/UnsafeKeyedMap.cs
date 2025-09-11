@@ -22,7 +22,7 @@ namespace Libraries.KeyedAccessors.Lightweight
         public readonly bool IsCreated => keys.IsCreated;
         public readonly int Length => keys.Length;
 
-        public UnsafeKeyedMap(Allocator allocator, int initCapacity = 16)
+        public UnsafeKeyedMap(Allocator allocator, int initCapacity = 16, NativeArrayOptions options = NativeArrayOptions.UninitializedMemory)
         {
             keys = new UnsafeList<TKey>(initCapacity, allocator);
             values = new UnsafeList<TValue>(initCapacity, allocator);

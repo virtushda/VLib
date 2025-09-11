@@ -12,12 +12,12 @@ namespace VLib
         public static readonly Color normalMapDefault = new Color(0.5f, 0.5f, 1);
         public static readonly Color purple = new Color(0.5f, 0, 1);
         
-        public static float4 RGBAToFloat4(this Color c) => new float4(c.r, c.g, c.b, c.a);
-        public static float3 RGBToFloat3(this Color c) => new float3(c.r, c.g, c.b);
+        public static float4 RGBAToFloat4(in this Color c) => new float4(c.r, c.g, c.b, c.a);
+        public static float3 RGBToFloat3(in this Color c) => new float3(c.r, c.g, c.b);
 
         /// <summary> Normalizes the brightness of a color, helps when lerping between colors to keep a roughly constant brightness. </summary>
         /// <param name="brightnessTarget">How "bright" should the normalized color be? 1 is default</param>
-        public static Color GetNormalizedToBrightness(this Color c, float brightnessTarget = 1)
+        public static Color GetNormalizedToBrightness(in this Color c, float brightnessTarget = 1)
         {
             float multiplier = 9999; // Support HDR
             if (c.r > 0)
@@ -41,7 +41,7 @@ namespace VLib
             return new Color(col.r * mult, col.g * mult, col.b * mult, col.a);
         }
 
-        public static Color WithAlpha(this Color col, float alpha) => new Color(col.r, col.g, col.b, alpha);
-        public static Color WithAlphaMult(this Color col, float alpha) => new Color(col.r, col.g, col.b, col.a * alpha);
+        public static Color WithAlpha(in this Color col, float alpha) => new Color(col.r, col.g, col.b, alpha);
+        public static Color WithAlphaMult(in this Color col, float alpha) => new Color(col.r, col.g, col.b, col.a * alpha);
     }
 }

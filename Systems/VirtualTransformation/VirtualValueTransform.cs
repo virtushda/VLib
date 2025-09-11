@@ -24,8 +24,8 @@ namespace VLib
     public struct VirtualValueTransform : IEquatable<VirtualValueTransform>, IDisposable
     {
         public static implicit operator bool(VirtualValueTransform t) => t.IsCreated && t.DataRef.transformID != 0;
-        
-        public struct Internal
+
+        struct Internal
         {
             /// <summary> Matches the runtime InstanceID of a <see cref="Transform"/> </summary>
             public int transformID;
@@ -56,28 +56,32 @@ namespace VLib
         public readonly bool IsCreated => data.IsCreated;
         
         /// <summary> Creates a new VirtualTransform. </summary>
-        public VirtualValueTransform(Transform t, VirtualValueTransform parent = default, VSafetyHandle safetyHandle = default)
+        public VirtualValueTransform(Transform t, VirtualValueTransform parent = default)
         {
             data = default;
-            SetData(t, parent, safetyHandle);
+            SetData(t, parent);
         }
 
         /// <summary> Allows you to create null (or default) virtual transforms and populate them later. Be careful not to call this on a copy! </summary>
-        public void SetData(Transform t, VirtualValueTransform newParent = default, VSafetyHandle safetyHandle = default)
+        public void SetData(Transform t, VirtualValueTransform newParent = default)
         {
-            if (t == null)
+            if (!t)
                 throw new ArgumentNullException(nameof(t), "Transform is NULL!");
 
             if (!data.IsCreated)
             {
-                if (safetyHandle.IsValid)
+                /*if (safetyHandle.IsValid)
                     data = RefStruct<Internal>.CreateWithExistingHandle(safetyHandle);
-                else
-                    data = RefStruct<Internal>.Create();
+                else*/
+                data = RefStruct<Internal>.Create();
             }
+
+            ref var dataRef = ref DataRef;
+            dataRef = default;
             // The virtual transform will be able to be related efficiently via this ID
-            DataRef.transformID = t.GetInstanceID();
-            parent = newParent;
+            dataRef.transformID = t.GetInstanceID();
+            if (newParent.IsCreated)
+                dataRef._parent = newParent;
 
             //localMatrix = float4x4.TRS(t.localPosition, t.localRotation, t.localScale);
             CopyLocalTRSFrom(t);
@@ -136,7 +140,7 @@ namespace VLib
             ref var dataRef = ref DataRef;
             // If not initialized, we can safely assume that it needs to be
             if (!dataRef._children.IsCreated)
-                dataRef._children = new UnsafeList<VirtualValueTransform>(1, Allocator.Persistent);
+                dataRef._children = new UnsafeList<VirtualValueTransform>(1, Allocator.Persistent, NativeArrayOptions.ClearMemory);
             else if (dataRef._children.Contains(child))
                 return;
             dataRef._children.Add(child);

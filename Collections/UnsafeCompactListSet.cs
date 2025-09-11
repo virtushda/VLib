@@ -1,7 +1,7 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using Unity.Burst.CompilerServices;
 using Unity.Collections;
-using VLib.UnsafeListSlicing;
 
 namespace VLib.Libraries.VLib.Collections
 {
@@ -68,8 +68,7 @@ namespace VLib.Libraries.VLib.Collections
             listStartLengths.Clear();
         }
 
-        /// <summary> WARNING: Providing a length allocator will require you to dispose the slice! Small perf decrease also, but provides more capabilities. </summary>
-        public bool TryGetListSliceAtIndex(int i, Allocator lengthAllocator, out VUnsafeListSlice<T> bufferSlice)
+        public bool TryGetListSliceAtIndex(int i, out Span<T> bufferSlice)
         {
             // Try get list
             if (!listStartLengths.TryGetValue(i, out var startLength))
@@ -84,7 +83,7 @@ namespace VLib.Libraries.VLib.Collections
                 return false;
             }
 
-            bufferSlice = buffer.Slice(startLength.start, startLength.length, lengthAllocator);
+            bufferSlice = buffer.ListData.LengthAsSpan().Slice(startLength.start, startLength.length);
             return true;
         }
 

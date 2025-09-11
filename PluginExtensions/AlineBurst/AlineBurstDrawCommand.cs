@@ -41,6 +41,15 @@ namespace VLib.Aline
                 case AlineDrawShape.Capsule:
                     AlineBurstCommands.Capsules.DrawWireCapsule(ref draw, ref this);
                     break;
+                case AlineDrawShape.DashedLine:
+                    AlineBurstCommands.DashedLines.DrawDashedLine(ref draw, ref this);
+                    break;
+                case AlineDrawShape.Arc:
+                    AlineBurstCommands.Arcs.DrawArc(ref draw, ref this);
+                    break;
+                default:
+                    Debug.LogError($"Unsupported AlineDrawShape: {shape}");
+                    break;
             }
         }
 

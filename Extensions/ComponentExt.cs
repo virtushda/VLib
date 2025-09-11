@@ -11,13 +11,12 @@ namespace VLib
     public static class ComponentExt
     {
         public static T GetOrAddComponent<T>(this Component c)
-            where T : Component
-        {
-            if (c.GetComponent<T>() is var retrievedComponent && retrievedComponent != null)
-                return retrievedComponent;
-            else
-                return c.gameObject.AddComponent<T>();
-        }
+            where T : Component =>
+            c.gameObject.GetOrAddComponent<T>();
+
+        public static T GetOrAddComponent<T>(this Component c, out bool added)
+            where T : Component => 
+            c.gameObject.GetOrAddComponent<T>(out added);
 
         public static void ResetFields<T>(this T obj,
                                  BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.Default | BindingFlags.NonPublic)
@@ -55,5 +54,7 @@ namespace VLib
 
             return components;
         }
+        
+        public static string AutoDebugString(this Component c) => $"'{c.GetType()}', on '{c.gameObject.name}', with root '{c.transform.root.name}'";
     }
 }

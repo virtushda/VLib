@@ -1,8 +1,11 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 namespace VLib.Unsafe.Utility
 {
+    [GenerateTestsForBurstCompatibility]
     public static unsafe class VUnsafeUtil
     {
         /// <summary> Allows you to return a 'ref' to null, such that TryGetRef patterns can cleanly return null refs when false. </summary>
@@ -11,6 +14,18 @@ namespace VLib.Unsafe.Utility
 
         /// <summary> <inheritdoc cref="NullRef{T}"/> </summary>
         public static bool IsNullRef<T>(this ref T reference) where T : struct => UnsafeUtility.AddressOf(ref reference) == null;
+        
+        public static bool IsNullReadonlyRef<T>(in T reference) where T : struct => System.Runtime.CompilerServices.Unsafe.AsRef(reference).IsNullRef();
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), 
+         Conditional("UNITY_DOTS_DEBUG"),
+         Conditional("DEVELOPMENT_BUILD")]
+        public static void CheckReadonlyRefNotNull<T>(in T reference)
+            where T : struct
+        {
+            if (IsNullReadonlyRef(reference))
+                throw new System.ArgumentNullException();
+        }
         
         /// <summary> Copies the contents of struct A into struct B. <br/>
         /// The size of A must be less than or equal to the size of B. </summary>

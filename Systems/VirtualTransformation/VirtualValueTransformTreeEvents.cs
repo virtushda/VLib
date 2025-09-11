@@ -26,10 +26,18 @@ namespace VLib
             return handler;
         }
         
-        public static void InvokePreDispose(in VirtualValueTransformTree tree)
+        public static void InvokePreDispose(in VirtualValueTransformTree tree, bool disposeHandlerAfter)
         {
-            if (handlers.TryGetValue(tree.InternalData.SafetyID, out var handler))
-                handler.Invoke_OnPreDispose(tree);
+            if (disposeHandlerAfter)
+            {
+                if (handlers.TryRemove(tree.InternalData.SafetyID, out var handler))
+                    handler.Invoke_OnPreDispose(tree);
+            }
+            else
+            {
+                if (handlers.TryGetValue(tree.InternalData.SafetyID, out var handler))
+                    handler.Invoke_OnPreDispose(tree);
+            }
         }
 
         public static void DisposeHandler(in VirtualValueTransformTree tree) => handlers.TryRemove(tree.InternalData.SafetyID, out _);

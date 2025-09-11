@@ -44,20 +44,30 @@ namespace VLib
             }
         }
 
-        /// <summary> Avoid creation check, only appropriate in cases where you are 100% certain the element is created. </summary>
+        /*/// <summary> Avoid creation check, only appropriate in cases where you are 100% certain the element is created. </summary>
         public T UNSAFE_ValueUnchecked
         {
             get => *tPtr;
             set => *tPtr = value;
-        }
+        }*/
         
         public ref T TryGetRef(out bool hasValue)
         {
 #if EXTRA_SAFE_MODE
+            // Use a more robust check
             if (defensivePointer.TryGetPtr(out var ptr))
             {
                 hasValue = true;
                 return ref *(T*)ptr;
+            }
+            else // Check that ptr is null, it can only be NULL or VALID, the release mode check can pass true if the ptr is not null
+            {
+                if (!defensivePointer.PrimaryPtrNull)
+                {
+                    UnityEngine.Debug.LogError("PinnedMemoryElement is not created, but defensive pointer is NOT null! This could cause CRASHES in release builds!");
+                    hasValue = false;
+                    return ref VUnsafeUtil.NullRef<T>();
+                }
             }
 #else
             if (tPtr != null)

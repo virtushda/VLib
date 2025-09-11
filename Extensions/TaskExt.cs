@@ -3,6 +3,7 @@ using System.Collections;
 using System.Threading.Tasks;
 using Sirenix.Utilities;
 using UnityEngine;
+using VLib.Debugging;
 
 namespace VLib
 {
@@ -26,7 +27,7 @@ namespace VLib
 
         public static IEnumerator WaitCoroutineThenUseResult<T>(this Task<T> task, Action<T> action) => TaskWaiterThen(task, action);
 
-        public static IEnumerator TaskWaiter<T>(T task, float timeout = 240)
+        static IEnumerator TaskWaiter<T>(T task, float timeout = 240)
             where T : Task
         {
             if (task == null || task.IsCompleted)
@@ -40,7 +41,7 @@ namespace VLib
             }
         }
 
-        public static IEnumerator TaskWaiterThen<T>(T task, Action action, float timeout = 240)
+        static IEnumerator TaskWaiterThen<T>(T task, Action action, float timeout = 240)
             where T : Task
         {
             if (task == null)
@@ -49,7 +50,7 @@ namespace VLib
             action?.Invoke();
         }
 
-        public static IEnumerator TaskWaiterThen<TTask, T>(TTask task, Action<T> action, float timeout = 240)
+        static IEnumerator TaskWaiterThen<TTask, T>(TTask task, Action<T> action, float timeout = 240)
             where TTask : Task<T>
         {
             if (task == null)

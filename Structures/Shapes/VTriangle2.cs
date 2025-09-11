@@ -1,5 +1,7 @@
 ﻿using System;
+using Unity.Burst.CompilerServices;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace VLib
 {
@@ -14,6 +16,8 @@ namespace VLib
         public readonly float2 ABNormalXZ => math.normalizesafe(VMath.Rotate90CCW(AB));
         public readonly float2 BCNormalXZ => math.normalizesafe(VMath.Rotate90CCW(BC));
         public readonly float2 CANormalXZ => math.normalizesafe(VMath.Rotate90CCW(CA));
+        
+        public readonly float2 Center => (a + b + c) * .3333334f;
 
         public readonly int Sides => 3;
 
@@ -107,23 +111,82 @@ namespace VLib
 
         public bool Contains(float2 point, out float3 barycentricCoords)
         {
-            barycentricCoords = BarycentricCoordsOfPoint(point);
+            barycentricCoords = BarycentricCoordsOfPoint(point, out _);
             return !math.any(barycentricCoords < 0f);
         }
         
-        public float3 BarycentricCoordsOfPoint(float2 point) => Barycentric(point, a, b, c);
+        public float3 BarycentricCoordsOfPoint(float2 point, out bool isDegenerate) => (float3) Barycentric(point, a, b, c, out isDegenerate);
+
+        public bool IsDegenerate()
+        {
+            var aDouble = (double2) a;
+            var bDouble = (double2) b;
+            var cDouble = (double2) c;
+            var v0 = bDouble - aDouble;
+            var v1 = cDouble - aDouble;
+            var d00 = math.dot(v0, v0);
+            var d01 = math.dot(v0, v1);
+            var d11 = math.dot(v1, v1);
+            var denom = d00 * d11 - d01 * d01;
+            return math.abs(denom) < math.EPSILON_DBL;
+        }
         
         // Compute barycentric coordinates (u, v, w) for point p with respect to triangle (a, b, c)
-        public static float3 Barycentric(float2 p, float2 a, float2 b, float2 c)
+        public static double3 Barycentric(double2 p, double2 a, double2 b, double2 c, out bool isDegenerate)
         {
-            float2 v0 = b - a, v1 = c - a, v2 = p - a;
-            float d00 = math.dot(v0, v0);
-            float d01 = math.dot(v0, v1);
-            float d11 = math.dot(v1, v1);
-            float d20 = math.dot(v2, v0);
-            float d21 = math.dot(v2, v1);
-            float denom = d00 * d11 - d01 * d01;
+            var v0 = b - a;
+            var v1 = c - a;
+            var v2 = p - a;
+            var d00 = math.dot(v0, v0);
+            var d01 = math.dot(v0, v1);
+            var d11 = math.dot(v1, v1);
+            var d20 = math.dot(v2, v0);
+            var d21 = math.dot(v2, v1);
+            var denom = d00 * d11 - d01 * d01;
+            if (Hint.Unlikely(math.abs(denom) < math.EPSILON_DBL))
+            {
+                //var center = (a + b + c) * 0.3333334f;
+                // Error must stay if returning fallback value!
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.LogError
+#else
+                Debug.LogWarning
+#endif
+                    ($"Denom is too near or equal to 0! Value:'{denom}' Triangle may be degenerate. Triangle vertices - A:{a}, B:{b}, C:{c}");
+                
+                // Triangle is degenerate (collinear points)
+                // Calculate squared distances between vertices
+                var abSq = math.dot(b - a, b - a);
+                var bcSq = math.dot(c - b, c - b);
+                var caSq = math.dot(a - c, a - c);
+        
+                isDegenerate = true;
+                // Find the pair of vertices that are furthest apart (the long side)
+                if (abSq >= bcSq && abSq >= caSq)
+                {
+                    // A and B are furthest apart, project p onto AB
+                    var t = math.dot(p - a, b - a) / abSq;
+                    //t = math.clamp(t, 0, 1);
+                    return new double3(1 - t, t, 0); // Barycentric: A and B only
+                }
+                else if (bcSq >= abSq && bcSq >= caSq)
+                {
+                    // B and C are furthest apart, project p onto BC
+                    var t = math.dot(p - b, c - b) / bcSq;
+                    //t = math.clamp(t, 0, 1);
+                    return new double3(0, 1 - t, t); // Barycentric: B and C only
+                }
+                else
+                {
+                    // C and A are furthest apart, project p onto CA
+                    var t = math.dot(p - c, a - c) / caSq;
+                    //t = math.clamp(t, 0, 1);
+                    return new double3(t, 0, 1 - t); // Barycentric: C and A only
+                }
+            }
+            //BurstAssert.False(denom == 0, 23451);   
             
+            isDegenerate = false;
             var v = (d11 * d20 - d01 * d21) / denom;
             var w = (d00 * d21 - d01 * d20) / denom;
             var u = 1.0f - v - w;

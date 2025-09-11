@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using Unity.Burst.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -8,9 +9,10 @@ using VLib.Unsafe.Utility;
 namespace VLib.Unsafe.Structures
 {
     /// <summary> 64 bytes of unmanaged data, convert to another type! Basically a runtime generic/dynamic value at the cost of memory. </summary>
+    [Serializable]
     public struct UnmanagedData64
     {
-        float4x4 internalData;
+        [SerializeField] float4x4 internalData;
         
         public static void ConvertFrom<T>(in T data, out UnmanagedData64 unmanagedData)
             where T : struct

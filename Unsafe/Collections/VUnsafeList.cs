@@ -11,7 +11,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using VLib.Unsafe.Utility;
-using VLib.UnsafeListSlicing;
 
 namespace VLib
 {
@@ -25,7 +24,7 @@ namespace VLib
     //[DebuggerDisplay("Length = {m_ListData == null ? default : m_ListData->Length}, Capacity = {m_ListData == null ? default : m_ListData->Capacity}")]
     //[DebuggerTypeProxy(typeof(NativeListDebugView<>))]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
-    public struct VUnsafeList<T> : IVLibUnsafeContainer, IDisposable /*INativeDisposable*/, INativeList<T>, IEnumerable<T>, IReadOnlyList<T> // Used by collection initializers.
+    public struct VUnsafeList<T> : IVLibUnsafeContainer, IDisposable /*INativeDisposable*/, INativeList<T>, IReadOnlyList<T> // Used by collection initializers.
         where T : unmanaged
     {
         [NativeDisableUnsafePtrRestriction] unsafe UnsafeList<T>* listData;
@@ -44,9 +43,7 @@ namespace VLib
 
         /// <summary> Initializes and returns a VUnsafeList with a capacity of one. </summary>
         /// <param name="allocator">The allocator to use.</param>
-        public VUnsafeList(Allocator allocator) : this(1, allocator, NativeArrayOptions.UninitializedMemory)
-        {
-        }
+        public VUnsafeList(Allocator allocator) : this(1, allocator, NativeArrayOptions.UninitializedMemory) { }
 
         /// <summary> Initializes and returns a VUnsafeList. </summary>
         /// <param name="initialCapacity">The initial capacity of the list.</param>
@@ -1019,7 +1016,7 @@ namespace VLib
 
         #endregion
         
-        #region Slicing
+        /*#region Slicing
 
         /// <summary> An unsafe window into a portion of the list. <br/>
         /// Providing a length allocator allows the slice to act like its own list with constrained capacity, but at the cost of a small allocation. </summary>
@@ -1031,16 +1028,16 @@ namespace VLib
             return new VUnsafeListSlice<T>(this, start, length, lengthAllocator);
         }
         
-        /*/// <summary> An unsafe window into a portion of the list. <br/>
+        /#1#// <summary> An unsafe window into a portion of the list. <br/>
         /// WARNING: This enables optimization, but if the list is used after the provided memory is moved or disposed, the slice will have undefined behaviour. </summary>
         public VUnsafeListSlice<T> SliceWithExternalAlloc(int start, int length, VUnsafeRef<int> externalLengthMemory)
         {
             CheckIndexInRange(start, Length);
             CheckIndexInRange(start + length - 1, Length);
             return new VUnsafeListSlice<T>(this, start, length, externalLengthMemory);
-        }*/
+        }#1#
         
-        #endregion
+        #endregion*/
 
         public void ClearUnusedMemory() => ListData.ClearUnusedMemory();
         

@@ -1,16 +1,28 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+using UnityEditor.SceneManagement;
+#endif
 
 namespace VLib
 {
     public static class GameObjectExtensions
     {
-        public static T GetOrAddComponent<T>(this GameObject obj) where T : Component
+        public static T GetOrAddComponent<T>(this GameObject obj) where T : Component => obj.GetOrAddComponent<T>(out _);
+
+        public static T GetOrAddComponent<T>(this GameObject c, out bool added)
+            where T : Component
         {
-            var comp = obj.GetComponent<T>();
-            if (comp == null)
-                comp = obj.AddComponent<T>();
-            return comp;
+            if (c.GetComponent<T>() is var retrievedComponent && retrievedComponent)
+            {
+                added = false;
+                return retrievedComponent;
+            }
+
+            added = true;
+            return c.AddComponent<T>();
         }
 
         public static T GetComponentInParentQueue<T>(this GameObject obj) where T : Component
@@ -105,5 +117,56 @@ namespace VLib
         }
 
         public static bool IsValidSceneObj(this GameObject obj) => obj && obj.scene.IsValid() && obj.scene.isLoaded;
+        
+        #region Prefab
+
+        public static bool TrySavePrefab(this GameObject prefabObject)
+        {
+#if UNITY_EDITOR
+            /*// Is this object part of a prefab at all? EDIT: THIS RETURNS FALSE FOR PREFABS EDITED IN A 'STAGE' (when you double click on a prefab... BIG LOGIC!)
+            if (!PrefabUtility.IsPartOfAnyPrefab(prefabObject))
+                return false;*/
+            
+            // Check if we're editing in Prefab Stage
+            var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (prefabStage && prefabObject == prefabStage.prefabContentsRoot)
+            {
+                string assetPath = prefabStage.assetPath;
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    PrefabUtility.SaveAsPrefabAsset(prefabObject, assetPath, out var savedSuccessfully);
+                    return savedSuccessfully;
+                }
+                return false;
+            }
+
+            // Check if it's a prefab asset (not an instance)
+            if (PrefabUtility.IsPartOfPrefabAsset(prefabObject))
+            {
+                // SavePrefabAsset returns the root GameObject if successful, null otherwise
+                PrefabUtility.SavePrefabAsset(prefabObject, out var savedSuccessfully);
+                return savedSuccessfully;
+            }
+
+            // Otherwise, it's a prefab instance in the scene
+            if (PrefabUtility.IsPartOfPrefabThatCanBeAppliedTo(prefabObject))
+            {
+                try
+                {
+                    PrefabUtility.ApplyPrefabInstance(prefabObject, InteractionMode.AutomatedAction);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"Failed to save prefab instance: {e.Message}");
+                    return false;
+                }
+            }
+            return true;
+#else
+            return false;
+#endif
+        }
+        
+        #endregion
     }
 }

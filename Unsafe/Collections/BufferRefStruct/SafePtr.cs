@@ -50,6 +50,15 @@ namespace VLib
         
         readonly unsafe ref T ValueRefUnsafe => ref *ptr;
 
+        public readonly unsafe T* ValuePtr
+        {
+            get
+            {
+                safetyHandle.ConditionalCheckValid();
+                return ptr;
+            }
+        }
+
         public unsafe SafePtr(T* ptr)
         {
             VCollectionUtils.CheckPtrNonNull(ptr);
@@ -62,8 +71,6 @@ namespace VLib
         {
             // Pointer validity state much match safety handle validity state
             BurstAssert.True(ptr != null == safetyHandle.IsValid);
-            //VCollectionUtils.CheckPtrNonNull(ptr);
-            //safetyHandle.ConditionalCheckValid();
             this.ptr = ptr;
             this.safetyHandle = safetyHandle;
         }

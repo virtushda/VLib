@@ -38,7 +38,7 @@ namespace VLib
     
     public static unsafe class NativeCollectionExtUnsafe
     {
-        public static Span<T> LengthToSpan<T>(this UnsafeList<T> list)
+        public static Span<T> LengthAsSpan<T>(this UnsafeList<T> list)
             where T : unmanaged
         {
             list.ConditionalCheckIsCreated();

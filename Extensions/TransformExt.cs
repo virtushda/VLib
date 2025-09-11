@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Assertions;
 using Plane = Unity.Mathematics.Geometry.Plane;
 
 namespace VLib
@@ -106,6 +107,48 @@ namespace VLib
             }
 
             return nodes;
+        }
+
+        public static bool FindChainBetween(this Transform first, Transform last, out List<Transform> transformChain)
+        {
+            Assert.IsNotNull(first);
+            Assert.IsNotNull(last);
+            
+            transformChain = new List<Transform>();
+
+            // Check if first is parent of last by walking up from last
+            Transform current = last;
+            while (current)
+            {
+                transformChain.Add(current);
+                if (current == first)
+                {
+                    // Reverse to get chain from first to last
+                    transformChain.Reverse();
+                    return true;
+                }
+                current = current.parent;
+            }
+
+            // Clear the list to try the other direction
+            transformChain.Clear();
+
+            // Check if last is parent of first by walking up from first
+            current = first;
+            while (current)
+            {
+                transformChain.Add(current);
+                if (current == last)
+                {
+                    // Chain is already in correct order from first to last
+                    return true;
+                }
+                current = current.parent;
+            }
+
+            // No chain found between the transforms
+            transformChain.Clear();
+            return false;
         }
 
         public static Transform FindRobust(this Transform n, string name)

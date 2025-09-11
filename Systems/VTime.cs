@@ -8,41 +8,35 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Assertions;
 using VLib.Threading;
 
 namespace VLib.Systems
 {
+    /// <summary> Time, but thread-safe and burst-compatible. <br/>
+    /// <see cref="OnEarlyUpdate"/> must be hooked into the game loop, at the earliest part of the frame. <br/>
+    /// Immediately after hooking, you must call <see cref="OnEarlyUpdateConnected"/>. </summary>
     public class VTime //
     {
         #region Statics
         
         public static readonly int GTimeUnscaledSin = Shader.PropertyToID("GTimeUnscaledSin");
         
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void Init()
-        {
-            onEarlyUpdateInvoked = false;
-        }
-        
-        static bool onEarlyUpdateInvoked;
-        public static bool HasEarlyUpdated => onEarlyUpdateInvoked;
-        
         #endregion
 
         [Conditional("CHECK_EARLY_UPDATE_CALLED")]
         public static void CheckEarlyUpdateCalled()
         {
-            if (!onEarlyUpdateInvoked)
-                throw new InvalidOperationException("VTime.OnEarlyUpdate() was not called at the start of the frame.");
+            if (!VTimeData.timeNative.Data.timeUpdateInvoked)
+                throw new InvalidOperationException("VTime.OnEarlyUpdate() was not called at the start of the frame. VTime is not appropriate for use in edit-mode, and must be properly hooked for play mode.");
         }
 
         /// <summary> This must be called as early as possible in the frame. Much functionality in this class will NOT work without this method being reliably invoked at the start of the frame. </summary>
         public static void OnEarlyUpdate()
         {
-            onEarlyUpdateInvoked = true;
             VTimeData.timeNative.Data.SetFromMain();
         }
+
+        public static void OnEarlyUpdateConnected() => OnEarlyUpdate();
         
         public const float DeltaTime5FPS = 1 / 5f;
         public const float DeltaTime10FPS = 1 / 10f;
@@ -77,58 +71,140 @@ namespace VLib.Systems
         
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float currentTimeScale => VTimeData.timeNative.Data.currentTimeScale;
-        /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
-        /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float time => VTimeData.timeNative.Data.time;
+        public static float currentTimeScale
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.currentTimeScale;
+            }
+        }
 
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static double timePrecise => VTimeData.timeNative.Data.timePrecise;
-        /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
-        /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float timeUnscaled => VTimeData.timeNative.Data.timeUnscaled;
+        public static float time
+        {
+            get 
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.time; 
+            }
+        }
 
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static double timeUnscaledPrecise => VTimeData.timeNative.Data.timeUnscaledPrecise;
+        public static double timePrecise
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.timePrecise;
+            }
+        }
+
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float deltaTime => VTimeData.timeNative.Data.deltaTime;
+        public static float timeUnscaled
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.timeUnscaled;
+            }
+        }
+
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float smoothDeltaTime => VTimeData.timeNative.Data.smoothDeltaTime;
+        public static double timeUnscaledPrecise
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.timeUnscaledPrecise;
+            }
+        }
+
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static float unscaledDeltaTime => VTimeData.timeNative.Data.unscaledDeltaTime;
+        public static float deltaTime
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.deltaTime;
+            }
+        }
+
         /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
         /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
-        public static int frameCount => VTimeData.timeNative.Data.frameCount;
-        public static float maximumDeltaTime => VTimeData.timeNative.Data.maximumDeltaTime;
+        public static float smoothDeltaTime
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.smoothDeltaTime;
+            }
+        }
+
+        /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
+        /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
+        public static float unscaledDeltaTime
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.unscaledDeltaTime;
+            }
+        }
+
+        /// <summary> These static fields/properties will only work when <see cref="OnEarlyUpdate"/> is called externally, otherwise these values will be default. <br/>
+        /// Cached Time Values (to avoid Unity's extern properties that are not cheap according to mr.profiler) </summary>
+        public static int frameCount
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.frameCount;
+            }
+        }
+
+        public static float maximumDeltaTime
+        {
+            get
+            {
+                CheckEarlyUpdateCalled();
+                return VTimeData.timeNative.Data.maximumDeltaTime;
+            }
+        }
 
         /// <summary> <inheritdoc cref="VTimeData.TimeData.externallyUpdatedTime"/> </summary>
         public static double intraFrameTime => VTimeData.timeNative.Data.externallyUpdatedTime;
+
         /// <summary> <inheritdoc cref="VTimeData.TimeData.externallyUpdatedUnscaledTime"/> </summary>
         public static double intraFrameTimeUnscaled => VTimeData.timeNative.Data.externallyUpdatedUnscaledTime;
-        
+
         // Integer time
         /// <summary> When cast to uint, runs for 4085 years. </summary>
         public static long TimeMinutes => (long)(timePrecise / 60);
+        
         /// <summary> <inheritdoc cref="TimeMinutes"/> </summary>
         public static uint TimeMinutesU => (uint)TimeMinutes;
         
         /// <summary> When cast to uint, runs for 68 years. </summary>
         public static long TimeSeconds => (long)timePrecise;
+        
         /// <summary> <inheritdoc cref="TimeSeconds"/> </summary>
         public static uint TimeSecondsU => (uint)TimeSeconds;
         
         /// <summary> When cast to uint, runs for 17 years. </summary>
         public static long TimeQuarterSeconds => (long)(timePrecise * 4);
+        
         /// <summary> <inheritdoc cref="TimeQuarterSeconds"/> </summary>
         public static uint TimeQuarterSecondsU => (uint)TimeQuarterSeconds;
         
         /// <summary> When cast to uint, runs for 6.8 years. </summary>
         public static long TimeDeciseconds => (long)(timePrecise * 10);
+        
         /// <summary> <inheritdoc cref="TimeDeciseconds"/> </summary>
         public static uint TimeDecisecondsU => (uint) TimeDeciseconds;
         

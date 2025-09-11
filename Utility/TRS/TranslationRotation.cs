@@ -41,14 +41,14 @@ namespace VLib
         public TranslationRotation(Vector3 position, Vector3 direction)
         {
             this.position = position;
-            this.rotation = Quaternion.LookRotation(direction, Vector3.up);
+            this.rotation = VMath.LookRotationAdaptive(direction); //Quaternion.LookRotation(direction, Vector3.up);
             Scale = Vector3.one;
         }
         /// <summary> constructor that generates a trs from a position and a direction </summary> 
         public TranslationRotation(float3 position, float3 direction)
         {
             this.position = position;
-            rotation = quaternion.LookRotation(direction, Vector3.up);
+            rotation = VMath.LookRotationAdaptive(direction); // quaternion.LookRotation(direction, Vector3.up);
             Scale = Vector3.one;
         }
 
@@ -109,6 +109,22 @@ namespace VLib
                 PositionNative = math.lerp(a.PositionNative, b.PositionNative, t),
                 RotationNative = math.slerp(a.RotationNative, b.RotationNative, t)
             };
+        }
+
+        public float3 TransformPoint(float3 point)
+        {
+            // Rotate
+            point = math.rotate(RotationNative, point);
+            // Translate
+            return point + PositionNative;
+        }
+        
+        public float3 InverseTransformPoint(float3 point)
+        {
+            // Untranslate
+            point -= PositionNative;
+            // Unrotate
+            return math.rotate(math.inverse(RotationNative), point);
         }
         
         public bool Equals(TranslationRotation other) => position.Equals(other.position) && rotation.Equals(other.rotation);

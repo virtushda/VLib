@@ -100,7 +100,6 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             readonly get
             {
-                this.ConditionalCheckIsCreated();
                 ConditionalCheckIndexActive(index);
                 return listData[index];
             }
@@ -108,7 +107,6 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             set
             {
-                this.ConditionalCheckIsCreated();
                 ConditionalCheckIndexActive(index);
                 listData[index] = value;
             }
@@ -229,7 +227,7 @@ namespace VLib
             return true;
         }
 
-        public int ClaimNextIndex()
+        int ClaimNextIndex()
         {
             this.ConditionalCheckIsCreated();
             var index = packedIndices.FetchIndex();
@@ -239,7 +237,7 @@ namespace VLib
         }
 
         /// <returns>True if index claimed by this method (increases count). False if already was claimed.</returns>
-        public bool EnsureClaimedAndActive(int index)
+        bool EnsureClaimedAndActive(int index)
         {
             this.ConditionalCheckIsCreated();
             // Ensure list capacity and length
@@ -254,7 +252,7 @@ namespace VLib
         /// Disables the index, writes default to it and returns it to the pool. </summary>
         public void RemoveAtClear(int index, in T defaultValue = default)
         {
-            ConditionalCheckIndexActive(index); // Relies on internall IsCreated check
+            ConditionalCheckIndexActive(index); // Relies on internal IsCreated check
             
             SetActive(index, false);
             listData[index] = defaultValue;
@@ -323,6 +321,15 @@ namespace VLib
 
             listData.Resize(newLength, NativeArrayOptions.ClearMemory);
             indicesActive.Resize(newLength, NativeArrayOptions.ClearMemory);
+        }
+
+        public void SetLength(int newLength)
+        {
+            this.ConditionalCheckIsCreated();
+            // Do not allow capacity change
+            if (newLength > listData.Capacity)
+                throw new Exception($"Cannot set length to {newLength} when capacity is {Capacity}. Use Resize instead.");
+            listData.Length = newLength;
         }
 
         void DisableRange(int start, int end)

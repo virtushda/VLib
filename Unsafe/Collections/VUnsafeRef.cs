@@ -89,6 +89,9 @@ namespace VLib
             }
         }
 
+        /// <summary> No safety, do not use this unless you are intending to potentially get a null ptr. </summary>
+        public readonly T* RawPtr => ptr;
+
         /// <summary>
         /// The value stored in this reference.
         /// </summary>

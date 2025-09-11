@@ -95,11 +95,10 @@ namespace VLib
         public static void CompleteAllJobsFor(ulong id)
         {
             MainThread.AssertMainThreadConditional();
-            if (IDToHandlesMap.TryGetValue(id, out var handles))
+            if (IDToHandlesMap.Remove(id, out var handles))
             {
                 handles.ReadHandleDirect.Complete();
                 handles.WriteHandleDirect.Complete();
-                IDToHandlesMap.Remove(id);
             }
         }
 

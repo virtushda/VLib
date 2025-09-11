@@ -3,6 +3,7 @@ using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
+using VLib.SyncPrimitives.IntRef;
 
 namespace VLib
 {
@@ -22,7 +23,7 @@ namespace VLib
             get => maxIndex;
             set
             {
-                using var lockHold = locker.ScopedAtomicLock();
+                using var lockHold = locker.ScopedAtomicLock(5f);
                 if (value < nextIndex)
                     throw new InvalidOperationException("Cannot set a smaller max index.");
                 maxIndex = value;

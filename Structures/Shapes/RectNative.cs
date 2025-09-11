@@ -382,10 +382,19 @@ namespace VLib
 
         public readonly (float2 centerPointF, int2 centerPoint, float radius) GetFitCircle()
         {
-            return (Center,
-                    CenterInt,
-                    math.cmin(Size) * .5f);
+            return (Center, CenterInt, math.cmin(Size) * .5f);
         }
+
+        /// <summary> Converts a point to this rect's normalized space.
+        /// (0,0) = BL, (0.5, 0.5) = Center, (1,1) = TR. Unclamped. </summary>
+        public float2 ConvertToNormalizedSpace(float2 point)
+        {
+            var size = Size;
+            point -= Min;
+            return math.select(float2.zero, point / size, size > float2.zero);
+        }
+        
+        public float2 NormalizedDistFromCenter(float2 point) => ConvertToNormalizedSpace(point) - .5f;
 
         /// <param name="circleXYR">Circle.xy = 2D Position, Circle.z = Radius</param>
         public readonly ShapeOverlap TestCircleOverlap(float3 circleXYR)
@@ -423,7 +432,7 @@ namespace VLib
         {
             return VMath.ComputeBilinearSampleData(coord, MinInt, MaxInt);
         }
-        
+
         /// <summary>Automatically bilinear sample from data that is 'Lerpable'</summary>
         /// <param name="coord">Rect or World Coord to Sample</param>
         /// <param name="valueArray">Data to sample from</param>
@@ -472,7 +481,7 @@ namespace VLib
 
             return VMath.Blerp<T, U>(valueBL, valueBR, valueTL, valueTR, weightsXY.x, weightsXY.y);
         }
-        
+
         public RectIntEnumerator GetIntEnumerable(bool inclusive = false) => new(this, inclusive);
 
         /*public readonly struct RectIntEnumerable : IEnumerable<int2>
@@ -481,6 +490,7 @@ namespace VLib
             
             
         }*/
+
 
         public struct RectIntEnumerator : IEnumerable<int2>, IEnumerator<int2>
         {
@@ -531,7 +541,8 @@ namespace VLib
         }
 
 #if UNITY_EDITOR
-    /// <summary>
+
+        /// <summary>
     /// Allows you to map the 2D rect to 3D axes.
     /// </summary>
     /// <param name="c"></param>
@@ -552,6 +563,7 @@ namespace VLib
             Debug.DrawLine(CornerTL.ToFloat3(x, y, z, thirdValue), CornerBL.ToFloat3(x, y, z, thirdValue), c, duration);
         }
 #endif
+
 
         /// <summary> Debug draw the rect in 3D space. The third axis is set to the value of 'thirdValue'. </summary>
         public void DebugDraw(Color c, Axis axisX, Axis axisY, Axis axisZ, float thirdValue, CommandBuilder draw, float duration = 0)

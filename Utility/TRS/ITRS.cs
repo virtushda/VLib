@@ -63,6 +63,24 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float4x4 ToMatrix<T>(this T trs)
             where T : ITRS => float4x4.TRS(trs.PositionNative, trs.RotationNative, trs.ScaleNative);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static AffineTransform ToAffine<T>(this T trs)
+            where T : ITRS => new(trs.PositionNative, trs.RotationNative, trs.ScaleNative);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 TransformPointAffine<T>(this T trs, float3 point)
+            where T : ITRS
+        {
+            return math.transform(trs.ToAffine(), point);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 InverseTransformPointAffine<T>(this T trs, float3 point)
+            where T : ITRS
+        {
+            return math.transform(math.inverse(trs.ToAffine()), point);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector3 LocalDirToWorld<T>(this T trs, Vector3 direction)
@@ -157,10 +175,19 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsValidRot(in this quaternion q)
         {
-            const float tolerance = 1e-6f;
+            const float tolerance = 1e-4f;
+            if (math.any(math.isinf(q.value)))
+                return false;
             return math.abs(math.dot(q.value, q.value) - 1.0f) < tolerance;
         }
         //public static bool IsValidRot(in this quaternion q) => !q.Equals(default) || math.any(math.isnan(q.value));
+        
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
+        public static void ConditionalCheckRotationValid(in this quaternion q)
+        {
+            if (!q.IsValidRot())
+                throw new ArgumentException("Quaternion rotation is invalid");
+        }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsValidRot(in this Quaternion q) => ((quaternion) q).IsValidRot();

@@ -39,5 +39,13 @@ namespace VLib
         public static string AsTimeToPrint(this float seconds) => ((double) seconds).AsTimeToPrint();
 
         public static float LerpTo(this float valueA, float valueB, float lerpValue) => math.lerp(valueA, valueB, lerpValue);
+
+        /// <summary>Unity.Mathematics CNoise functions output in a range of -1.1 to 1.1, so this function normalizes the output of those functions</summary>
+        public static float NormalizeCNoise(this float noiseValue)
+        {
+            const float expectedRange = 1.1f;
+            const float rangeMult = 1f / (expectedRange * 2f);
+            return (noiseValue + expectedRange) * rangeMult;
+        }
     }
 }

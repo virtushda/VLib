@@ -1,4 +1,9 @@
-﻿using System;
+﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD || ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
+#define MEMORY_MATCH_CHECKS // Checks that the underlying buffer has not moved
+#define PTR_RENTAL_CHECKS // Checks that all rented active safe pointers are pointing at the correct memory
+#endif
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,6 +12,7 @@ using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using VLib.Threading;
+using Debug = UnityEngine.Debug;
 
 namespace VLib
 {
@@ -17,7 +23,7 @@ namespace VLib
     /// <typeparam name="T">The type of the elements.</typeparam>
     [StructLayout(LayoutKind.Sequential)]
     [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
-    public struct VUnsafeBufferArray<T> : IAllocating, INativeList<T>, IEnumerable<T> // Used by collection initializers.
+    public struct VUnsafeBufferArray<T> : IAllocating, IEnumerable<T> // Used by collection initializers.
         where T : unmanaged
     {
         RefStruct<Data> data;
@@ -39,8 +45,13 @@ namespace VLib
 
         public struct Data : IAllocating
         {
+            /// <summary> The backing buffer list. It is EXTREMELY unsafe to touch this directly. </summary>
             internal VUnsafeBufferList<T> list;
             UnsafeHashMap<int, SafePtr<T>> bufferRenters;
+            
+#if MEMORY_MATCH_CHECKS
+            internal readonly unsafe T* initialAllocationPtr; // Used to check buffer has not been inadvertently moved
+#endif
 
             public readonly bool IsCreated => list.IsCreated;
 
@@ -60,6 +71,7 @@ namespace VLib
                     throw new InvalidOperationException("This buffer does not support renting SafePtrs.");
             }
 
+            /// <summary> <inheritdoc cref="VUnsafeBufferList{T}.Length"/> </summary>
             public readonly int Length
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -70,6 +82,18 @@ namespace VLib
                 }
             }
 
+            /// <summary> <inheritdoc cref="VUnsafeBufferList{T}.Count"/> </summary>
+            public readonly int Count
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get
+                {
+                    this.ConditionalCheckIsCreated();
+                    return list.Count;
+                }
+            }
+            
+            /// <summary> Maximum number of elements that can be stored. </summary>
             public readonly int Capacity
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -83,6 +107,12 @@ namespace VLib
             public Data(int capacity, Allocator allocator, bool supportsRenting, bool logStillActiveOnDispose)
             {
                 list = new VUnsafeBufferList<T>(capacity, allocator, logStillActiveOnDispose);
+#if MEMORY_MATCH_CHECKS
+                unsafe
+                {
+                    initialAllocationPtr = list.ListDataUnsafe.Ptr;
+                }
+#endif
                 bufferRenters = supportsRenting ? new(capacity, allocator) : default;
             }
 
@@ -111,6 +141,8 @@ namespace VLib
                 return list.IndexActive(index);
             }
 
+            #region Renting
+
             public SafePtr<T> RentIndexPointer(int index)
             {
                 ConditionalCheckSupportsRenting();
@@ -133,22 +165,36 @@ namespace VLib
                 bufferRenters.Add(index, safePtr);
                 return safePtr;
             }
-
-            public void FlushRenters()
+            
+            public SafePtr<T> GetIndexPointer(int index)
             {
+                ConditionalCheckSupportsRenting();
+                if (!list.IndexActive(index))
+                    throw new InvalidOperationException($"Index {index} is not active in VUnsafeBufferArray.");
+                if (bufferRenters.TryGetValue(index, out var renter) && renter.IsCreated)
+                    return renter;
+                throw new InvalidOperationException($"Index {index} is not rented in VUnsafeBufferArray.");
+            }
+
+            void FlushRenters()
+            {
+                // Check renters first so they're reported
                 CheckNoRenters();
+                // Clean up all remaining to prevent leaks
                 DisposeAllRenters();
             }
 
+            /// <summary> Cleans up references to any disposed renters and then logs an error if there are any renters still allocated. </summary>
             public void CheckNoRenters()
             {
                 if (!SupportsRenting)
                     return;
                 CleanRenterList();
                 if (!bufferRenters.IsEmpty)
-                    UnityEngine.Debug.LogError($"VUnsafeBufferArray: {bufferRenters.Count} when checking for no renters!");
+                    Debug.LogError($"VUnsafeBufferArray: {bufferRenters.Count} when checking for no renters!");
             }
 
+            /// <summary> Cleans up references to any disposed renters. </summary>
             void CleanRenterList()
             {
                 if (!SupportsRenting)
@@ -174,67 +220,39 @@ namespace VLib
                 bufferRenters.Clear();
             }
 
-            void DisposeRentersOf(int index)
+            public void DisposeRentersOf(int index)
             {
                 if (!SupportsRenting)
                     return;
                 if (!bufferRenters.TryGetValue(index, out var renter))
                     return;
-                renter.DisposeRefToDefault();
                 bufferRenters.Remove(index);
+                renter.DisposeRefToDefault();
+            }
+            
+            public readonly void CheckAllRenterAddressesCorrect()
+            {
+                if (!SupportsRenting)
+                    return;
+                foreach (var renter in bufferRenters)
+                {
+                    if (!renter.Value.IsCreated)
+                        continue;
+                    unsafe
+                    {
+                        if (renter.Value.ValuePtr != list.ListDataUnsafe.GetListElementPtr(renter.Key))
+                            Debug.LogError($"VUnsafeBufferArray: Renter address mismatch at index {renter.Key}!");
+                    }
+                }
             }
 
-            /*public int ClaimNextIndex()
-            {
-                this.ConditionalCheckIsCreated();
-                var index = packedIndices.FetchIndex();
-                EnsureMinLength(index + 1);
-                SetActive(index, true);
-                return index;
-            }*/
-
-            /*/// <returns>True if index claimed by this method. False if already was claimed.</returns>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public bool EnsureClaimedAndActive(int index)
-            {
-                this.ConditionalCheckIsCreated();
-                return list.EnsureClaimedAndActive(index);
-            }*/
+            #endregion
 
             /// <summary> Disposes renters, disables the index, writes default to it and returns it to the pool. </summary>
             public void RemoveAtClear(int index, in T defaultValue = default)
             {
-                this.ConditionalCheckIsCreated();
-                DisposeRentersOf(index);
+                DisposeRentersOf(index); // Internally, 'SupportsRenting' checks IsCreated
                 list.RemoveAtClear(index, defaultValue);
-            }
-
-            /*/// <returns>True if the index active state was changed, false if it was already set to the desired state.</returns>
-            bool SetActive(int index, bool active)
-            {
-                this.ConditionalCheckIsCreated();
-                if (indicesActive[index] == active)
-                    return false;
-                indicesActive[index] = active;
-                return true;
-            }*/
-
-            /*public void EnsureMinLength(int newLength)
-            {
-                if (Length < newLength)
-                    Resize(newLength);
-            }*/
-
-            public void Resize(int newLength)
-            {
-                // NOTE: This system effectively acts like a list that doesn't change capacity.
-                if (newLength > Capacity)
-                    throw new ArgumentOutOfRangeException($"Cannot resize to {newLength} as it exceeds the capacity of {Capacity}.");
-                // Check to ensure resizing up!
-                if (newLength < Length)
-                    throw new ArgumentOutOfRangeException($"Cannot resize to {newLength} as it is smaller than the current length of {Length}.");
-
-                list.Resize(newLength);
             }
 
             public void Clear()
@@ -314,34 +332,29 @@ namespace VLib
             get => DataRef.list.IsEmpty;
         }
 
-        public int ActiveCount
+        /// <summary> <inheritdoc cref="VUnsafeBufferList{T}.Count"/> </summary>
+        public readonly int ActiveCount
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => DataRef.list.Count;
+            get => DataRef.Count;
         }
 
         /// <summary> The range within capacity being used. There may be holes with inactive indices. </summary>
-        /// <param name="value>">The new length. If the new length is greater than the current capacity, the capacity is increased.
-        /// Newly allocated memory is cleared.</param>
-        public int Length
+        public readonly int Length
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get => DataRef.list.Length;
-            set => DataRef.Resize(value);
+            get => DataRef.Length;
         }
 
-        /// <summary> The number of elements that fit in the current allocation. </summary>
-        /// <value>The number of elements that fit in the current allocation.</value>
-        /// <param name="value">The new capacity. Must be greater or equal to the length.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if the new capacity is smaller than the length.</exception>
-        public int Capacity
+        /// <summary> <inheritdoc cref="VUnsafeBufferArray{T}.Data.Capacity"/> </summary>
+        public readonly int Capacity
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            readonly get => DataRef.list.Capacity;
-            set => UnityEngine.Debug.LogError($"Capacity is not settable in VUnsafeBufferArray. Current capacity is {Capacity}, attempted to set to {value}.");
+            get => DataRef.Capacity;
         }
 
-        public bool IsFull => DataRef.list.IsFull;
+        /// <summary> Is every index active? </summary>
+        public readonly bool IsFull => DataRef.list.IsFull;
 
         /// <summary> Tells you whether the index is inside the buffer range or not, without care to whether the index is considered 'active'. </summary>
         public readonly bool IndexInBufferRange(int index) => DataReadRef.list.IndexInBufferRange(index);
@@ -358,7 +371,13 @@ namespace VLib
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             readonly get => DataRef.list[index];
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            set => DataRef.list[index] = value;
+            set
+            {
+#if MEMORY_MATCH_CHECKS
+                using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
+                DataRef.list[index] = value;
+            }
         }
 
         /// <summary> Take a safe pointer to a given index. <br/>
@@ -366,13 +385,33 @@ namespace VLib
         /// You do not need to dispose the safe pointer yourself, if you want to throw out your reference, you can simply assign 'default'. <br/>
         /// Disposing the pointer directly will invalidate the reference at its source and invalidate the reference everywhere. <br/>
         /// This is NOT concurrent-safe. </summary>
-        public SafePtr<T> RentIndexPointer(int index) => DataRef.RentIndexPointer(index);
+        public SafePtr<T> RentIndexPointer(int index)
+        {
+#if MEMORY_MATCH_CHECKS
+            using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
+            return DataRef.RentIndexPointer(index);
+        }
 
         /// <summary> A variant of <see cref="RentIndexPointer"/> that can only be called on the main thread. This is one way to ensure thread-safety, where applicable. </summary>
         public SafePtr<T> RentIndexPointerMainThread(int index)
         {
             MainThread.AssertMainThreadConditional();
             return RentIndexPointer(index);
+        }
+        
+        public SafePtr<T> GetIndexPointer(int index)
+        {
+            ConditionalCheckIndexActive(index);
+            return DataRef.GetIndexPointer(index);
+        }
+        
+        public void DisposeRentersOf(int index)
+        {
+#if MEMORY_MATCH_CHECKS
+            using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
+            DataRef.DisposeRentersOf(index);
         }
 
         /// <summary> Returns a reference to the element at an index. </summary>
@@ -405,24 +444,55 @@ namespace VLib
         /// <returns>The index of the added value.</returns>
         public int AddCompact(in T value)
         {
+#if MEMORY_MATCH_CHECKS
+            using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
             if (!TryAddCompact(value, out var index))
                 throw new InvalidOperationException("Could not add value to VUnsafeBufferArray. Capacity is full.");
             return index;
         }
 
         /// <summary> Like <see cref="AddCompact"/>, but can safely return false if no room is available. </summary>
-        public bool TryAddCompact(in T value, out int index) => DataRef.list.TryAddCompactNoResize(value, out index);
+        public bool TryAddCompact(in T value, out int index)
+        {
+#if MEMORY_MATCH_CHECKS
+            using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
+            return DataRef.list.TryAddCompactNoResize(value, out index);
+        }
 
-        /// <summary> Will expand list to fit incoming index. </summary>
-        public bool TryAddAtIndex(int index, T value, bool allowWriteOverActive = true) => DataRef.list.TryAddAtIndex(index, value, allowWriteOverActive);
+        /// <summary> Will expand 'length' to fit incoming index, but cannot expand 'capacity'. </summary>
+        public bool TryAddAtIndex(int index, T value, bool allowWriteOverActive = true)
+        {
+#if MEMORY_MATCH_CHECKS
+            using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
+            ref var dataRef = ref DataRef;
+            // Ensure capacity limitation is respected
+            if (index >= dataRef.Capacity)
+                return false;
+            return DataRef.list.TryAddAtIndex(index, value, allowWriteOverActive);
+        }
 
         /// <summary> Sets the length to 0. </summary>
         /// <remarks> Does not change the capacity. </remarks>
-        public void Clear() => DataRef.Clear();
+        public void Clear()
+        {
+#if MEMORY_MATCH_CHECKS
+            using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
+            DataRef.Clear();
+        }
 
         /// <summary> Sets the value to default at index and adds the index to the recycle indices list.
         /// This is the only real way to "remove" from this type of list.</summary>
-        public void RemoveAtClear(int index, in T defaultValue = default) => DataRef.RemoveAtClear(index, defaultValue);
+        public void RemoveAtClear(int index, in T defaultValue = default)
+        {
+#if MEMORY_MATCH_CHECKS
+            using var memoryMatchAutoCheck = new MemoryMatchEntryExitAutoCheck(this);
+#endif
+            DataRef.RemoveAtClear(index, defaultValue);
+        }
 
         /*/// <summary>
         /// Returns an array that aliases this list. The length of the array is updated when the length of
@@ -565,14 +635,6 @@ namespace VLib
         /// </summary>
         /// <param name="other">An container to copy into this container.</param>
         public unsafe void CopyFrom(ref NativeList<T> other) => CopyFrom(*other.GetUnsafeList());*/
-
-        /// <summary> Sets the length of this list, cannot increase capacity! </summary>
-        /// <param name="length">The new used length of the array.</param>
-        public void Resize(int length)
-        {
-            this.ConditionalCheckIsCreated();
-            DataRef.Resize(length);
-        }
 
         /*/// <summary> Generate a new <see cref="VUnsafeBufferArray{T}"/> with a new capacity and transfer as much data from this as possible.
         /// If a smaller capacity is input, you will lose some data. <br/>
@@ -884,17 +946,34 @@ namespace VLib
             if (value < 0)
                 throw new ArgumentOutOfRangeException($"Value {value} must be positive.");
         }
-
-        /*[Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS"), Conditional("UNITY_DOTS_DEBUG")]
-        void CheckHandleMatches(AllocatorManager.AllocatorHandle handle)
+        
+#if MEMORY_MATCH_CHECKS
+        public readonly unsafe void CheckMemoryMatch()
         {
-            if (!DataRef.list.IsCreated)
-                throw new ArgumentOutOfRangeException($"Allocator handle {handle} can't match because container is not initialized.");
-            if (DataRef.listData.Allocator.Index != handle.Index)
-                throw new ArgumentOutOfRangeException($"Allocator handle {handle} can't match because container handle index doesn't match.");
-            if (DataRef.listData.Allocator.Version != handle.Version)
-                throw new ArgumentOutOfRangeException($"Allocator handle {handle} matches container handle index, but has different version.");
-        }*/
+            ref readonly var dataRef = ref DataReadRef;
+            var currentPtr = dataRef.list.ListDataUnsafe.Ptr;
+            if (dataRef.initialAllocationPtr != currentPtr)
+                throw new InvalidOperationException("VUnsafeBufferArray: Underlying buffer has moved!");
+        }
+        
+        struct MemoryMatchEntryExitAutoCheck : IDisposable
+        {
+            readonly VUnsafeBufferArray<T> list;
+            
+            public MemoryMatchEntryExitAutoCheck(VUnsafeBufferArray<T> list)
+            {
+                this.list = list;
+                list.CheckMemoryMatch();
+            }
+
+            public void Dispose() => list.CheckMemoryMatch();
+        }
+#endif
+        
+        [Conditional("PTR_RENTAL_CHECKS")]
+        public void CheckAllRenterAddressesCorrectConditional() => CheckAllRenterAddressesCorrect();
+
+        public void CheckAllRenterAddressesCorrect() => DataReadRef.CheckAllRenterAddressesCorrect();
 
         #endregion
 
@@ -911,7 +990,7 @@ namespace VLib
             return new ReadOnly(this);
         }
 
-        /// <summary> A readonly version of VUnsafeList, use AsReadOnly() to get one. </summary>
+        /// <summary> A readonly version of VUnsafeBufferArray, use AsReadOnly() to get one. </summary>
         [GenerateTestsForBurstCompatibility(GenericTypeArguments = new[] {typeof(int)})]
         public readonly struct ReadOnly : IEnumerable<T>
         {

@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Threading;
 using UnityEngine;
+using VLib.Utility;
 
 namespace VLib.Collections
 {
@@ -22,7 +23,7 @@ namespace VLib.Collections
             where T : class
         {
 #if UNITY_EDITOR
-            if (Application.isPlaying == false)
+            if (VApplicationMonitor.IsPlayingSafe == false)
             {
                 Debug.LogError("SharedObjectListPool can only be used in play mode!");
                 return default;

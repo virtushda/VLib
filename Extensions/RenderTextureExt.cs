@@ -25,5 +25,13 @@ namespace VLib
             
             return tex;
         }
+        
+        public static RenderTexture CopyRenderTexture(this RenderTexture rt, FilterMode filterMode = FilterMode.Bilinear)
+        {
+            RenderTexture copy = new RenderTexture(rt.width, rt.height, 0, rt.format);
+            copy.filterMode = filterMode;
+            Graphics.Blit(rt, copy);
+            return copy;
+        }
     }
 }

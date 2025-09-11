@@ -32,7 +32,33 @@ namespace VLib.Aline.Drawers
                 command.PopParameters(ref draw);
             } 
         }
-        
+
+        public static class DashedLines
+        {
+            struct Data
+            {
+                public float3 start;
+                public float3 end;
+                public float dash;
+                public float gap;
+            }
+
+            public static AlineBurstDrawCommand Create(in float3 start, in float3 end, float dash, float gap, Color color = default, float duration = default, byte lineThickness = default)
+            {
+                var data = new Data {start = start, end = end, dash = dash, gap = gap};
+                UnmanagedData64.ConvertFrom(data, out var dataPacked);
+                return new AlineBurstDrawCommand(AlineDrawShape.DashedLine, dataPacked, color, duration, lineThickness);
+            }
+
+            public static void DrawDashedLine(ref CommandBuilder draw, ref AlineBurstDrawCommand command)
+            {
+                ref readonly var lineData = ref command.drawData.ConvertTo<Data>();
+                command.PushParameters(ref draw);
+                draw.DashedLine(lineData.start, lineData.end, lineData.dash, lineData.gap);
+                command.PopParameters(ref draw);
+            }
+        }
+
         public static class Spheres
         {
             public static AlineBurstDrawCommand Create(in SphereNative sphere, in Color color = default, float duration = default, byte lineThickness = default)
@@ -88,6 +114,40 @@ namespace VLib.Aline.Drawers
                 ref readonly var capsuleData = ref command.drawData.ConvertTo<CapsuleNative>();
                 command.PushParameters(ref draw);
                 capsuleData.DrawAline(ref draw);
+                command.PopParameters(ref draw);
+            }
+        }
+
+        public class Arcs
+        {
+            struct Data
+            {
+                public float3 center;
+                public float3 start;
+                public float3 end;
+                public byte solid;
+                
+                public Data(in float3 center, in float3 start, in float3 end, bool solid)
+                {
+                    this.center = center;
+                    this.start = start;
+                    this.end = end;
+                    this.solid = solid ? (byte)1 : (byte)0;
+                }
+            }
+            
+            internal static AlineBurstDrawCommand Create(in float3 center, in float3 start, in float3 end, bool solid, Color color, float duration, byte lineThickness)
+            {
+                var data = new Data(center, start, end, solid);
+                UnmanagedData64.ConvertFrom(data, out var dataPacked);
+                return new AlineBurstDrawCommand(AlineDrawShape.Arc, dataPacked, color, duration, lineThickness);
+            }
+            
+            internal static void DrawArc(ref CommandBuilder draw, ref AlineBurstDrawCommand command)
+            {
+                ref readonly var arcData = ref command.drawData.ConvertTo<Data>();
+                command.PushParameters(ref draw);
+                draw.Arc(arcData.center, arcData.start, arcData.end);
                 command.PopParameters(ref draw);
             }
         }

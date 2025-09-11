@@ -1,5 +1,6 @@
 ﻿using System;
 using Drawing;
+using Unity.Burst.CompilerServices;
 using Unity.Mathematics;
 using VLib.Licensed;
 using static Unity.Mathematics.math;
@@ -87,15 +88,15 @@ namespace VLib
         public void Rescale(float scale)
         {
             var center = Center;
-            a = math.lerp(center, a, scale);
-            b = math.lerp(center, b, scale);
-            c = math.lerp(center, c, scale);
+            a = lerp(center, a, scale);
+            b = lerp(center, b, scale);
+            c = lerp(center, c, scale);
         }
         
         public VTriangle3 GetRescaled(float scale)
         {
             var center = Center;
-            return new VTriangle3(math.lerp(center, a, scale), math.lerp(center, b, scale), math.lerp(center, c, scale));
+            return new VTriangle3(lerp(center, a, scale), lerp(center, b, scale), lerp(center, c, scale));
         }
 
         public readonly bool ContainsXZInHeight(float3 pos, float heightThres)
@@ -159,9 +160,11 @@ namespace VLib
 
         public static float3 ClampBarycentric(float3 coords)
         {
-            var positiveCoords = math.max(coords, 0);
-            var negativeSum = math.csum(math.min(coords, 0)); 
-            return positiveCoords / (1f - negativeSum);
+            var positiveCoords = max(coords, 0);
+            var negativeSum = csum(min(coords, 0));
+            var invNegativeSum = 1f - negativeSum;
+            BurstAssert.False(abs(invNegativeSum) < 0.0001f, 19283);
+            return positiveCoords / invNegativeSum;
         }
 
         /// <summary>
@@ -170,8 +173,11 @@ namespace VLib
         public readonly float3 ProjectPointToSurfaceXZ(float2 point, out float3 barycentricCoords)
         {
             var tri2D = new VTriangle2(this);
-            barycentricCoords = tri2D.BarycentricCoordsOfPoint(point);
-            return PointAtBarycentric(barycentricCoords);
+            barycentricCoords = tri2D.BarycentricCoordsOfPoint(point, out var degenerate);
+            var projectedPoint = PointAtBarycentric(barycentricCoords);
+            if (Hint.Unlikely(degenerate))
+                return new float3(point.x, projectedPoint.y, point.y);
+            return projectedPoint;
         }
         
         /// <summary>
@@ -180,7 +186,7 @@ namespace VLib
         public readonly float3 ProjectPointToSurfaceXZClamped(float2 point, out float3 barycentricCoords, out float3 clampedBarycentricCoords)
         {
             var tri2D = new VTriangle2(this);
-            barycentricCoords = tri2D.BarycentricCoordsOfPoint(point); 
+            barycentricCoords = tri2D.BarycentricCoordsOfPoint(point, out _); 
             clampedBarycentricCoords = ClampBarycentric(barycentricCoords);
             return PointAtBarycentric(clampedBarycentricCoords);
         }
@@ -290,13 +296,13 @@ namespace VLib
             overlap = default;
             var p0 = ProjectPointToSurfaceXZ(segment.c0.xz, out var bary0);
             var p1 = ProjectPointToSurfaceXZ(segment.c1.xz, out var bary1);
-            var contains0 = math.all(bary0 >= 0f);
-            var contains1 = math.all(bary1 >= 0f);
+            var contains0 = all(bary0 >= 0f);
+            var contains1 = all(bary1 >= 0f);
 
             if (contains0)
-                p0.y = math.lerp(segment.c0.y, p0.y, heightLerp);
+                p0.y = lerp(segment.c0.y, p0.y, heightLerp);
             if (contains1)
-                p1.y = math.lerp(segment.c1.y, p1.y, heightLerp);
+                p1.y = lerp(segment.c1.y, p1.y, heightLerp);
 
             if (contains0 && contains1)
             {
@@ -351,11 +357,11 @@ namespace VLib
         public static float3 Barycentric(float3 p, float3 a, float3 b, float3 c)
         {
             float3 v0 = b - a, v1 = c - a, v2 = p - a;
-            float d00 = math.dot(v0, v0);
-            float d01 = math.dot(v0, v1);
-            float d11 = math.dot(v1, v1);
-            float d20 = math.dot(v2, v0);
-            float d21 = math.dot(v2, v1);
+            float d00 = dot(v0, v0);
+            float d01 = dot(v0, v1);
+            float d11 = dot(v1, v1);
+            float d20 = dot(v2, v0);
+            float d21 = dot(v2, v1);
             float denom = d00 * d11 - d01 * d01;
             
             var v = (d11 * d20 - d01 * d21) / denom;

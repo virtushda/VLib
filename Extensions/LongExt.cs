@@ -43,6 +43,9 @@ namespace VLib
                 throw new ArgumentOutOfRangeException($"Value '{valueL}' is not in range {min} to {max}!");
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static uint HashToUInt(this ulong value) => (uint)(value ^ (value >> 32));
+
         ///<summary>Takes a ulong value and uniformly redistributes it somewhere else in the ulong range</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong Rehash(this ulong value)

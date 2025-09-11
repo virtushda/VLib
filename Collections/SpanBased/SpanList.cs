@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.Burst;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using VLib;
@@ -41,7 +42,12 @@ namespace VLib
             // Complain if a stack alloc is over 1KB!
             var bytesUsed = this.MemoryUseBytes();
             if (bytesUsed > 1000)
-                Debug.LogError($"Stack allocation of SpanList is over 1KB: {bytesUsed.AsDataSizeInBytesToReadableString()}");
+            {
+                bool logged = false;
+                LogAllocationSizeError(bytesUsed, ref logged);
+                if (!logged)
+                    Debug.LogError($"Stack allocation of SpanList is over 1KB: {bytesUsed} bytes!");
+            }
 #endif
         }
 
@@ -65,6 +71,13 @@ namespace VLib
         }
         
         public void Clear() => count = 0;
+        
+        [BurstDiscard]
+        void LogAllocationSizeError(long bytesUsed, ref bool logged)
+        {
+            Debug.LogError($"Stack allocation of SpanList is over 1KB: {bytesUsed.AsDataSizeInBytesToReadableString()}");
+            logged = true;
+        }
     }
     
     public static class SpanListExtensions

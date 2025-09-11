@@ -75,7 +75,7 @@ namespace VLib.Structures
                     Debug.LogError("Too many transits recorded. Hit limit of 120.");
                     return;
             }
-            ++count;
+            ++Count;
         }
         
         public void InsertBitAtStart(bool bit)

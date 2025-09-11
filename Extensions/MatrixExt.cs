@@ -218,8 +218,16 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static quaternion RotationDelta(in this float4x4 m)
         {
-            m.Decompose(out _, out var rotation, out _);
-            return rotation;
+            // NOTE: This is very fast, but doesn't seem to work for non-orthogonal or scaled matrices
+            //return new quaternion(m);
+            
+            // Tried and true way
+            //m.Decompose(out _, out var rotation, out _);
+            //return rotation;
+            
+            // Optimized version of decomposition that sheds the extra work, while still working for non-orthogonal or scaled matrices
+            var mRotScale = m.ToRotScale3X3();
+            return rotation(mRotScale);
         }
 
         /*/// <summary>
