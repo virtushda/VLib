@@ -38,9 +38,9 @@ namespace VLib
     /// But if the read lock thread then tries to enter the read lock again, the second readlock will contend with the write lock, while the write lock is still contending with the first read lock.
     /// </summary>
     [BurstCompile]
-    [Il2CppSetOption(Option.NullChecks, false)]
+    /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [Il2CppSetOption(Option.DivideByZeroChecks, false)]
+    [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
     public struct BurstSpinLockReadWrite
     {
         /// <summary> Exclusive lock location in the list of longs </summary>
@@ -490,9 +490,9 @@ namespace VLib
     }
 
     /// <summary> IDisposable scoped structure that holds <see cref="BurstSpinLockReadWrite"/> in exclusive mode. Should be using with <c>using</c> </summary>
-    [Il2CppSetOption(Option.NullChecks, false)]
+    /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [Il2CppSetOption(Option.DivideByZeroChecks, false)]
+    [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
     public struct BurstScopedExclusiveLock : IAllocating
     {
         BurstSpinLockReadWrite m_parentLock;
@@ -564,9 +564,9 @@ namespace VLib
     }
 
     /// <summary> IDisposable scoped structure that holds <see cref="BurstSpinLockReadWrite"/> in read mode. Should be using with <c>using</c> </summary>
-    [Il2CppSetOption(Option.NullChecks, false)]
+    /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [Il2CppSetOption(Option.DivideByZeroChecks, false)]
+    [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
     public struct BurstScopedReadLock : IAllocating
     {
         BurstSpinLockReadWrite m_parentLock;
@@ -641,9 +641,9 @@ namespace VLib
         }
     }
     
-    [Il2CppSetOption(Option.NullChecks, false)]
+    /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [Il2CppSetOption(Option.DivideByZeroChecks, false)]
+    [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
     public static class BurstSpinLockReadWriteFunctions
     {
         /// <summary> Lock Exclusive. Will block if cannot lock immediately </summary>
