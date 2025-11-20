@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace VLib
 {
@@ -18,6 +20,32 @@ namespace VLib
                     return false;
             }
 
+            return true;
+        }
+        
+        /// <summary> Efficiently compute SHA512 hash from a span of unmanaged types. Unmanaged allows zero allocations. </summary>
+        /// <param name="span">Span of unmanaged types to hash.</param>
+        /// <param name="hash">Output hash as a base64 string.</param>
+        /// <returns>True if hash was computed successfully, false otherwise.</returns>
+        public static bool TryComputeSHA512Hash<T>(this Span<T> span, out string hash)
+            where T : unmanaged
+        {
+            if (span.IsEmpty)
+            {
+                hash = string.Empty;
+                return false;
+            }
+
+            using var sha512 = SHA512.Create();
+            var rawBytes = MemoryMarshal.AsBytes(span);
+            Span<byte> hashSpan = stackalloc byte[sha512.HashSize / 8];
+            if (!sha512.TryComputeHash(rawBytes, hashSpan, out _))
+            {
+                hash = string.Empty;
+                return false;
+            }
+
+            hash = Convert.ToBase64String(hashSpan);
             return true;
         }
     }

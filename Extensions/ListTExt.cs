@@ -363,5 +363,14 @@ namespace VLib
             }
             return removedCount;
         }
+        
+        public static List<T> EnsureEmptyList<T>(this List<T> list, int capacity = 0)
+        {
+            list ??= new List<T>(capacity);
+            list.Clear();
+            if (list.Capacity < capacity)
+                list.Capacity = capacity;
+            return list;
+        }
     } 
 }
