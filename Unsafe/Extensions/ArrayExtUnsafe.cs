@@ -111,11 +111,12 @@ namespace VLib
             return new UnsafeView<T>(array, length);
         }
 
-        public readonly struct UnsafeView<T> : IDisposable where T : unmanaged
+        public readonly struct UnsafeView<T> : IDisposable 
+            where T : unmanaged
         {
             public readonly UnsafeList<T> list;
-            private readonly ulong gcHandle;
-            private readonly bool allocated;
+            readonly ulong gcHandle;
+            readonly bool allocated;
 
             public UnsafeView(T[] array, int length)
             {
@@ -126,7 +127,8 @@ namespace VLib
 
             public void Dispose()
             {
-                if (!allocated) return;
+                if (!allocated) 
+                    return;
                 UnsafeUtility.ReleaseGCObject(gcHandle);
             }
         }

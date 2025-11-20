@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 
@@ -35,23 +36,26 @@ namespace VLib
             array[arrayCount] = element;
             ++arrayCount;
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Add<T>(this T[] array, T element)
-        { 
-            Array.Resize(ref array, array.Length+1);
+        {
+            Array.Resize(ref array, array.Length + 1);
 
-            array[array.Length-1] = element;
+            array[array.Length - 1] = element;
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AddNoDuplicate<T>(this T[] array, T element)
         {
-            if (element == null) return;
+            if (element == null)
+                return;
             foreach (var e in array)
             {
-                if (e.Equals(element)) return;
-            } 
+                if (e.Equals(element))
+                    return;
+            }
+
             array.Add(element);
         }
 
@@ -82,9 +86,10 @@ namespace VLib
                 if (array[i] != null)
                     return false;
             }
+
             return true;
         }
-        
+
         public static void SetAllValues<T>(this T[] array, T value)
         {
             if (array is not {Length: > 0})
@@ -113,7 +118,7 @@ namespace VLib
 
             return footprint;
         }
-        
+
         /// <summary> Do NOT use this on non-serializable objects! I would constrain this method, but I cannot. </summary> 
         public static T[] DeepCloneSerializableObjects<T>(this T[] array)
         {
@@ -130,6 +135,16 @@ namespace VLib
             foreach (var value in array)
                 sum += value;
             return sum;
+        }
+
+        /// <summary> Efficiently compute SHA512 hash of array of unmanaged types. Unmanaged allows zero allocations. </summary>
+        /// <param name="array">Array of unmanaged types to hash.</param>
+        /// <param name="hash">Output hash as a base64 string.</param>
+        /// <returns>True if hash was computed successfully, false otherwise.</returns>
+        public static bool TryComputeSHA512Hash<T>(this T[] array, out string hash)
+            where T : unmanaged
+        {
+            return array.AsSpan().TryComputeSHA512Hash(out hash);
         }
     }
 }

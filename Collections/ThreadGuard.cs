@@ -33,7 +33,13 @@ namespace VLib
         /// <summary> Bypass the lock </summary> 
         public ref T ForceGetRef() => ref obj;
         
-        public ExclusiveLock ScopedExclusiveLock(out T outObj) => new(this, out outObj);
+        public ExclusiveLock ScopedExclusiveLock() => new(this);
+        public ExclusiveLock ScopedExclusiveLock(out T objOut)
+        {
+            objOut = obj;
+            return new ExclusiveLock(this);
+        }
+        
         public readonly struct ExclusiveLock : IDisposable//, IThreadGuardLockExclusiveStruct<T>
         {
             readonly ThreadGuard<T> guard;
@@ -41,17 +47,22 @@ namespace VLib
             
             public ref T ObjRef => ref guard.obj;
 
-            public ExclusiveLock(ThreadGuard<T> guard, out T outObj)
+            public ExclusiveLock(ThreadGuard<T> guard)
             {
                 this.guard = guard;
                 rwLockHold = guard.vRWLock.ScopedExclusiveLock();
-                outObj = guard.obj;
             }
 
             public void Dispose() => rwLockHold.Dispose();
         }
 
-        public ReadLock ScopedReadLock(out T outObj) => new(this, out outObj);
+        public ReadLock ScopedReadLock() => new(this);
+        public ReadLock ScopedReadLock(out T objOut)
+        {
+            objOut = obj;
+            return new ReadLock(this);
+        }
+        
         public readonly struct ReadLock : IDisposable//, IThreadGuardLockStruct<T>
         {
             readonly ThreadGuard<T> guard;
@@ -59,11 +70,10 @@ namespace VLib
             
             public ref T ObjRef => ref guard.obj;
 
-            public ReadLock(ThreadGuard<T> guard, out T outObj)
+            public ReadLock(ThreadGuard<T> guard)
             {
                 this.guard = guard;
                 rwLockHold = guard.vRWLock.ScopedReadLock();
-                outObj = guard.obj;
             }
 
             public void Dispose() => rwLockHold.Dispose();

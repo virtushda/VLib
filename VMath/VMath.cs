@@ -93,6 +93,13 @@ namespace VLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void OffsetClamped(ref this uint value, int offset)
+        {
+            var newValue = value + offset;
+            value = (uint)clamp(newValue, 0, uint.MaxValue);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (int2x4 points_BL_BR_TL_TR, float2 weightsXY) ComputeBilinearSampleData(float2 coord)
         {
             int2 bl = (int2)coord;
