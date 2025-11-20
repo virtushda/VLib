@@ -216,7 +216,7 @@ namespace VLib.Systems
         {
             if (setUnityTimeScale)
             {
-                MainThread.AssertMainThreadConditional();
+                MainThread.Assert();
                 Time.timeScale = factor;
             }
             VTimeData.timeNative.Data.currentTimeScale = factor;

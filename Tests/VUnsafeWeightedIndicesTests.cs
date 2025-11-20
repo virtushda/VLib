@@ -3,7 +3,7 @@ using Unity.Collections;
 using UnityEngine;
 using VLib.Collections;
 
-namespace Libraries.VLib.Tests
+namespace VLib.Tests
 {
     public class VUnsafeWeightedIndicesTests
     {

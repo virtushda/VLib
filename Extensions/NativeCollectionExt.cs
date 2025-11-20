@@ -33,16 +33,24 @@ namespace VLib
     }
 
     public static unsafe bool TryGetValueBypassSafety<T>(this NativeArray<T> nativeArray, int index, out T value)
-        where T : struct
+        where T : unmanaged
     {
-        var isValidIndex = nativeArray.IsValidIndex(index);
-        value = isValidIndex ? UnsafeUtility.ReadArrayElement<T>(nativeArray.ForceGetUnsafePtrNOSAFETY(), index) : default;
-        return isValidIndex;
+        nativeArray.ConditionalCheckIsCreated();
+        if (!nativeArray.IsValidIndex(index))
+        {
+            value = default;
+            return false;
+        }
+
+        value = UnsafeUtility.ReadArrayElement<T>(UnsafeUtility.AddressOf(ref nativeArray.ForceGetRootRefNOSAFETY()), index);
+        return true;
     }
 
     public static bool IsValidIndex<T>(this NativeArray<T> nativeArray, int index)
-        where T : struct =>
-        index > -1 && index < nativeArray.Length;
+        where T : struct
+    {
+        return index > -1 && index < nativeArray.Length;
+    }
 
     public static void DisposeSafe<T>(this ref NativeArray<T> nativeArray)
             where T : struct

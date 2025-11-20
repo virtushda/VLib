@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.Contracts;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -8,12 +9,12 @@ using WrapMode = UnityEngine.WrapMode;
 namespace VLib
 {
     /// <summary> Legacy native version that caches animation curve values into an array. </summary>
-    public struct AnimationCurveNativeCached : IAllocating
+    public struct AnimationCurveNativeCached : IAllocating, IFloatEvaluator
     {
         public VUnsafeList<float> curveData;
         public WrapMode wrapMode;
         
-        public int Resolution => curveData.Length;
+        public int Resolution => curveData.IsCreated ? curveData.Length : 0;
 
         public AnimationCurveNativeCached(AnimationCurve curve, int resolution = 256, WrapMode wrapMode = WrapMode.Clamp, float sampleScale = 1f, Allocator allocator = Allocator.Persistent)
         {
@@ -43,6 +44,15 @@ namespace VLib
                 WrapMode.PingPong => (int)samplePoint % 2 == 0 ? math.frac(samplePoint) : 1f - math.frac(samplePoint),
                 _ => math.clamp(samplePoint, 0f, 1f)
             };
+
+            return EvaluateQuick(samplePoint);
+        }
+
+        [GenerateTestsForBurstCompatibility, Pure]
+        public float EvaluateQuick(float samplePoint)
+        {
+            if (!curveData.IsCreated)
+                return 0f;
             
             float sampleIndexF = math.lerp(0, Resolution - 1, samplePoint);
             int minIndex = (int) sampleIndexF;
@@ -63,17 +73,17 @@ namespace VLib
             BurstAssert.True(sourceCurve != null);
             BurstAssert.True(sampleScale > 0f);
             
-            sourceCurve.preWrapMode = WrapMode.Clamp;
+            sourceCurve.preWrapMode = WrapMode.Clamp; 
             sourceCurve.postWrapMode = WrapMode.Clamp;
             float resolutionF = curveData.Length - 1; //We want last index to evaluate at 1 exactly
                 
             for (int i = 0; i < curveData.Length; i++)
             {
-                float samplePoint = i / resolutionF;
+                float samplePoint = (i / resolutionF) * sourceCurve.keys[^1].time;
                 curveData[i] = sourceCurve.Evaluate(samplePoint) / sampleScale;
             }
         }
-
+        
         /*public bool BullshitPresent()
         {
             if (!curveData.IsCreated)
@@ -86,7 +96,7 @@ namespace VLib
                 Debug.LogError("Curve data is empty");
                 return true;
             }
-            
+
             for (int i = 0; i < curveData.Length; i++)
             {
                 var v = curveData[i];

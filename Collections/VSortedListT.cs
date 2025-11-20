@@ -21,6 +21,7 @@ namespace VLib
         where T : IComparable<T>//, IEquatable<T>
     {
         [SerializeField] public List<T> list;
+        public IReadOnlyList<T> ListReadOnly => list.AsReadOnly();
 
         [SerializeField] bool hasComparer = false;
         [SerializeField] IComparer<T> comparer;

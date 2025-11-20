@@ -359,7 +359,7 @@ namespace VLib.Aline
         /// Don't forget to dispose the command builder as well... </summary>
         public static void DrawAll_MainThread(ref CommandBuilder draw)
         {
-            MainThread.AssertMainThreadConditional();
+            MainThread.Assert();
             DrawAllBurst(ref draw);
         }
         

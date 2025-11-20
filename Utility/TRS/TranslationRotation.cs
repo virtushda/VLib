@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Runtime.InteropServices;
+using System.Runtime.Remoting.Metadata.W3cXsd2001;
+using Unity.Burst;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
@@ -7,30 +10,50 @@ using UnityEngine.Jobs;
 namespace VLib
 {
     /// <summary> A cheaper TRS struct with scale enforced at (1,1,1) </summary>
-    [Serializable]
+    [Serializable, StructLayout(LayoutKind.Explicit, Size = 28)]
     public struct TranslationRotation : ITRS, IEquatable<TranslationRotation>
     {
+        [FieldOffset(0)]
         public Vector3 position;
+        [FieldOffset(0)]
+        public float3 positionNative;
+        
+        [FieldOffset(12)]
         public Quaternion rotation;
+        [FieldOffset(12)]
+        public quaternion rotationNative;
         
         public TranslationRotation(Vector3 position, Quaternion rotation)
         {
-            this.position = position;
-            this.rotation = rotation;
-            Scale = Vector3.one;
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                position = position,
+                rotation = rotation,
+                Scale = Vector3.one
+            };
         }
 
         public TranslationRotation(float3 position, quaternion rotation)
         {
-            this.position = UnsafeUtility.As<float3, Vector3>(ref position);
-            this.rotation = UnsafeUtility.As<quaternion, Quaternion>(ref rotation);
-            Scale = VMath.One3;
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                positionNative = position,
+                rotationNative = rotation,
+                Scale = VMath.One3
+            };
         }
 
         public TranslationRotation(float3 position)
         {
-            this.position = position;
-            this.rotation = default;
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                positionNative = position,
+                rotationNative = default,
+                Scale = VMath.One3
+            };
         }
 
         public TranslationRotation(Transform t) => this = t.GetTRS<TranslationRotation>();
@@ -40,22 +63,57 @@ namespace VLib
         /// <summary> constructor that generates a trs from a position and a direction </summary> 
         public TranslationRotation(Vector3 position, Vector3 direction)
         {
-            this.position = position;
-            this.rotation = VMath.LookRotationAdaptive(direction); //Quaternion.LookRotation(direction, Vector3.up);
-            Scale = Vector3.one;
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                position = position,
+                rotation = VMath.LookRotationAdaptive(direction), //Quaternion.LookRotation(direction, Vector3.up),
+                Scale = Vector3.one
+            };
         }
         /// <summary> constructor that generates a trs from a position and a direction </summary> 
         public TranslationRotation(float3 position, float3 direction)
         {
-            this.position = position;
-            rotation = VMath.LookRotationAdaptive(direction); // quaternion.LookRotation(direction, Vector3.up);
-            Scale = Vector3.one;
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                positionNative = position,
+                rotationNative = VMath.LookRotationAdaptive(direction), //quaternion.LookRotation(direction, math.up()),
+                Scale = VMath.One3
+            };
         }
 
         public TranslationRotation(Matrix4x4 matrix)
         {
-            position = matrix.GetPosition();
-            rotation = matrix.rotation;
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                position = matrix.GetPosition(),
+                rotation = matrix.rotation,
+                Scale = Vector3.one
+            };
+        }
+        
+        public TranslationRotation(in float4x4 matrix)
+        {
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                positionNative = matrix.GetPositionDelta(),
+                rotationNative = matrix.RotationDelta(),
+                Scale = VMath.One3
+            };
+        }
+        
+        public TranslationRotation(in TRS trs)
+        {
+            // Use object initializer to avoid duplicate field writes
+            this = new TranslationRotation
+            {
+                position = trs.position,
+                rotation = trs.rotation,
+                Scale = Vector3.one
+            };
         }
 
         public Vector3 Position
@@ -78,14 +136,14 @@ namespace VLib
 
         public float3 PositionNative
         {
-            get => UnsafeUtility.As<Vector3, float3>(ref position);
-            set => position = UnsafeUtility.As<float3, Vector3>(ref value);
+            readonly get => positionNative;
+            set => positionNative = value;
         }
 
         public quaternion RotationNative
         {
-            get => UnsafeUtility.As<Quaternion, quaternion>(ref rotation);
-            set => rotation = UnsafeUtility.As<quaternion, Quaternion>(ref value);
+            readonly get => rotationNative;
+            set => rotationNative = value;
         }
 
         public float3 ScaleNative
@@ -94,7 +152,7 @@ namespace VLib
             set { }
         }
 
-        public void GetTransformed(in AffineTransform transform, out TranslationRotation posRotTransformed)
+        public readonly void GetTransformed(in AffineTransform transform, out TranslationRotation posRotTransformed)
         {
             posRotTransformed = this;
             posRotTransformed.PositionNative = math.transform(transform, posRotTransformed.PositionNative);
@@ -111,20 +169,20 @@ namespace VLib
             };
         }
 
-        public float3 TransformPoint(float3 point)
+        public readonly float3 TransformPoint(float3 point)
         {
             // Rotate
-            point = math.rotate(RotationNative, point);
+            point = math.rotate(rotationNative, point);
             // Translate
-            return point + PositionNative;
+            return point + positionNative;
         }
         
         public float3 InverseTransformPoint(float3 point)
         {
             // Untranslate
-            point -= PositionNative;
+            point -= positionNative;
             // Unrotate
-            return math.rotate(math.inverse(RotationNative), point);
+            return math.rotate(math.inverse(rotationNative), point);
         }
         
         public bool Equals(TranslationRotation other) => position.Equals(other.position) && rotation.Equals(other.rotation);
@@ -140,5 +198,13 @@ namespace VLib
         public static implicit operator TranslationRotation(TranslationFacing tf) => new (tf.PositionNative, tf.RotationNative);
         public static implicit operator float3 (TranslationRotation tr) => tr.PositionNative;
         public static implicit operator quaternion (TranslationRotation tr) => tr.RotationNative;
+        
+        [BurstDiscard]
+        public override string ToString()
+        {
+            var p = position;
+            var r = rotation.eulerAngles;
+            return $"Pos[{p.x:0.##}, {p.y:0.##}, {p.z:0.##}], Rot[{r.x:0.##}, {r.y:0.##}, {r.z:0.##}]";
+        }
     }
 }

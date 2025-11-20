@@ -8,13 +8,14 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using VLib.Unsafe.Utility;
 
 namespace VLib
 {
     /// <summary> A simple array-like type that acts like a NativeArray, without the safety handle restrictions. <br/>
     /// The indexer returns a ref, like 'Array' type. <br/>
     /// Same performance (high) and copy-safety(low) as <see cref="UnsafeList{T}"/> </summary>
-    public struct VUnsafeArray<T> : IDisposable, IEnumerable<T>
+    public struct VUnsafeArray<T> : IVLibUnsafeContainer, IEnumerable<T>
         where T : unmanaged
     {
         UnsafeList<T> data;
@@ -27,9 +28,9 @@ namespace VLib
                 if (!data.IsCreated)
                     return false;
 #if EXTRA_SAFETY
-                if (data.Length != data.Capacity)
+                if (data.Length > data.Capacity)
                 {
-                    UnityEngine.Debug.LogError("Length != Capacity!");
+                    UnityEngine.Debug.LogError($"Length({data.Length}) > Capacity({data.Capacity})!");
                     return false;
                 }
 #endif
@@ -37,8 +38,20 @@ namespace VLib
             }
         }
 
-        public readonly int Length => data.Capacity;
-        
+        public int Length
+        {
+            readonly get => data.Capacity;
+            set => throw new NotImplementedException("It is not supported to change the length of a VUnsafeArray.");
+        }
+
+        public int Capacity
+        {
+            get => data.Capacity;
+            set => throw new NotImplementedException("It is not supported to change the capacity of a VUnsafeArray.");
+        }
+
+        public unsafe void* GetUnsafePtr() => data.IsCreated ? data.Ptr : null;
+
         public VUnsafeArray(int capacity, Allocator allocator)
         {
             data = new UnsafeList<T>(capacity, allocator);

@@ -396,7 +396,7 @@ namespace VLib
         /// <summary> A variant of <see cref="RentIndexPointer"/> that can only be called on the main thread. This is one way to ensure thread-safety, where applicable. </summary>
         public SafePtr<T> RentIndexPointerMainThread(int index)
         {
-            MainThread.AssertMainThreadConditional();
+            MainThread.Assert();
             return RentIndexPointer(index);
         }
         

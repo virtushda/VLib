@@ -47,7 +47,7 @@ namespace VLib.Threading
         }
 
         [Conditional("UNITY_EDITOR")]
-        public static void AssertMainThreadConditional()
+        public static void Assert()
         {
             if (!OnMain())
                 throw new InvalidOperationException("This operation must be done on the main thread.");

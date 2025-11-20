@@ -120,7 +120,7 @@ namespace VLib
         {
             length = math.max(0, length);
             int pooledCountCache;
-            while ((pooledCountCache = PooledCount) > length) // Guard against overrides of TryTakeFromCollection that can create new items
+            while ((pooledCountCache = PooledCount) > length)
             {
                 // Pull object
                 if (!TryTakeFromCollection(pooledCountCache - 1, out var poolable))

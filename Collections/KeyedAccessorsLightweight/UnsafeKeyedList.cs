@@ -43,6 +43,8 @@ namespace Libraries.KeyedAccessors.Lightweight
         
         public bool ContainsKey(TKey key) => keyIndexMap.ContainsKey(key);
 
+        public ref TKey ElementAt(int index) => ref keys.ElementAt(index);
+
         /// <summary> The last key will end up replacing the key you're removing. This will be at the <see cref="removalIndex"/>. </summary>
         public bool RemoveSwapBack(TKey key, out int removalIndex)
         {
@@ -98,7 +100,7 @@ namespace Libraries.KeyedAccessors.Lightweight
             
             public TKey Read(int index) => list.keys[index];
             
-            public ref TKey ElementAt(int index) => ref list.keys.ElementAt(index);
+            public ref readonly TKey ElementAt(int index) => ref list.keys.ElementAt(index);
         }
     }
 }

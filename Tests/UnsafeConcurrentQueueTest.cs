@@ -4,11 +4,9 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
-using VLib;
-using VLib.Libraries.VLib.Unsafe.Collections;
 using VLib.Systems;
 
-namespace Libraries.VLib.Tests
+namespace VLib.Tests
 {
     public class UnsafeConcurrentQueueTest
     {

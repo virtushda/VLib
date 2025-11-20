@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -108,9 +110,9 @@ namespace Libraries.KeyedAccessors.Lightweight
         
         public ref TValue ElementAt(int index) => ref values.ElementAt(index);
 
-        public bool RemoveSwapback(TKey key, out TValue removedValue)
+        public bool RemoveSwapback(TKey key, out TValue removedValue, out int removeKeyIndex)
         {
-            if (!keyIndexMap.TryGetValue(key, out var removeKeyIndex))
+            if (!keyIndexMap.TryGetValue(key, out removeKeyIndex))
             {
                 removedValue = default;
                 return false;
@@ -150,7 +152,7 @@ namespace Libraries.KeyedAccessors.Lightweight
 
         public ReadOnly AsReadOnly() => new ReadOnly(this);
         
-        public struct ReadOnly
+        public struct ReadOnly : IEnumerable<KeyValuePair<TKey, TValue>>
         {
             UnsafeKeyedMap<TKey, TValue> map;
             
@@ -163,11 +165,11 @@ namespace Libraries.KeyedAccessors.Lightweight
             
             public TValue ReadValue(int index) => map.values[index];
             
-            /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
+            /*/// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
             public ref TKey KeyElementAt(int index) => ref map.keys.ElementAt(index);
             
             /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
-            public ref TValue ValueElementAt(int index) => ref map.values.ElementAt(index);
+            public ref TValue ValueElementAt(int index) => ref map.values.ElementAt(index);*/
             
             public bool ContainsKey(TKey key) => map.ContainsKey(key);
             
@@ -175,11 +177,54 @@ namespace Libraries.KeyedAccessors.Lightweight
             
             public bool TryGetIndex(TKey key, out int keyIndex) => map.TryGetIndex(key, out keyIndex);
             
-            /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
-            public ref TValue GetValueRef(TKey key) => ref map.GetValueRef(key);
+            public ref readonly TValue GetValueRefReadOnly(TKey key) => ref map.GetValueRef(key);
             
-            /// <summary> This technically allows edits, but can also be more efficient that copying if the value type is large. Show some honor and use it right. </summary>
-            public ref TValue TryGetValueRef(TKey key, out bool success) => ref map.TryGetValueRef(key, out success);
+            public ref readonly TValue TryGetValueRefReadOnly(TKey key, out bool success) => ref map.TryGetValueRef(key, out success);
+
+            #region Enumerators
+
+            /// <summary> Returns an allocation-free enumerator for foreach support. </summary>
+            public Enumerator GetEnumerator() => new Enumerator(map);
+            
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() => GetEnumerator();
+
+            /// <summary> Allocation-free enumerator for the ReadOnly wrapper. </summary>
+            public struct Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
+            {
+                UnsafeList<TKey> keys;
+                UnsafeList<TValue> values;
+                int index;
+                int length;
+
+                internal Enumerator(UnsafeKeyedMap<TKey, TValue> map)
+                {
+                    keys = map.keys;
+                    values = map.values;
+                    index = -1;
+                    length = map.keys.Length;
+                }
+
+                /// <summary> Gets the current key-value pair. </summary>
+                public KeyValuePair<TKey, TValue> Current => new KeyValuePair<TKey, TValue>(keys[index], values[index]);
+
+                object IEnumerator.Current => Current;
+
+                /// <summary> Advances to the next element. </summary>
+                public bool MoveNext()
+                {
+                    index++;
+                    return index < length;
+                }
+
+                /// <summary> Resets the enumerator to its initial position. </summary>
+                public void Reset() => index = -1;
+
+                /// <summary> No-op dispose for IEnumerator compliance. </summary>
+                public void Dispose() { }
+            }
+            
+            #endregion
         }
     }
 }

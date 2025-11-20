@@ -114,7 +114,7 @@ namespace VLib.Systems.TransformHandles
         /// <summary> Main thread only! </summary>
         public static TransformHandle GetCreateTransformHandle(int transformID)
         {
-            MainThread.AssertMainThreadConditional();
+            MainThread.Assert();
         }
     }
 

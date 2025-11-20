@@ -144,7 +144,7 @@ namespace VLib
         public static explicit operator TranslationDirection((float3 pos, float3 dir) td) => new (td.pos, td.dir);
         public static explicit operator TranslationDirection(float3 pos) => new (pos);
         public static explicit operator TranslationDirection(Vector3 pos) => new (pos);
-        public static explicit operator TranslationDirection(TranslationRotation tr) => new (tr.PositionNative, math.rotate(tr.RotationNative, math.forward()));
+        public static explicit operator TranslationDirection(TranslationRotation tr) => new (tr.positionNative, math.rotate(tr.RotationNative, math.forward()));
         public static explicit operator TranslationDirection(TranslationFacing tf) => new (tf.PositionNative, tf.ForwardNative);
     }
 }

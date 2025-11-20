@@ -43,5 +43,7 @@ namespace VLib
 
         public static Color WithAlpha(in this Color col, float alpha) => new Color(col.r, col.g, col.b, alpha);
         public static Color WithAlphaMult(in this Color col, float alpha) => new Color(col.r, col.g, col.b, col.a * alpha);
+
+        public static Color DistributeColor(int index, int count) => Color.HSVToRGB((float) index / (count + 1), 1f, 1f);
     }
 }

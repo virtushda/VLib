@@ -343,7 +343,7 @@ namespace VLib
             collection.ConditionalAssertIsCreated();
             var length = collection.Length;
             NativeArray<T> result = CollectionHelper.CreateNativeArray<T>(length, allocator, NativeArrayOptions.UninitializedMemory);
-            UnsafeUtility.MemCpy((byte*) result.ForceGetUnsafePtrNOSAFETY(), (byte*) collection.GetUnsafePtr(), length * UnsafeUtility.SizeOf<T>());
+            UnsafeUtility.MemCpy((byte*)UnsafeUtility.AddressOf(ref result.ForceGetRootRefNOSAFETY()), (byte*) collection.GetUnsafePtr(), length * UnsafeUtility.SizeOf<T>());
             return result;
         }
 

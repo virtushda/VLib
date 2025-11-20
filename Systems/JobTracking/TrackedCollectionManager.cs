@@ -52,7 +52,7 @@ namespace VLib
         /// <summary> NOT THREAD SAFE </summary>
         public static JobHandle GetDependencyHandleMainThread(ulong id, bool writeAccess)
         {
-            MainThread.AssertMainThreadConditional();
+            MainThread.Assert();
             if (IDToHandlesMap.TryGetValue(id, out var handles))
             {
                 // If write, await both read and write jobs already scheduled
@@ -68,7 +68,7 @@ namespace VLib
         /// <summary> NOT THREAD SAFE </summary>
         public static void SetDependencyHandleMainThread(ulong id, bool writeAccess, JobHandle jobHandle)
         {
-            MainThread.AssertMainThreadConditional();
+            MainThread.Assert();
             Profiler.BeginSample(nameof(SetDependencyHandleMainThread));
             if (!IDToHandlesMap.TryGetValue(id, out var handles))
                 handles = new CollectionHandles();
@@ -94,7 +94,7 @@ namespace VLib
         /// <summary> Will complete any jobs dependent on the tracked struct </summary>
         public static void CompleteAllJobsFor(ulong id)
         {
-            MainThread.AssertMainThreadConditional();
+            MainThread.Assert();
             if (IDToHandlesMap.Remove(id, out var handles))
             {
                 handles.ReadHandleDirect.Complete();
@@ -107,7 +107,7 @@ namespace VLib
         /// <summary> Will complete any jobs dependent on the tracked structures. Consumes the list and returns it to an internal pool. </summary>
         public static void CompleteAllJobsFor(List<ulong> ids, bool sendListToUnityListPool)
         {
-            MainThread.AssertMainThreadConditional();
+            MainThread.Assert();
             foreach (var id in ids)
                 CompleteAllJobsFor(id);
             if (sendListToUnityListPool)

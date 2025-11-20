@@ -135,6 +135,19 @@ namespace VLib
         /// <summary> For write access use the DataPtr </summary>
         public readonly UnsafeList<VirtualValueTransform>.ReadOnly children => DataRef._children.AsReadOnly();
         
+        public readonly int ChildCount => DataRef._children.IsCreated ? DataRef._children.Length : 0;
+        
+        public readonly bool TryGetChild(int index, out VirtualValueTransform child)
+        {
+            if (DataRef._children.IsCreated && index >= 0 && index < DataRef._children.Length)
+            {
+                child = DataRef._children[index];
+                return child.IsCreated;
+            }
+            child = default;
+            return false;
+        }
+        
         public readonly void AddChild(VirtualValueTransform child)
         {
             ref var dataRef = ref DataRef;

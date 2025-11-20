@@ -46,12 +46,22 @@ namespace VLib.SyncPrimitives.IntRef
             scopeLock = new(refValue, timeoutSeconds);
             return scopeLock.IsCreated;
         }
-
-        /// <summary> Recommend <see cref="ScopedAtomicLock"/> over this.
+        
+        /// <summary> Recommend <see cref="ScopedAtomicLock"/> over this, except in light-weight scenarios.
         /// <br/> For fast thread-safe ops, the lock must be release properly or the application can hang! (Use try-catch, etc)
         /// This method will block indefinitely until the lock is acquired. USE CAUTION</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TryAtomicLockUnsafe(ref this int lockValue, float timeoutSeconds = 2f)
+        public static void AtomicLockUnsafe(this ref int lockValue)
+        {
+            // If threadlock isn't 0, the lock is taken
+            while (Interlocked.CompareExchange(ref lockValue, 1, 0) != 0) { }
+        }
+
+        /// <summary> Recommend <see cref="ScopedAtomicLock"/> over this.
+        /// <br/> For fast thread-safe ops, the lock must be release properly or the application can hang! (Use try-catch, etc)
+        /// This method may block indefinitely until the lock is acquired. USE CAUTION</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryAtomicLockUnsafe(ref this int lockValue, float timeoutSeconds)
         {
             var timeoutTime = (float)(VTime.intraFrameTime + timeoutSeconds);
             // If threadlock isn't 0, the lock is taken

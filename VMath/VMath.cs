@@ -5,6 +5,7 @@ using Unity.Burst.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 
 using static Unity.Mathematics.math;
@@ -75,13 +76,13 @@ namespace VLib
             return toSign > fromSign ? 1 : -1;
         }
 
-        /// <summary>Returns 'value' matching the sign of the 'reference'.</summary>
+        /// <summary> Returns 'x' with the sign of 'y' </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int MatchSign(int value, int reference) => SignBinary(value) == SignBinary(reference) ? value : -value;
+        public static int CopySign(int x, int y) => abs(x) * select(-1, 1, y >= 0);
 
-        /// <summary>Returns 'value' matching the sign of the 'reference'.</summary>
+        /// <summary> Returns 'x' with the sign of 'y' </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float MatchSign(float value, float reference) => SignBinary(value) == SignBinary(reference) ? value : -value;
+        public static float CopySign(float x, float y) => asfloat((asuint(y) & 0x80000000) | (asuint(x) & 0x7FFFFFFF));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float SetDistanceFromZero(float value, float desiredDistFromZero)
@@ -340,7 +341,7 @@ namespace VLib
         /// <summary> Determine the rotation between two vectors where the second direction is projected onto the plane defined by the rotation axis.
         /// NOTE: EXPECTS NORMALIZED INPUTS.</summary>
         /// <returns>Angle in radians.</returns>
-        public static float SignedAngleAroundAxis(float3 fromNorm, float3 toNorm, float3 rotationAxisNorm, float epsilon = .0001f, bool projectFrom = true, bool projectTo = true)
+        public static float SignedAngleAroundAxis(float3 fromNorm, float3 toNorm, float3 rotationAxisNorm, bool projectFrom = true, bool projectTo = true, float epsilon = .0001f)
         {
             fromNorm.CheckNormalized();
             toNorm.CheckNormalized();
@@ -679,6 +680,63 @@ namespace VLib
             //return Quaternion.FromToRotation(quaternionExt.DefaultDirectionVec3, direction); // Potentially safer but slower unity version
         }
 
+        /// <summary> Clamps a rotation to a maximum pitch and yaw angle, relative to a guide rotation. <br/>
+        /// Cannot constrain rotations at or beyond 90 degrees, incoming extreme rotations will be clamped by a general clamp before being clamped across two axes. </summary>
+        public static quaternion BidirectionalRotationClamp(quaternion rotation, quaternion guideRotation, float maxPitchRadians, float maxYawRadians)
+        {
+            BurstAssert.True(maxPitchRadians < 85f * Mathf.Deg2Rad); // Large rotations are incorrect with planar rotation clamping technique
+            BurstAssert.True(maxYawRadians < 85f * Mathf.Deg2Rad); // Large rotations are incorrect with planar rotation clamping technique
+            
+            rotation.ConditionalCheckRotationValid();
+            guideRotation.ConditionalCheckRotationValid();
+            
+            var guideForward = rotate(guideRotation, Forward3);
+            var guideRight = rotate(guideRotation, Right3);
+            var guideUp = cross(guideForward, guideRight);
+            
+            var rotationFacing = rotate(rotation, Forward3);
+
+            // Use a general clamp on extreme angles
+            {
+                const float dotConstraint85Degrees = 0.0872f;
+                var facingDot = dot(guideForward, rotationFacing);
+                if (facingDot < dotConstraint85Degrees)
+                {
+                    // General clamp that works at very extreme angles
+                    rotation = ClampRotationDirection(rotation, guideRotation, max(maxPitchRadians, maxYawRadians));
+                    // Update facing
+                    rotationFacing = rotate(rotation, Forward3);
+                }
+            }
+            
+            // Pitch
+            {
+                var pitchRotation = SignedAngleAroundAxis(guideForward, rotationFacing, guideRight, projectFrom: false);
+                if (abs(pitchRotation) > maxPitchRadians)
+                {
+                    var correctionAngle = CopySign(maxPitchRadians, pitchRotation) - pitchRotation;
+                    var correction = quaternion.AxisAngle(guideRight, correctionAngle);
+                    rotation = mul(correction, rotation);
+                    
+                    // Update facing
+                    rotationFacing = rotate(rotation, Forward3);
+                }
+            }
+            
+            // Yaw
+            {
+                var yawRotation = SignedAngleAroundAxis(guideForward, rotationFacing, guideUp, projectFrom: false);
+                if (abs(yawRotation) > maxYawRadians)
+                {
+                    var correctionAngle = CopySign(maxYawRadians, yawRotation) - yawRotation;
+                    var correction = quaternion.AxisAngle(guideUp, correctionAngle);
+                    rotation = mul(correction, rotation);
+                }
+            }
+            
+            return rotation;
+        }
+
         public static quaternion ClampRotationDirection(quaternion rotation, in quaternion guideRotation, float maxAngleRadians)
         {
             BurstAssert.True(maxAngleRadians >= 0);
@@ -686,7 +744,7 @@ namespace VLib
             // Get directions
             var rotationDir = rotate(rotation, Forward3);
             var guideDir = rotate(guideRotation, Forward3);
-            
+
             // Determine variance angle
             var dirAngleDeltaRadians = Angle(rotationDir, guideDir);
             dirAngleDeltaRadians.CheckNANOrInf();
@@ -736,8 +794,19 @@ namespace VLib
             return select(0, select(-1, 1, 0f < abDot), abs(abDot) >= 1 - epsilon);
         }
         
+        public static bool Perpendicular(in float3 a, in float3 b, float epsilon = 1e-4f)
+        {
+            a.CheckNormalized();
+            b.CheckNormalized();
+            return abs(dot(a, b)) < epsilon;
+        }
+        
         /// <summary> Distributes a total weight in an optimal way across a number of elements, with each element receiving a weight that is a multiple of the previous element's weight. </summary>
-        public static void DistributeWeightAcrossSpan(in Span<float> weightsTarget, float totalWeight, float ratio)
+        /// <param name="weightsTarget">The target array to write the weights to.</param>
+        /// <param name="totalWeight">The total weight to distribute.</param>
+        /// <param name="ratio">The ratio between consecutive weights.</param>
+        /// <param name="maxWeight">The maximum weight for any single element. If negative, there is no maximum.</param>
+        public static void DistributeWeightAcrossSpan(in Span<float> weightsTarget, float totalWeight, float ratio, float maxWeight = -1f)
         {
             BurstAssert.True(ratio > 0.0001f);
             BurstAssert.True(totalWeight > 0.0001f);
@@ -755,6 +824,19 @@ namespace VLib
             var normalizerMultiplier = (float)(totalWeight / sum);
             for (int i = 0; i < weightsTarget.Length; i++)
                 weightsTarget[i] *= normalizerMultiplier;
+
+            if (maxWeight > 0f)
+            {
+                // Take advantage of known order to fetch the highest weight without searching
+                var highestWeight = ratio < 1f ? weightsTarget[0] : weightsTarget[^1];
+                if (highestWeight > maxWeight)
+                {
+                    // Rescale all weights to fit within maximum, without altering the distribution
+                    var weightMultiplier = maxWeight.DivideChecked(highestWeight);
+                    for (int i = 0; i < weightsTarget.Length; i++)
+                        weightsTarget[i] *= weightMultiplier;
+                }
+            }
         }
         
         public static float3 Bezier(float3 p0, float3 p1, float3 p2, float3 p3, float t)
@@ -801,7 +883,8 @@ namespace VLib
 #endif
             return numerator / denominator;
         }
-        
+
+        /// <summary> Performs a division, but checks for divide by zero first. The check is stripped out in release code. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float3 DivideChecked(this float3 numerator, float3 denominator, int errorCode = 0, float epsilon = EPSILON, bool logError = true)
         {
@@ -1012,18 +1095,30 @@ namespace VLib
 
         public static class Curve
         {
+            /// <summary> Can bend a value on a linear range from 0 and 1, based on 'square' and 'sqrt' functions. Introduces moderate curvature01 on the fly for very cheap. </summary>
+            /// <param name="value01"> Value from 0 to 1. </param>
+            /// <param name="curvature01"> Value from 0 to 1. <br/>
+            /// 0: Bends the value down toward 0. <br/>
+            /// 0.5: No bend. <br/>
+            /// 1: Bends the value up toward 1. </param>
+            public static float SimpleSqrtCurve(float value01, float curvature01)
+            {
+                if (curvature01 < 0.5f)
+                    return lerp(value01 * value01, value01, curvature01 * 2f);
+                return lerp(value01, sqrt(value01), (curvature01 - 0.5f) * 2f);
+            }
             /// <summary> Produces a simple bendable curve that travels from 0 to 1. The multiplier and offset can be used to transform the curve to do multiple things. <br/>
             /// Equivalent to: 'y=\left(x^{r}\right)m+b' on Desmos (copy and paste) </summary>
-            public static float SimpleAdjustExponent_01(float x, float xExponent, float multiplier = 1f, float offset = 0) => (pow(x, xExponent) * multiplier) + offset;
+            public static float SimplePowCurve_01(float x, float xExponent, float multiplier = 1f, float offset = 0) => (pow(x, xExponent) * multiplier) + offset;
 
-            /// <summary> Faster version of <see cref="SimpleAdjustExponent_01"/> without the 'pow', but exponent is fixed to 2. </summary>
-            public static float SimpleExponent2_01(float x, float multiplier = 1f, float offset = 0) => (x * x) * multiplier + offset;
+            /// <summary> Faster version of <see cref="SimplePowCurve_01"/> without the 'pow', but exponent is fixed to 2. </summary>
+            public static float SimpleCurve2_01(float x, float multiplier = 1f, float offset = 0) => (x * x) * multiplier + offset;
             
-            /// <summary> Faster version of <see cref="SimpleAdjustExponent_01"/> without the 'pow', but exponent is fixed to 3. </summary>
-            public static float SimpleExponent3_01(float x, float multiplier = 1f, float offset = 0) => (x * x * x) * multiplier + offset;
+            /// <summary> Faster version of <see cref="SimplePowCurve_01"/> without the 'pow', but exponent is fixed to 3. </summary>
+            public static float SimpleCurve3_01(float x, float multiplier = 1f, float offset = 0) => (x * x * x) * multiplier + offset;
             
-            /// <summary> Faster version of <see cref="SimpleAdjustExponent_01"/> without the 'pow', but exponent is fixed to 4. </summary>
-            public static float SimpleExponent4_01(float x, float multiplier = 1f, float offset = 0) => (x * x * x * x) * multiplier + offset;
+            /// <summary> Faster version of <see cref="SimplePowCurve_01"/> without the 'pow', but exponent is fixed to 4. </summary>
+            public static float SimpleCurve4_01(float x, float multiplier = 1f, float offset = 0) => (x * x * x * x) * multiplier + offset;
         }
         
         public static class Grid
@@ -1139,6 +1234,103 @@ namespace VLib
                 }
 
                 return s * sqrt(d);
+            }
+        }
+
+        public static class Easing
+        {
+            public static float EaseTowards(float current, float target, ref float velocity, float accelTime, float maxSpeed, float deltaTime, float epsilon = 0.001f)
+            {
+                var difference = target - current;
+    
+                // If we're very close to target, just snap to it
+                if (Mathf.Abs(difference) < epsilon)
+                {
+                    velocity = 0f;
+                    return target;
+                }
+    
+                var direction = Mathf.Sign(difference);
+                var distanceToDecelerate = 0.5f * velocity * velocity / (maxSpeed / accelTime);
+    
+                // Determine if we should accelerate, maintain speed, or decelerate
+                if (Mathf.Abs(difference) > distanceToDecelerate && Mathf.Abs(velocity) < maxSpeed)
+                {
+                    // Acceleration phase
+                    velocity += direction * (maxSpeed / accelTime) * deltaTime;
+                    velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
+                }
+                else
+                {
+                    // Deceleration phase
+                    var decelRate = maxSpeed / accelTime;
+                    velocity -= Mathf.Sign(velocity) * decelRate * deltaTime;
+        
+                    // Prevent oscillation by stopping completely when velocity gets very small
+                    if (Mathf.Abs(velocity) < decelRate * deltaTime)
+                    {
+                        velocity = 0f;
+                        return target;
+                    }
+                }
+    
+                // Apply movement
+                var newValue = current + velocity * deltaTime;
+    
+                // Check if we would overshoot in this frame
+                if ((target - newValue) * difference <= 0)
+                {
+                    velocity = 0f;
+                    return target;
+                }
+    
+                return newValue;
+            }
+            
+            public static float EaseTowardsAngle(float current, float target, ref float velocity, float accelTime, float maxSpeed, float deltaTime, float epsilon = 0.001f)
+            {
+                var angleDifference = Mathf.DeltaAngle(current, target);
+    
+                // If we're very close to target, just snap to it
+                if (Mathf.Abs(angleDifference) < epsilon)
+                {
+                    velocity = 0f;
+                    return target;
+                }
+    
+                var direction = (int)Mathf.Sign(angleDifference);
+                var distanceToDecelerate = 0.5f * velocity * velocity / (maxSpeed / accelTime);
+    
+                // Determine if we should accelerate, maintain speed, or decelerate
+                if (Mathf.Abs(angleDifference) > distanceToDecelerate && Mathf.Abs(velocity) < maxSpeed)
+                {
+                    // Acceleration phase
+                    velocity += direction * (maxSpeed / accelTime) * deltaTime;
+                    velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
+                }
+                else
+                {
+                    // Deceleration phase
+                    var decelRate = maxSpeed / accelTime;
+                    velocity -= Mathf.Sign(velocity) * decelRate * deltaTime;
+        
+                    // Prevent oscillation by stopping completely when velocity gets very small
+                    if (Mathf.Abs(velocity) < decelRate * deltaTime)
+                    {
+                        velocity = 0f;
+                        return target;
+                    }
+                }
+    
+                // Apply movement
+                var newAngle = current + velocity * deltaTime;
+    
+                // Check if we would overshoot in this frame
+                if ((int) Mathf.Sign(Mathf.DeltaAngle(newAngle, target)) == direction)
+                    return newAngle;
+            
+                velocity = 0f;
+                return target;
             }
         }
     }

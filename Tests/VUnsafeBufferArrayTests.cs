@@ -1,10 +1,7 @@
-﻿using System.Collections;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Unity.Collections;
-using UnityEngine.TestTools;
-using VLib;
 
-namespace Libraries.VLib.Tests
+namespace VLib.Tests
 {
     public class VUnsafeBufferArrayTests
     {

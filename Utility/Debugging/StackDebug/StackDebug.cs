@@ -25,7 +25,7 @@ namespace VLib.Debugging
         internal static void Push(string debugInfo)
         {
 #if ENABLE_PROFILER
-            using var profileScope = ProfileScope.WithTag("StackDebug.Push");
+            using var profileScope = ProfileScope.Auto("StackDebug.Push");
 #endif
             var stack = threadStacks.GetOrAdd(Thread.CurrentThread.ManagedThreadId, CreateStackFunc);
             stack.Add(new StackDebugInfo(debugInfo));
@@ -34,7 +34,7 @@ namespace VLib.Debugging
         internal static void Pop()
         {
 #if ENABLE_PROFILER
-            using var profileScope = ProfileScope.WithTag("StackDebug.Pop");
+            using var profileScope = ProfileScope.Auto("StackDebug.Pop");
 #endif
             if (!threadStacks.TryGetValue(Thread.CurrentThread.ManagedThreadId, out var stack) || stack.Count > 0)
                 throw new Exception("StackDebug: Pop called when stack is empty");

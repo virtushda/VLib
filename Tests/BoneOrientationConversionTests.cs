@@ -1,8 +1,7 @@
 ﻿using NUnit.Framework;
 using UnityEngine;
-using VLib;
 
-namespace Libraries.VLib.Tests
+namespace VLib.Tests
 {
     public class BoneOrientationConversionTests
     {

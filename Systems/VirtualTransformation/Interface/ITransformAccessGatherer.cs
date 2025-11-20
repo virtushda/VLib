@@ -128,18 +128,35 @@ namespace VLib
             gatherer.ReleaseRequestorList(requestors);
         }
 
-        public static void AutoConstructAndDistributeNativeTree(this ITransformAccessGatherer gatherer, short ownerID,
-            bool respectComponentStates, out List<Transform> allTransforms, out List<Transform> writeTransforms, out VirtualValueTransformTree virtualTransformTree)
+        public static void AutoConstructAndDistributeNativeTree(this ITransformAccessGatherer gatherer,
+            ulong ownerKey, bool respectComponentStates, out List<Transform> allTransforms,
+            out List<Transform> writeTransforms, out VirtualValueTransformTree virtualTransformTree)
         {
-            var requestors = ProcessTransformGathering(gatherer, respectComponentStates, out allTransforms, out writeTransforms);
-            
-            // Virtual transform tree supports ulong size IDs, but we're putting entity indices in there
-            virtualTransformTree = new VirtualValueTransformTree(ownerID.ToUlong(), allTransforms);
-            
+            var requestors = ProcessTransformGathering(gatherer, respectComponentStates,
+                out allTransforms, out writeTransforms);
+
+            // ownerKey is already ulong, no assert/logging
+            virtualTransformTree = new VirtualValueTransformTree(ownerKey, allTransforms);
+
             gatherer.SendTransformNativeTreeToChildComponents(respectComponentStates, virtualTransformTree, requestors);
             gatherer.ReleaseRequestorList(requestors);
         }
-        
+
+        public static void AutoConstructAndDistributeNativeTree(this ITransformAccessGatherer gatherer, short ownerID,
+            bool respectComponentStates, out List<Transform> allTransforms, out List<Transform> writeTransforms,
+            out VirtualValueTransformTree virtualTransformTree)
+        {
+            var requestors = ProcessTransformGathering(gatherer, respectComponentStates, out allTransforms,
+                out writeTransforms);
+
+            // Virtual transform tree supports ulong size IDs, but we're putting entity indices in there
+            // Only real animals should come here; enforce non-negative
+            virtualTransformTree = new VirtualValueTransformTree(ownerID.ToUlong(), allTransforms);
+
+            gatherer.SendTransformNativeTreeToChildComponents(respectComponentStates, virtualTransformTree, requestors);
+            gatherer.ReleaseRequestorList(requestors);
+        }
+
         static List<ITransformAccessRequestor> ProcessTransformGathering(ITransformAccessGatherer gatherer, bool respectComponentStates, out List<Transform> allTransforms, out List<Transform> writeTransforms)
         {
             var allTransformsProtected = new HashList<Transform>();

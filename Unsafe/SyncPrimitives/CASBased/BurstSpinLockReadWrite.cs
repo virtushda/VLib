@@ -1,7 +1,7 @@
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
 #define DEBUG_ADDITIONAL_CHECKS
-//#define DEADLOCK_DEBUG // Reports additional information during lock timeouts. Enables a mechanism to identify who is holding the exclusive lock.
-//#define RECURSIVE_READ_DEBUG // IF ORDERED, it is not safe to recursively read lock within one thread, this causes a circular deadlock with another thread's write lock.
+#define DEADLOCK_DEBUG // Reports additional information during lock timeouts. Enables a mechanism to identify who is holding the exclusive lock.
+#define RECURSIVE_READ_DEBUG // IF ORDERED, it is not safe to recursively read lock within one thread, this causes a circular deadlock with another thread's write lock.
 #define CLAIM_TRACKING // Pass through line IDs to refstruct system
 #endif
 
@@ -493,12 +493,14 @@ namespace VLib
     /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
-    public struct BurstScopedExclusiveLock : IAllocating
+    public struct BurstScopedExclusiveLock : IAllocating, ISpinLockHold
     {
         BurstSpinLockReadWrite m_parentLock;
+        
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
         [MarshalAs(UnmanagedType.U1)] public readonly bool succeeded;
         public static implicit operator bool(BurstScopedExclusiveLock d) => d.succeeded;
+        public bool Succeeded => succeeded;
         
 #if RECURSIVE_READ_DEBUG
         VSafetyHandle safetyHandle;
@@ -567,13 +569,14 @@ namespace VLib
     /*[Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.DivideByZeroChecks, false)]*/
-    public struct BurstScopedReadLock : IAllocating
+    public struct BurstScopedReadLock : IAllocating, ISpinLockHold
     {
         BurstSpinLockReadWrite m_parentLock;
 
         /// <summary> Check this, or implicitly cast this struct to 'bool' to check whether the lock acquired successfully! </summary>
         [MarshalAs(UnmanagedType.U1)] public readonly bool succeeded;
         public static implicit operator bool(BurstScopedReadLock d) => d.succeeded;
+        public bool Succeeded => succeeded;
 
 #if RECURSIVE_READ_DEBUG
         VSafetyHandle safetyHandle;

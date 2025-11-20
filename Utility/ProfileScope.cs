@@ -10,12 +10,9 @@ namespace VLib
         #if ENABLE_PROFILER
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ProfileScope Auto([CallerMemberName] string autoPopulatedTag = "") => WithTag(autoPopulatedTag);
-        
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ProfileScope WithTag(string profileTag)
+        public static ProfileScope Auto([CallerMemberName] string autoPopulatedTag = "")
         {
-            Profiler.BeginSample(profileTag);
+            Profiler.BeginSample(autoPopulatedTag);
             return new ProfileScope();
         }
 

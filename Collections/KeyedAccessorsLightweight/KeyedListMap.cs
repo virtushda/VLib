@@ -4,7 +4,7 @@ using Unity.Collections;
 namespace Libraries.KeyedAccessors.Lightweight
 {
     ///<summary> A managed version of <see cref="UnsafeKeyedMap{TKey,TValue}"/> </summary>
-    public class KeyedListPair<TKey, TValue>
+    public class KeyedListMap<TKey, TValue>
     {
         // Key and value lists are aligned
         public List<TKey> keys;
@@ -13,9 +13,9 @@ namespace Libraries.KeyedAccessors.Lightweight
 
         public int Length => keys.Count;
 
-        public KeyedListPair() : this(16){}
+        public KeyedListMap() : this(16){}
 
-        public KeyedListPair(int initCapacity = 16)
+        public KeyedListMap(int initCapacity = 16)
         {
             keys = new List<TKey>(initCapacity);
             values = new List<TValue>(initCapacity);

@@ -235,5 +235,13 @@ namespace VLib
                 ScaleNative = a.ScaleNative + b.ScaleNative
             };
         }
+        
+        public static float AngleToFromForward<T>(this T trs, float3 position)
+            where T : struct, ITRS
+        {
+            var toTarget = math.normalize(position - trs.PositionNative);
+            var forward = trs.Forward();
+            return math.acos(math.clamp(math.dot(forward, toTarget), -1f, 1f));
+        }
     }
 }

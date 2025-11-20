@@ -30,6 +30,11 @@ namespace VLib
         public static Vector2 LerpTo(this Vector2 a, Vector2 b, float amount) => Vector2.Lerp(a, b, amount);
         
         public static float GetValueAsMinMax(this Vector2 minMax, float t) => math.lerp(minMax.x, minMax.y, t);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float GetRandomValueAsMinMax(this Vector2 minMax, ref Random random) => math.lerp(minMax.x, minMax.y, random.NextFloat());
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float GetRandomValueAsMinMax(this Vector2 minMax) => math.lerp(minMax.x, minMax.y, UnityEngine.Random.value);
     }
 }
