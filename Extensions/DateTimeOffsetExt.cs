@@ -9,8 +9,5 @@ namespace VLib
         {
             return new DateTimeOffset(dateTimeOffset.Year, dateTimeOffset.Month, dateTimeOffset.Day, 0, 0, 0, dateTimeOffset.Offset);
         }
-        
-        /// <summary> Returns a new DateOnly with the date set to the DateTimeOffset's date. </summary>
-        public static DateOnly AsDateOnly(this DateTimeOffset dateTimeOffset) => new DateOnly(dateTimeOffset.Year, dateTimeOffset.Month, dateTimeOffset.Day);
     }
 }
