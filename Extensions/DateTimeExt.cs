@@ -8,9 +8,6 @@ namespace VLib
         public static readonly DateTime MinValueUTC = new DateTime(0, DateTimeKind.Utc);
         public static readonly DateTime MaxValueUTC = new DateTime(DateTime.MaxValue.Ticks, DateTimeKind.Utc);
         
-        public static DateOnly AsDateOnly(this DateTime dateTime) => new DateOnly(dateTime.Year, dateTime.Month, dateTime.Day);
-        public static TimeOnly AsTimeOnly(this DateTime dateTime) => new TimeOnly(dateTime.Hour, dateTime.Minute, dateTime.Second);
-        
         /// <summary> Converts a DateTime to RFC 3339 format. </summary>
         public static string ToRfc3339(in this DateTime dateTime)
         {
