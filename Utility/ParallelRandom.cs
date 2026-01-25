@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System.Runtime.CompilerServices;
+using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -129,10 +130,15 @@ namespace VLib
             return randomValue;
         }
 
-        public byte NextByte()
-        {
-            var nextInt = NextInt();
-            return (byte)(nextInt % 256);
-        }
+        /// <summary> Returns a random byte value. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public byte NextByte() => (byte)NextInt(0, 255);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool NextBool() => NextInt() > 0;
+
+        /// <summary> Evenly selects between two options. </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T Next<T>(T optionA, T optionB) => NextBool() ? optionA : optionB;
     }
 }

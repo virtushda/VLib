@@ -86,5 +86,24 @@ namespace VLib
             value ^= value >> 33;
             return value;
         }
+
+        /// <summary>If using a ulong as a fixed size array of 8 bytes, this method will return a byte
+        /// where each bit will be one if the byte value at each position in the original ulong was larger than zero</summary>
+        public static byte GetNonZeroBytesAsBits(this ulong value)
+        {
+            const ulong mask = 0x8080808080808080UL;
+    
+            // Create a mask where each byte has its high bit set if the byte is non-zero
+            var temp = value;
+            temp |= temp << 1;
+            temp |= temp << 2;
+            temp |= temp << 4;
+            temp &= mask;
+    
+            // Compress the high bits into a single byte
+            temp = (temp >> 7) | (temp >> 14) | (temp >> 21) | (temp >> 28) |
+                   (temp >> 35) | (temp >> 42) | (temp >> 49) | (temp >> 56);
+            return (byte)(temp & 0xFF);
+        }
     }
 }

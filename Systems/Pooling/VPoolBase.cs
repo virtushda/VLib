@@ -3,6 +3,7 @@ using System.Threading;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
+using VLib.Threading;
 
 namespace VLib
 {
@@ -20,20 +21,32 @@ namespace VLib
         protected TCollection collection;
         protected int initCapacity = DefaultInitialCapacity;
 
-        /// <summary> Pooled + Taken </summary>
-        public int TotalObjectCount => PooledCount + TakenCount;
-
         /// <summary> The number of objects dormant in the pool. </summary>
         public abstract int PooledCount { get; }
         
+        // NOTE: Removed 'taken' tracking because it's irreconcilable with the ability to create and 'repool' objects outside the pool.
+        // Further, the concept of 'taken' is simply outside the responsibility of a 'pool'.
+        /*/// <summary> Pooled + Taken </summary>
+        public int TotalObjectCount => PooledCount + TakenCount;
+        
         int takenCount;
 
-        /// <summary> The number of objects retrieved from this pool. </summary>
+        /// <summary> The number of objects retrieved from this pool. Be aware, this can be decremented by creating objects outside the pool and feeding the pool. </summary>
         public int TakenCount => takenCount;
         protected ref int TakenCountRef => ref takenCount;
-        protected void IncrementTakenCount() => Interlocked.Increment(ref takenCount); // Interlocked to support thread-safe variants by default
-        protected void DecrementTakenCount() => Interlocked.Decrement(ref takenCount); // Interlocked to support thread-safe variants by default
-        
+        protected void IncrementTakenCount()
+        {
+            Interlocked.Increment(ref takenCount); // Interlocked to support thread-safe variants by default
+            Assert.IsTrue(TakenCount >= 0);
+        }
+
+        protected void DecrementTakenCount()
+        {
+            InterlockedUtil.DecrementIfAbove(ref takenCount, 0);
+            var newCount = Interlocked.Decrement(ref takenCount); // Interlocked to support thread-safe variants by default
+            // Handle case where a repooled object was not created by the pool, we cannot allow a negative taken count.
+        }*/
+
         #region Processing Actions
 
         /// <summary> Custom functionality to run on an element that has just been depooled </summary>
@@ -103,7 +116,7 @@ namespace VLib
 
             if (runPostProcessAction)
                 depoolPostProcess?.Invoke(poolable);
-            IncrementTakenCount();
+            //IncrementTakenCount();
             return poolable;
         }
 
@@ -112,7 +125,7 @@ namespace VLib
             if (runPreProcessAction)
                 repoolPreProcess?.Invoke(objToPool);
             AddCollectionItem(objToPool);
-            DecrementTakenCount();
+            //DecrementTakenCount();
         }
 
         /// <summary> Disposes pool elements until the pooled count == <see cref="length"/>. This can be used to clamp the size of the pool. </summary>
@@ -144,7 +157,7 @@ namespace VLib
         public void DumpAll()
         {
             ClearPooled();
-            Interlocked.Exchange(ref takenCount, 0);
+            //Interlocked.Exchange(ref takenCount, 0);
         }
         
         public ScopedUser GetScopedUser() => new(this);

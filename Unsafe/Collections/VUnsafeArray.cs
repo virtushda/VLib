@@ -40,10 +40,11 @@ namespace VLib
 
         public int Length
         {
-            readonly get => data.Capacity;
+            readonly get => data.Length;
             set => throw new NotImplementedException("It is not supported to change the length of a VUnsafeArray.");
         }
 
+        /// <summary> Reports the true memory capacity backing the array. Does not have any real application besides satisfying interface requirements. </summary>
         public int Capacity
         {
             get => data.Capacity;

@@ -18,6 +18,8 @@ namespace VLib
         {
             return reference ?? throw new NullReferenceException(exceptionMessageOnNull);
         }
+        
+        public static T GetResult<T>(this bool condition, T value) => condition ? value : default;
 
         public static class IO
         {

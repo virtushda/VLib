@@ -14,12 +14,12 @@ namespace VLib
     {
         [FieldOffset(0)]
         public Vector3 position;
-        [FieldOffset(0)]
+        [FieldOffset(0), HideInInspector]
         public float3 positionNative;
         
         [FieldOffset(12)]
         public Quaternion rotation;
-        [FieldOffset(12)]
+        [FieldOffset(12), HideInInspector]
         public quaternion rotationNative;
         
         public TranslationRotation(Vector3 position, Quaternion rotation)

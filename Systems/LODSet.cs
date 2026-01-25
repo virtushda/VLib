@@ -36,31 +36,48 @@ public struct LODSet : IDisposable
     public readonly int CalculateNewLOD(int currentLOD, float previousDist, float currentDist)
     {
         int numBoundaries = distances.Length;
-        if (numBoundaries == 0) return currentLOD;
+        if (numBoundaries == 0) 
+            return 0;
 
-        int numLevels = numBoundaries + 1; // e.g., 3 boundaries -> 4 LOD levels (0 to 3)
-        if (currentLOD < 0 || currentLOD >= numLevels) 
-            return currentLOD; // Clamp invalid input
+        int maxLOD = numBoundaries;
+        int lod = math.clamp(currentLOD, 0, maxLOD);
 
-        // Upward transition: to coarser LOD (higher index)
-        if (currentLOD < numLevels - 1)
+        // Compute sticky band for current LOD
+        float lower = lod > 0 ? distances[lod - 1] - hysteresisHalf : float.NegativeInfinity;
+        float upper = lod < numBoundaries ? distances[lod] + hysteresisHalf : float.PositiveInfinity;
+
+        // If both inside the sticky band, exit early
+        if (previousDist >= lower && previousDist <= upper && currentDist >= lower && currentDist <= upper)
+            return lod;
+
+        // Otherwise, scan outward for target LOD
+        // If moved farther, try coarser LODs
+        if (currentDist > upper)
         {
-            float baseBoundary = distances[currentLOD]; // Boundary after current LOD
-            float exitThreshold = baseBoundary + hysteresisHalf;
-            if (currentDist > exitThreshold && previousDist <= exitThreshold)
-                return currentLOD + 1;
+            // Find coarsest LOD whose sticky band contains currentDist
+            for (int l = lod + 1; l <= maxLOD; l++)
+            {
+                float nextUpper = l < numBoundaries ? distances[l] + hysteresisHalf : float.PositiveInfinity;
+                if (currentDist <= nextUpper)
+                    return l;
+            }
+            return maxLOD; // Farthest LOD if past all bands
+        }
+        // If moved closer, try finer LODs
+
+        if (currentDist < lower)
+        {
+            for (int l = lod - 1; l >= 0; l--)
+            {
+                float nextLower = l > 0 ? distances[l - 1] - hysteresisHalf : float.NegativeInfinity;
+                if (currentDist >= nextLower)
+                    return l;
+            }
+            return 0; // Closest LOD if inside all bands
         }
 
-        // Downward transition: to finer LOD (lower index)
-        if (currentLOD > 0)
-        {
-            float baseBoundary = distances[currentLOD - 1]; // Boundary before current LOD
-            float enterThreshold = baseBoundary - hysteresisHalf;
-            if (currentDist < enterThreshold && previousDist >= enterThreshold)
-                return currentLOD - 1;
-        }
-
-        // No threshold crossed: retain provided current LOD
-        return currentLOD;
+        // Otherwise, should not reach here, but stick to currentLOD by default
+        return lod;
     }
+
 }
