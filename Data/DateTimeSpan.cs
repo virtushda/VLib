@@ -55,18 +55,32 @@ namespace VLib
 
         public DateTimeSpan GetRoundedToMonth()
         {
+            // Round start down to the first moment of its month
             var newStart = new DateTime(Start.Year, Start.Month, 1, 0, 0, 0, Start.Kind);
             
-            // Check if already very close to the end of the month
-            var endOfCurrentMonth = new DateTime(End.Year, End.Month, 1, 0, 0, 0, End.Kind).AddMonths(1);
-            var delta = endOfCurrentMonth - End;
-            if (delta.TotalSeconds < 5)
+            // Round end to the nearest month boundary (exclusive end semantics)
+            // First, get the start of End's month and the start of the next month
+            var startOfEndMonth = new DateTime(End.Year, End.Month, 1, 0, 0, 0, End.Kind);
+            var startOfNextMonth = startOfEndMonth.AddMonths(1);
+            
+            // Calculate which boundary End is closer to
+            var distanceToStartOfMonth = End - startOfEndMonth;
+            var distanceToStartOfNextMonth = startOfNextMonth - End;
+            
+            // Round to the nearer boundary
+            DateTime newEnd;
+            if (distanceToStartOfMonth < distanceToStartOfNextMonth)
             {
-                // Keep end, ensure it's perfect though
-                return new DateTimeSpan(newStart, endOfCurrentMonth);
+                // Closer to the start of the current month
+                newEnd = startOfEndMonth;
             }
-            // Round back to the end of the previous month
-            return new DateTimeSpan(newStart, endOfCurrentMonth.AddMonths(-1));
+            else
+            {
+                // Closer to (or equidistant from) the start of the next month
+                newEnd = startOfNextMonth;
+            }
+            
+            return new DateTimeSpan(newStart, newEnd);
         }
         
         public DateTime Clamp(DateTime dateTime) => dateTime < Start ? Start : (dateTime > End ? End : dateTime);

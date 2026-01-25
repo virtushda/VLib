@@ -33,12 +33,12 @@ namespace VLib
 
         /// <summary>Attempts to acquire the semaphore lock synchronously with an optional timeout.</summary>
         /// <param name="semaphoreSlim">The semaphore to acquire.</param>
-        /// <param name="timeoutMS">Optional timeout in milliseconds; if null, waits indefinitely.</param>
+        /// <param name="timeout">Optional timeout; if null, waits indefinitely.</param>
         /// <param name="logOnError">Whether to log an error if acquisition fails.</param>
         /// <returns>A <see cref="SemaphoreSlimHold"/> representing the acquired lock, or default if failed.</returns>
-        internal static SemaphoreSlimHold TryAcquire(SemaphoreSlim semaphoreSlim, int? timeoutMS = null, bool logOnError = true)
+        internal static SemaphoreSlimHold TryAcquire(SemaphoreSlim semaphoreSlim, TimeSpan? timeout = null, bool logOnError = true)
         {
-            if (timeoutMS.TryGetValueOrDefault(out var timeoutValue))
+            if (timeout.TryGetValueOrDefault(out var timeoutValue))
             {
                 if (semaphoreSlim.Wait(timeoutValue))
                     return new SemaphoreSlimHold(semaphoreSlim);
@@ -80,9 +80,9 @@ namespace VLib.SyncPrimitives
     public static class SemaphoreSlimExt
     {
         /// <inheritdoc cref="SemaphoreSlimHold.TryAcquire"/>
-        public static SemaphoreSlimHold TryAcquire(this SemaphoreSlim semaphoreSlim, int? timeoutMS = null, bool logOnError = true)
+        public static SemaphoreSlimHold TryAcquire(this SemaphoreSlim semaphoreSlim, TimeSpan? timeout = null, bool logOnError = true)
         {
-            return SemaphoreSlimHold.TryAcquire(semaphoreSlim, timeoutMS, logOnError);
+            return SemaphoreSlimHold.TryAcquire(semaphoreSlim, timeout, logOnError);
         }
 
         /// <inheritdoc cref="SemaphoreSlimHold.TryAcquireAsync"/>
