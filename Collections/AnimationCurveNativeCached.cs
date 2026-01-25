@@ -1,7 +1,5 @@
 ﻿using System.Diagnostics.Contracts;
-using System.Runtime.CompilerServices;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using WrapMode = UnityEngine.WrapMode;

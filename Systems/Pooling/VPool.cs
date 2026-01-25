@@ -35,7 +35,7 @@ namespace VLib
 
         protected override void ClearCollection()
         {
-            TakenCountRef -= collection.Count;
+            //TakenCountRef -= collection.Count;
             collection.Clear();
         }
     }

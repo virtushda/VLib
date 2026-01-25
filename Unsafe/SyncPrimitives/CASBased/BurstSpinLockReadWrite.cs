@@ -1,7 +1,6 @@
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
-#define DEBUG_ADDITIONAL_CHECKS
-#define DEADLOCK_DEBUG // Reports additional information during lock timeouts. Enables a mechanism to identify who is holding the exclusive lock.
-#define RECURSIVE_READ_DEBUG // IF ORDERED, it is not safe to recursively read lock within one thread, this causes a circular deadlock with another thread's write lock.
+//#define DEADLOCK_DEBUG // Reports additional information during lock timeouts. Enables a mechanism to identify who is holding the exclusive lock.
+//#define RECURSIVE_READ_DEBUG // IF ORDERED, it is not safe to recursively read lock within one thread, this causes a circular deadlock with another thread's write lock.
 #define CLAIM_TRACKING // Pass through line IDs to refstruct system
 #endif
 

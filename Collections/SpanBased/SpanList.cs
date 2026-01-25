@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
-using VLib;
 
 namespace VLib
 {
@@ -78,6 +78,38 @@ namespace VLib
             Debug.LogError($"Stack allocation of SpanList is over 1KB: {bytesUsed.AsDataSizeInBytesToReadableString()}");
             logged = true;
         }
+
+        public ref struct Enumerator
+        {
+            private readonly Span<T> _span;
+            private int _index;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Enumerator(in SpanList<T> list)
+            {
+                _span = list.span.Slice(0, list.Count);
+                _index = -1;
+            }
+
+            public bool MoveNext()
+            {
+                int index = _index + 1;
+                if ((uint)index < (uint)_span.Length)
+                {
+                    _index = index;
+                    return true;
+                }
+                return false;
+            }
+
+            public ref readonly T Current => ref _span[_index];
+
+            public void Reset() => _index = -1;
+
+            public void Dispose() { }
+        }
+
+        public Enumerator GetEnumerator() => new Enumerator(in this);
     }
     
     public static class SpanListExtensions

@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
+using UnityEngine;
+using Random = Unity.Mathematics.Random;
 
 namespace VLib
 {
@@ -25,6 +27,13 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Variate(this float x, ref Random rand, float variance) => rand.NextFloat(x - variance, x + variance);
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Color Variate(this ref Random rand, Color color, float variance) => new(
+            math.saturate(rand.Variate(color.r, variance)), 
+            math.saturate(rand.Variate(color.g, variance)), 
+            math.saturate(rand.Variate(color.b, variance)),
+            color.a);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Chance(this ref Random rand, float chance01) => chance01 > 0f && rand.NextFloat() < chance01;
     }
