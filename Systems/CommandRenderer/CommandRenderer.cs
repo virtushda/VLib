@@ -20,7 +20,7 @@ namespace VLib
             if (!renderLayers.Contains(layer))
             {
                 renderLayers.Add(layer);
-                if (layer.Cam != null)
+                if (layer.Cam != null && layer.Buffer != null)
                     layer.Cam.AddCommandBuffer(layer.CamEvent, layer.Buffer);
             }
         }
@@ -30,7 +30,7 @@ namespace VLib
             if (renderLayers.Contains(layer))
             {
                 renderLayers.Remove(layer);
-                if (layer.Cam != null)
+                if (layer.Cam != null && layer.Buffer != null)
                     layer.Cam.RemoveCommandBuffer(layer.CamEvent, layer.Buffer);
             }
         }

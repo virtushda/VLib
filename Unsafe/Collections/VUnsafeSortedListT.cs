@@ -121,6 +121,8 @@ namespace VLib
             return true;
         }
         
+        public ref T ElementAt(int index) => ref list.ElementAt(index);
+        
         /// <summary> Will only remove if an EXACT match is found. Uses <see cref="IndexOfSlow"/> for value matching</summary>
         public bool RemoveSlow(T obj)
         {

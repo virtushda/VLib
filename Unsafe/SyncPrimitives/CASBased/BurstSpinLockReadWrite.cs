@@ -238,7 +238,10 @@ namespace VLib
             if (IsCreated)
             {
                 if (!EnterExclusive())
-                    Debug.LogError("Failed to dispose BurstSpinLockReadWrite, it is still locked after 5 seconds.");
+                {
+                    Debug.LogError("Failed to dispose BurstSpinLockReadWrite, it is still locked after 5 seconds. Memory will NOT be freed to avoid corrupting the holding thread.");
+                    return;
+                }
                 m_Locked.DisposeRefToDefault();
                 InternalData.DisposeRecursiveReadLockDebug();
                 m_LockHolder.DisposeRefToDefault();
@@ -863,6 +866,9 @@ namespace VLib
             ref long lockVar = ref lockData.ExclusiveLockValue;
             ref long readersVar = ref lockData.ReadersLockValue;
             
+            // Compute timeout once before the retry loop, preventing timeout reset under rapid write-lock cycling
+            var exitLockTime = VTime.intraFrameTime + timeoutSeconds;
+            
             // Loop until we get lock or time out
             while (true)
             {
@@ -880,8 +886,6 @@ namespace VLib
 
                 // Exclusive lock is held, release read lock
                 Interlocked.Decrement(ref readersVar);
-                
-                var exitLockTime = VTime.intraFrameTime + timeoutSeconds;
                 
                 // while it is locked - spin
                 while (Interlocked.Read(ref lockVar) != 0)

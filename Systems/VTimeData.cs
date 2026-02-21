@@ -96,7 +96,7 @@ namespace VLib.Systems
                 
                 while (true)
                 {
-                    Profiler.BeginThreadProfiling("VTimeExternalTime", "VTimeExternalTime");
+                    //Profiler.BeginThreadProfiling("VTimeExternalTime", "VTimeExternalTime");
                     
                     // Update time
                     timeNative.Data.SetExternal(stopwatch.Elapsed.TotalSeconds);
@@ -109,7 +109,7 @@ namespace VLib.Systems
                     /*if (spinwait.NextSpinWillYield)
                         spinwait.Reset();
                     spinwait.SpinOnce();*/
-                    Profiler.EndThreadProfiling();
+                    //Profiler.EndThreadProfiling();
                 }
             });
             timeBackgroundUpdateThread.Start();

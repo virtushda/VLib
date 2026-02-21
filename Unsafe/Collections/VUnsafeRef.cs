@@ -54,7 +54,7 @@ namespace VLib
         static void Allocate(AllocatorManager.AllocatorHandle allocator, out VUnsafeRef<T> reference, bool clearMemory = true)
         {
             reference = default;
-            AllocateMemory(ref reference.ptr, Allocator.Persistent, clearMemory);
+            AllocateMemory(ref reference.ptr, allocator, clearMemory);
             reference.m_AllocatorLabel = allocator;
 #if ULTRA_SAFETY_CHECKS
             if (VSafetyHandleManager.InternalMemoryField.Data.IsCreated)
@@ -279,52 +279,6 @@ namespace VLib
             ptr = null;
         }
         
-        /// <summary> Returns a new VUnsafeRef held in unmanaged memory. </summary>
-        /// <param name="allocator">The allocator to use.</param>
-        /// <param name="options">Whether newly allocated bytes should be zeroed out.</param>
-        /// <returns>A pointer to the new VUnsafeRef.</returns>
-        public static VUnsafeRef<T>* Create(AllocatorManager.AllocatorHandle allocator, NativeArrayOptions options = NativeArrayOptions.UninitializedMemory)
-        {
-            var refData = AllocatorManager.Allocate<VUnsafeRef<T>>(allocator);
-            *refData = new VUnsafeRef<T>(allocator, options);
-            return refData;
-        }
-
-        /// <summary> Destroys the VUnsafeRef held in unmanaged memory. </summary>
-        /// <param name="refData">The list to destroy.</param>
-        public static void Destroy(VUnsafeRef<T>* refData)
-        {
-            if (refData == null)
-            {
-                Debug.LogError("Cannot destroy a null ptr!");
-                return;
-            }
-            var allocator = refData->AllocatorLabel;
-            refData->Dispose();
-            AllocatorManager.Free(allocator, refData);
-        }
-        
         #endregion
-    }
-    
-    public static class VUnsafeRefExtensions
-    {
-        /// <summary> Disposes the internal IDisposable and then disposes this reference. </summary>
-        public static void DisposeRefAndInternal<T>(this VUnsafeRef<T> reference)
-            where T : unmanaged, IDisposable
-        {
-            if (!reference.IsCreated)
-                return;
-            reference.ValueRef.DisposeRefToDefault();
-            reference.Dispose();
-        }
-
-        /// <summary> <see cref="DisposeRefAndInternal{T}"/>, then writes default to the reference address too. </summary>
-        public static void DisposeRefAndInternalToDefault<T>(this ref VUnsafeRef<T> reference)
-            where T : unmanaged, IDisposable
-        {
-            reference.DisposeRefAndInternal();
-            reference = default;
-        }
     }
 }

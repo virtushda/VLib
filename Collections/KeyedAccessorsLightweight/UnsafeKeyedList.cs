@@ -42,6 +42,8 @@ namespace Libraries.KeyedAccessors.Lightweight
         }
         
         public bool ContainsKey(TKey key) => keyIndexMap.ContainsKey(key);
+        
+        public bool TryGetIndex(TKey key, out int index) => keyIndexMap.TryGetValue(key, out index);
 
         public ref TKey ElementAt(int index) => ref keys.ElementAt(index);
 

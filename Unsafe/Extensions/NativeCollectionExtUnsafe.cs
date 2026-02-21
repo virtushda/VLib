@@ -49,19 +49,6 @@ namespace VLib
             where T : struct =>
             array.IsCreated ? UnsafeUtility.SizeOf<T>() * array.Length : 0;
 
-        /*public static void CopyToUnsafe<T>(this NativeArray<T> src, int srcIndex, T[] dst, int dstIndex, int length)
-            where T : unmanaged
-        {
-            if (dst == null)
-                throw new ArgumentNullException(nameof(dst));
-            GCHandle gcHandle = GCHandle.Alloc(dst, GCHandleType.Pinned);
-            void* srcPtr = src.GetUnsafeReadOnlyPtr();
-            UnsafeUtility.MemCpy((void*)((IntPtr)(void*)gcHandle.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()),
-                                 (void*)((IntPtr)srcPtr + srcIndex * UnsafeUtility.SizeOf<T>()),
-                                 length * UnsafeUtility.SizeOf<T>());
-            gcHandle.Free();
-        }*/
-
         public static void CopyTo<T>(in this UnsafeList<T> src, int srcIndex, UnsafeList<T> dst, int dstIndex, int length)
             where T : unmanaged
         {
@@ -369,7 +356,7 @@ namespace VLib
 
             JobHandle disposeHandle = inputDeps;
             for (int i = start; i < count; i++)
-                JobHandle.CombineDependencies(disposeHandle, array[i].Dispose(inputDeps));
+                disposeHandle = JobHandle.CombineDependencies(disposeHandle, array[i].Dispose(inputDeps));
 
             if (disposeSelf)
                 return array.Dispose(disposeHandle);

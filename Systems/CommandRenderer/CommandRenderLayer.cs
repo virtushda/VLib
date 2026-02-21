@@ -35,6 +35,20 @@ namespace VLib
             refreshables = new HashList<ICmdRefreshable>();
         }
 
+        public void SetCameraEvent(CameraEvent cameraEvent)
+        {
+            if (camEvent == cameraEvent)
+                return;
+
+            if (buffer != null && cam != null)
+                cam.RemoveCommandBuffer(camEvent, buffer);
+
+            camEvent = cameraEvent;
+
+            if (buffer != null && cam != null)
+                cam.AddCommandBuffer(camEvent, buffer);
+        }
+
         public void Dispose()
         {
             if (buffer != null)

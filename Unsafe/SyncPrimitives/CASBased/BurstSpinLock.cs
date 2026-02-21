@@ -58,7 +58,10 @@ namespace VLib
             if (IsCreated)
             {
                 if (!TryEnter(DefaultTimeout))
-                    UnityEngine.Debug.LogError("SpinLock could not be captured for dispose!");
+                {
+                    UnityEngine.Debug.LogError("SpinLock could not be captured for dispose! Memory will NOT be freed to avoid corrupting the holding thread.");
+                    return;
+                }
                 m_LockHolder.DisposeRefToDefault();
             }
             else

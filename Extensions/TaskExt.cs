@@ -27,21 +27,21 @@ namespace VLib
 
         public static IEnumerator WaitCoroutineThenUseResult<T>(this Task<T> task, Action<T> action) => TaskWaiterThen(task, action);
 
-        static IEnumerator TaskWaiter<T>(T task, float timeout = 240)
+        static IEnumerator TaskWaiter<T>(T task, float timeout = -1f)
             where T : Task
         {
             if (task == null || task.IsCompleted)
                 yield break;
             
             float time = 0;
-            while (time < timeout && !task.IsCompleted)
+            while ((timeout < 0 || time < timeout) && !task.IsCompleted)
             {
-                time += Time.deltaTime;
+                time += Time.unscaledDeltaTime;
                 yield return null;
             }
         }
 
-        static IEnumerator TaskWaiterThen<T>(T task, Action action, float timeout = 240)
+        static IEnumerator TaskWaiterThen<T>(T task, Action action, float timeout = -1f)
             where T : Task
         {
             if (task == null)
@@ -50,12 +50,17 @@ namespace VLib
             action?.Invoke();
         }
 
-        static IEnumerator TaskWaiterThen<TTask, T>(TTask task, Action<T> action, float timeout = 240)
+        static IEnumerator TaskWaiterThen<TTask, T>(TTask task, Action<T> action, float timeout = -1f)
             where TTask : Task<T>
         {
             if (task == null)
                 yield break;
             yield return TaskWaiter(task, timeout);
+            if (!task.IsCompleted)
+            {
+                Debug.LogError("Task timed out before completion, skipping result callback to avoid blocking the main thread.");
+                yield break;
+            }
             action?.Invoke(task.Result);
         }
     }

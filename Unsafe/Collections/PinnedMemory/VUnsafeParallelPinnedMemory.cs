@@ -42,9 +42,9 @@ namespace VLib
 
         public void Dispose()
         {
-            const string profilerMessage = "VUnsafeParallelPinnedMemory.Dispose";
-            Profiler.BeginSample(profilerMessage);
-            
+#if ENABLE_PROFILER
+            using var profileScope = ProfileScope.Auto("VUnsafeParallelPinnedMemory.Dispose");
+#endif
             if (!listsLock.IsCreated)
                 return;
             using (listsLock.ScopedAtomicLock())
@@ -67,8 +67,6 @@ namespace VLib
             if (listsLock.IsCreated)
                 listsLock.Dispose();
             listsLock = default;
-            
-            Profiler.EndSample();
         }
 
         /// <summary> Fully concurrent safe. </summary>

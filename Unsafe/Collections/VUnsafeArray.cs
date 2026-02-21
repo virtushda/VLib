@@ -62,6 +62,7 @@ namespace VLib
         public void Dispose() => data.Dispose();
 
         public ref T this[int index] => ref data.ElementAt(index);
+        public ref T ElementAt(int index) => ref data.ElementAt(index);
         
         public Enumerator GetEnumerator() => new(this);
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();

@@ -285,12 +285,6 @@ namespace VLib
             public readonly void ConditionalCheckIndexActive(int index) => list.ConditionalCheckIndexActive(index);
         }
 
-        /// <summary> Initializes and returns a VUnsafeList with a capacity of one. </summary>
-        /// <param name="allocator">The allocator to use.</param>
-        public VUnsafeBufferArray(Allocator allocator) : this(1, false, allocator)
-        {
-        }
-
         /// <summary> Initializes and returns a VUnsafeList. </summary>
         /// <param name="initialCapacity">The initial capacity of the list.</param>
         /// <param name="supportsRenting">Whether to support the renting of SafePtrs from the buffer, allowing for extended safety and lifecycle for buffer elements.</param>

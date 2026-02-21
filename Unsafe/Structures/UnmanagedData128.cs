@@ -31,7 +31,10 @@ namespace VLib.Unsafe.Structures
             where T : unmanaged
         {
             if (Hint.Unlikely(UnsafeUtility.SizeOf<T>() > 128))
+            {
                 Debug.LogError("Size of T must be 128 or fewer bytes!");
+                return ref VUnsafeUtil.NullRef<T>();
+            }
             return ref UnsafeUtility.As<UnmanagedData128, T>(ref unmanagedData);
         }
     }

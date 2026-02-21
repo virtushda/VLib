@@ -395,8 +395,11 @@ namespace VLib
                         Debug.LogError("BurstSpinLockReadWrite is not created!");
                     return;
                 }
-                list.burstLock.ExitRead();
-                locked = false;
+                if (locked)
+                {
+                    list.burstLock.ExitRead();
+                    locked = false;
+                }
             }
 
             #region Diagnostics

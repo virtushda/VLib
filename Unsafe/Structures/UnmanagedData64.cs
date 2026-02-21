@@ -29,8 +29,10 @@ namespace VLib.Unsafe.Structures
             where T : unmanaged
         {
             if (Hint.Unlikely(UnsafeUtility.SizeOf<T>() > 64))
-                // Is an error instead of an exception because burst will crash if an exception is thrown, whereas the error will definitely make it into the log.
+            {
                 Debug.LogError("Size of T must be 64 or fewer bytes!");
+                return ref VUnsafeUtil.NullRef<T>();
+            }
             return ref UnsafeUtility.As<UnmanagedData64, T>(ref unmanagedData);
         }
     }
