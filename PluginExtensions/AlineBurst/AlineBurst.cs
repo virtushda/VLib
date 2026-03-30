@@ -236,6 +236,9 @@ namespace VLib.Aline
         }
         
         public static void EnqueueCapsule(in CapsuleNative capsule, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
+            => EnqueueCapsule(capsule.ToTaperedCapsule(), color, duration, lineThickness, allowDurationWhilePaused);
+
+        public static void EnqueueCapsule(in TaperedCapsuleNative capsule, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
         {
             if (!IsInitialized)
             {
@@ -251,9 +254,13 @@ namespace VLib.Aline
             var capsuleCommand = AlineBurstCommands.Capsules.Create(capsule, color, duration, lineThickness);
             Shared.Data.Add(capsuleCommand);
         }
-        
+
         [BurstDiscard]
         static void DrawCapsuleFallback(ref bool didDraw, in CapsuleNative capsule, Color color = default, float duration = default, byte lineThickness = default)
+            => DrawCapsuleFallback(ref didDraw, capsule.ToTaperedCapsule(), color, duration, lineThickness);
+        
+        [BurstDiscard]
+        static void DrawCapsuleFallback(ref bool didDraw, in TaperedCapsuleNative capsule, Color color = default, float duration = default, byte lineThickness = default)
         {
             if (duration > 0.01f)
                 Draw.editor.PushDuration(duration);
@@ -302,6 +309,54 @@ namespace VLib.Aline
             
             Draw.editor.PopColor();
             if (lineThickness > 1)
+                Draw.editor.PopLineWidth();
+            if (duration > 0.01f)
+                Draw.editor.PopDuration();
+        }
+
+        public static void EnqueueCircle(in float3 center, in float3 normal, float radius, bool solid = false, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
+        {
+            if (!IsInitialized)
+            {
+                bool didDraw = false;
+                DrawCircleFallback(ref didDraw, center, normal, radius, solid, color, duration, lineThickness);
+
+                if (!didDraw)
+                    Debug.LogError("AlineBurstNative not initialized! (play mode only!)");
+                return;
+            }
+            HandleDurationWhilePaused(ref duration, allowDurationWhilePaused);
+            var circleCommand = AlineBurstCommands.Circles.Create(center, normal, radius, solid, color, duration, lineThickness);
+            Shared.Data.Add(circleCommand);
+        }
+
+        public static void EnqueueWireCircle(in float3 center, in float3 normal, float radius, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
+            => EnqueueCircle(center, normal, radius, false, color, duration, lineThickness, allowDurationWhilePaused);
+
+        public static void EnqueueSolidCircle(in float3 center, in float3 normal, float radius, Color color = default, float duration = default, byte lineThickness = default, bool allowDurationWhilePaused = false)
+            => EnqueueCircle(center, normal, radius, true, color, duration, lineThickness, allowDurationWhilePaused);
+
+        [BurstDiscard]
+        static void DrawCircleFallback(ref bool didDraw, in float3 center, in float3 normal, float radius, bool solid, Color color = default, float duration = default, byte lineThickness = default)
+        {
+            var useLineThickness = !solid && lineThickness > 0;
+            var useColor = color.a > .01f;
+            if (duration > 0.01f)
+                Draw.editor.PushDuration(duration);
+            if (useLineThickness)
+                Draw.editor.PushLineWidth(lineThickness);
+            if (useColor)
+                Draw.editor.PushColor(color);
+
+            if (solid)
+                Draw.editor.SolidCircle(center, normal, radius);
+            else
+                Draw.editor.Circle(center, normal, radius);
+            didDraw = true;
+
+            if (useColor)
+                Draw.editor.PopColor();
+            if (useLineThickness)
                 Draw.editor.PopLineWidth();
             if (duration > 0.01f)
                 Draw.editor.PopDuration();

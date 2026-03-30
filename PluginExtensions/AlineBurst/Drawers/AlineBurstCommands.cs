@@ -103,7 +103,7 @@ namespace VLib.Aline.Drawers
 
         public class Capsules
         {
-            internal static AlineBurstDrawCommand Create(in CapsuleNative capsule, Color color, float duration, byte lineThickness)
+            internal static AlineBurstDrawCommand Create(in TaperedCapsuleNative capsule, Color color, float duration, byte lineThickness)
             {
                 UnmanagedData64.ConvertFrom(capsule, out var dataPacked);
                 return new AlineBurstDrawCommand(AlineDrawShape.Capsule, dataPacked, color, duration, lineThickness);
@@ -111,7 +111,7 @@ namespace VLib.Aline.Drawers
 
             internal static void DrawWireCapsule(ref CommandBuilder draw, ref AlineBurstDrawCommand command)
             {
-                ref readonly var capsuleData = ref command.drawData.ConvertTo<CapsuleNative>();
+                ref readonly var capsuleData = ref command.drawData.ConvertTo<TaperedCapsuleNative>();
                 command.PushParameters(ref draw);
                 capsuleData.DrawAline(ref draw);
                 command.PopParameters(ref draw);
@@ -149,6 +149,56 @@ namespace VLib.Aline.Drawers
                 command.PushParameters(ref draw);
                 draw.Arc(arcData.center, arcData.start, arcData.end);
                 command.PopParameters(ref draw);
+            }
+        }
+
+        public class Circles
+        {
+            struct Data
+            {
+                public float3 center;
+                public float3 normal;
+                public float radius;
+                public byte solid;
+
+                public Data(in float3 center, in float3 normal, float radius, bool solid)
+                {
+                    this.center = center;
+                    this.normal = normal;
+                    this.radius = radius;
+                    this.solid = solid ? (byte)1 : (byte)0;
+                }
+            }
+
+            internal static AlineBurstDrawCommand Create(in float3 center, in float3 normal, float radius, bool solid, Color color, float duration, byte lineThickness)
+            {
+                var data = new Data(center, normal, radius, solid);
+                UnmanagedData64.ConvertFrom(data, out var dataPacked);
+                return new AlineBurstDrawCommand(AlineDrawShape.Circle, dataPacked, color, duration, lineThickness);
+            }
+
+            internal static void DrawCircle(ref CommandBuilder draw, ref AlineBurstDrawCommand command)
+            {
+                ref readonly var circleData = ref command.drawData.ConvertTo<Data>();
+                var useLineThickness = circleData.solid == 0 && command.lineThickness > 0;
+                if (command.color.a > .01f)
+                    draw.PushColor(command.color);
+                if (useLineThickness)
+                    draw.PushLineWidth(command.lineThickness);
+                if (command.duration > 0)
+                    draw.PushDuration(command.duration);
+
+                if (circleData.solid == 1)
+                    draw.SolidCircle(circleData.center, circleData.normal, circleData.radius);
+                else
+                    draw.Circle(circleData.center, circleData.normal, circleData.radius);
+
+                if (command.duration > 0)
+                    draw.PopDuration();
+                if (useLineThickness)
+                    draw.PopLineWidth();
+                if (command.color.a > .01f)
+                    draw.PopColor();
             }
         }
     }

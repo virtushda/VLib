@@ -8,6 +8,7 @@
         CubeSolid,
         Capsule,
         DashedLine,
-        Arc
+        Arc,
+        Circle
     }
 }

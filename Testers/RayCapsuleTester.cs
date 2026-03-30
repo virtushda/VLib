@@ -6,7 +6,7 @@ namespace VLib.Testers
     [ExecuteAlways]
     public class RayCapsuleTester : MonoBehaviour
     {
-        [SerializeField] CapsuleNative capsule;
+        [SerializeField] TaperedCapsuleNative capsule;
         [SerializeField] Transform rayMasta;
 
         Ray ray;

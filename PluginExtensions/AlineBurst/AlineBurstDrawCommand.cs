@@ -47,6 +47,9 @@ namespace VLib.Aline
                 case AlineDrawShape.Arc:
                     AlineBurstCommands.Arcs.DrawArc(ref draw, ref this);
                     break;
+                case AlineDrawShape.Circle:
+                    AlineBurstCommands.Circles.DrawCircle(ref draw, ref this);
+                    break;
                 default:
                     Debug.LogError($"Unsupported AlineDrawShape: {shape}");
                     break;

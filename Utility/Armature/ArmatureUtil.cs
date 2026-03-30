@@ -106,7 +106,7 @@ namespace VLib
 
         public static readonly float2 DefaultSkinningCapsuleWeightImportanceRemapRange = new(0f, .25f);
         
-        public static bool TryCalculateSkinnedBoneCapsule(SkinnedMeshRenderer skinnedMeshRenderer, Transform bone, out CapsuleNative boneSpaceCapsule,
+        public static bool TryCalculateSkinnedBoneCapsule(SkinnedMeshRenderer skinnedMeshRenderer, Transform bone, out TaperedCapsuleNative boneSpaceCapsule,
             float2? weightImportanceRemapRange = null, CommandBuilder? draw = null, bool logErrors = true)
         {
             // Cannot be a leaf bone
@@ -267,7 +267,7 @@ namespace VLib
             
             var startSphere = new SphereNative(startCenter, startRadius);
             var endSphere = new SphereNative(endCenter, endRadius);
-            boneSpaceCapsule = new CapsuleNative(startSphere, endSphere); //
+            boneSpaceCapsule = new TaperedCapsuleNative(startSphere, endSphere); //
 
             draw?.PopDuration();
             return true;

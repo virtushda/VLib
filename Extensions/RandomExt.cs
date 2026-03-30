@@ -36,5 +36,17 @@ namespace VLib
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Chance(this ref Random rand, float chance01) => chance01 > 0f && rand.NextFloat() < chance01;
+        
+        public static bool ChancePerSecond(this ref Random rand, float chancePerSecond, float deltaTime)
+        {
+            if (chancePerSecond <= 0f || deltaTime <= 0f)
+                return false;
+
+            if (chancePerSecond >= 1f)
+                return true;
+
+            var stepChance = 1f - math.pow(1f - chancePerSecond, deltaTime);
+            return rand.NextFloat() < stepChance;
+        }
     }
 }

@@ -73,6 +73,9 @@ namespace VLib
         /// <summary> Updates the internal CommandBuffer. Call this after making any ICmdRenderable additions or removals. </summary>
         public void RebuildBuffer(bool additive, bool attachedToCamera = true, bool forceAllRefreshables = false)
         {
+            if (buffer == null)
+                return;
+
             if (!additive)
                 buffer.Clear();
             if (attachedToCamera && cam != null)

@@ -52,6 +52,12 @@ namespace VLib
         }
 
         /// <summary> Dispose this spin lock. <see cref="IDisposable"/> </summary>
+        /// <remarks>
+        /// Caller must guarantee external quiescence before calling this method.
+        /// There must be no concurrent <see cref="TryEnter"/>, <see cref="Exit"/>, waiting/spinning callers, or jobs/threads that may still touch this lock instance.
+        /// Disposing while concurrent entrants/waiters exist is unsafe and results in undefined behavior.
+        /// </remarks>
+        // TODO: Enhance with rolling read check that attempts to let final entrants exit before disposing.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void DisposeUnsafe()
         {
@@ -59,13 +65,14 @@ namespace VLib
             {
                 if (!TryEnter(DefaultTimeout))
                 {
-                    UnityEngine.Debug.LogError("SpinLock could not be captured for dispose! Memory will NOT be freed to avoid corrupting the holding thread.");
+                    Debug.LogError("SpinLock could not be captured for dispose! Memory will NOT be freed to avoid corrupting the holding thread.");
                     return;
                 }
+                // Caller must enforce quiescence; racing waiters/spinners here is undefined behavior and can dereference invalid memory.
                 m_LockHolder.DisposeRefToDefault();
             }
             else
-                UnityEngine.Debug.LogError("SpinLock was not created, but you're disposing it!");
+                Debug.LogError("SpinLock was not created, but you're disposing it!");
         }
 
         /// <summary> Check lock status without interfering or blocking </summary>
@@ -88,13 +95,15 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryEnter(float timeoutSeconds)
         {
+            CheckIfLockCreated();
+            // This ref aliases lock-owned memory; if DisposeUnsafe races, the reference can become invalid.
+            ref long lockVar = ref m_LockHolder.ValueRef;
 #if MARK_THREAD_OWNERS
             var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
             BurstSpinLockCheckFunctions.CheckForRecursiveLock(threadId, ref lockVar);
 #else
-            var threadId = 1;
+            var threadId = int.MaxValue;
 #endif
-            ref long lockVar = ref m_LockHolder.ValueRef;
             var forceExitTime = VTime.intraFrameTime + timeoutSeconds;
             while (Interlocked.CompareExchange(ref lockVar, threadId, 0) != 0)
             {
@@ -117,6 +126,7 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Exit()
         {
+            CheckIfLockCreated();
             ref long lockVar = ref m_LockHolder.ValueRef;
             // TODO: Enhance ?
             BurstSpinLockCheckFunctions.CheckWeCanExit(ref lockVar);

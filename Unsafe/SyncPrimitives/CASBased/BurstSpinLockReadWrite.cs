@@ -56,7 +56,7 @@ namespace VLib
 #endif
 
         // Copy-safe, memory corruption resistant, protects against uninitialized memory
-        [NativeDisableUnsafePtrRestriction] RefStruct<Data> m_LockHolder;
+        RefStruct<Data> m_LockHolder;
 
         public struct Data
         {
@@ -232,6 +232,12 @@ namespace VLib
         }
 
         /// <summary> Dispose this spin lock. 'Unsafe' because the caller could now be holding a disposed lock reference, and it needs to be 'default'ed </summary>
+        /// <remarks>
+        /// Caller must guarantee external quiescence before calling this method.
+        /// There must be no concurrent <see cref="EnterExclusive"/>, <see cref="EnterRead"/>, <see cref="ExitExclusive"/>, <see cref="ExitRead"/>, waiting/spinning callers, or jobs/threads that may still touch this lock instance.
+        /// Disposing while concurrent entrants/waiters exist is unsafe and results in undefined behavior.
+        /// </remarks>
+        // TODO: Enhance with rolling read check that attempts to let final entrants exit before disposing.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void DisposeUnsafe()
         {
@@ -242,9 +248,12 @@ namespace VLib
                     Debug.LogError("Failed to dispose BurstSpinLockReadWrite, it is still locked after 5 seconds. Memory will NOT be freed to avoid corrupting the holding thread.");
                     return;
                 }
+                // Free inner UnsafeList first (it lives inside Data), then dispose debug state within Data, then free Data itself.
                 m_Locked.DisposeRefToDefault();
                 InternalData.DisposeRecursiveReadLockDebug();
                 m_LockHolder.DisposeRefToDefault();
+                // Intentionally do NOT call ExitExclusive: releasing before free allows concurrent lock acquisition on deleted memory. 
+                // Caller must enforce quiescence; racing waiters/spinners here is undefined behavior and can dereference invalid memory.
             }
             else
             {
@@ -262,11 +271,12 @@ namespace VLib
         public unsafe long Id => (long) m_Locked.Ptr;
 
         /// <summary> Lock Exclusive. Will block if cannot lock immediately. <br/>
-        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. <br/>
+        /// Undefined behavior if <see cref="DisposeUnsafe"/> races this call or any active/waiting lock access on the same instance. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool EnterExclusive(float timeoutSeconds = BurstSpinLock.DefaultTimeout
 #if DEADLOCK_DEBUG
-            , [CallerLineNumber] int writeLockID = 0
+            , [CallerLineNumber] int writeLockID = int.MaxValue
 #endif
         )
         {
@@ -293,7 +303,7 @@ namespace VLib
             //return locked;
         }
 
-        /// <summary> Unlock </summary>
+        /// <summary> Unlock. Undefined behavior if <see cref="DisposeUnsafe"/> races this call or concurrent active/waiting lock access on the same instance. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ExitExclusive()
         {
@@ -302,7 +312,8 @@ namespace VLib
         }
 
         /// <summary> Lock for Read. Will block if exclusive is locked <br/>
-        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. </summary>
+        /// Be warned, timeouts less than maximumDeltaTime may not act correctly with stalls / the-debugger. <br/>
+        /// Undefined behavior if <see cref="DisposeUnsafe"/> races this call or any active/waiting lock access on the same instance. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool EnterRead(float timeoutSeconds = BurstSpinLock.DefaultTimeout
 #if RECURSIVE_READ_DEBUG
@@ -322,6 +333,7 @@ namespace VLib
             //return locked;
         }
 
+        /// <summary> Exit read lock. Undefined behavior if <see cref="DisposeUnsafe"/> races this call or concurrent active/waiting lock access on the same instance. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ExitRead(
 #if RECURSIVE_READ_DEBUG
@@ -554,7 +566,6 @@ namespace VLib
             }
 #if RECURSIVE_READ_DEBUG
             safetyHandle.ConditionalCheckNotValid();
-            safetyHandle.Dispose();
 #endif
         }
         
@@ -593,11 +604,13 @@ namespace VLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public BurstScopedReadLock(in BurstSpinLockReadWrite spinLock, float timeoutSeconds = BurstSpinLock.DefaultTimeout)
         {
-            spinLock.ConditionalCheckLockCreated();
 #if RECURSIVE_READ_DEBUG
             safetyHandle = VSafetyHandle.Create();
 #endif
+            spinLock.ConditionalCheckLockCreated();
             m_parentLock = spinLock;
+
+            // Try enter read
             if (!(succeeded = m_parentLock.EnterRead(timeoutSeconds
 #if RECURSIVE_READ_DEBUG
                 , safetyHandle.safetyIDCopy
@@ -633,7 +646,6 @@ namespace VLib
             }
 #if RECURSIVE_READ_DEBUG
             safetyHandle.ConditionalCheckNotValid();
-            safetyHandle.Dispose();
 #endif
         }
         
@@ -660,14 +672,17 @@ namespace VLib
 #endif
         )
         {
+            // These refs alias lock-owned memory; if DisposeUnsafe races, references can become invalid.
             ref long exclusiveVar = ref lockData.ExclusiveLockValue;
             ref long readersVar = ref lockData.ReadersLockValue;
             
             var exitLockTime = VTime.intraFrameTime + timeoutSeconds;
 
-            // This used to be set by special unity code to the thread ID under the hood for recursive lock checking, but idk how they're accessing 'BaseLib'
-            // If checks are needed, I'll have to figure something out
-            var threadId = 1;
+#if MARK_THREAD_OWNERS
+            var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
+#else
+            var threadId = long.MaxValue;
+#endif
             
             // Contend for the exclusive lock, take it if possible
             while (Interlocked.CompareExchange(ref exclusiveVar, threadId, 0) != 0) // If != 0, the lock exclusive lock is held elsewhere and we must wait
@@ -732,14 +747,17 @@ namespace VLib
 #endif
         )
         {
+            // These refs alias lock-owned memory; if DisposeUnsafe races, references can become invalid.
             ref long exclusiveVar = ref lockData.ExclusiveLockValue;
             ref long readersVar = ref lockData.ReadersLockValue;
             
             var exitLockTime = VTime.intraFrameTime + timeoutSeconds;
 
-            // This used to be set by special unity code to the thread ID under the hood for recursive lock checking, but idk how they're accessing 'BaseLib'
-            // If checks are needed, I'll have to figure something out
-            var threadId = 1;
+#if MARK_THREAD_OWNERS
+            var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
+#else
+            var threadId = long.MaxValue;
+#endif
 
             while (true)
             {
@@ -823,7 +841,7 @@ namespace VLib
             var threadId = Baselib.LowLevel.Binding.Baselib_Thread_GetCurrentThreadId().ToInt64();
             BurstSpinLockCheckFunctions.CheckForRecursiveLock(threadId, ref lockVar);
 #else
-            var threadId = 1;
+            var threadId = long.MaxValue;
 #endif
 
             // Take the lock
@@ -863,6 +881,7 @@ namespace VLib
 #endif
         )
         {
+            // These refs alias lock-owned memory; if DisposeUnsafe races, references can become invalid.
             ref long lockVar = ref lockData.ExclusiveLockValue;
             ref long readersVar = ref lockData.ReadersLockValue;
             

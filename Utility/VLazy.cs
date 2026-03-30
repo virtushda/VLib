@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace VLib.Utility
 {
@@ -10,7 +11,12 @@ namespace VLib.Utility
         readonly object lockObject = new();
         readonly Func<T> valueFactory;
 
-        T value;
+        T _value;
+        T Value
+        {
+            get => Volatile.Read(ref _value);
+            set => Volatile.Write(ref _value, value);
+        }
 
         /// <summary> Setup a lazy initializing value. </summary>
         /// <param name="valueFactory"> The factory method that creates the value. <br/>
@@ -30,43 +36,51 @@ namespace VLib.Utility
             }
         }
 
-        /// <summary> Fetches or creates the value with no additional preprocessing before assigning the reference. </summary>
-        public T Value => GetValue(null);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryGetExistingValue(out T existingValue)
+        {
+            existingValue = Value;
+            return existingValue != null;
+        }
 
         /// <summary> Fetches or creates the value, with an optional preprocess action. </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T GetValue(Action<T> preprocess)
         {
             // Fast check outside lock
-            if (value == null)
+            if (Value == null)
             {
                 // If null, enter lock to avoid race condition
                 lock (lockObject)
                 {
                     // Check null again inside lock to avoid repeat work
-                    if (value == null)
+                    if (Value == null)
                     {
                         // Create the value in a separate method
                         // Avoid assigning the reference to the value until it's fully initialized so the outer null check doesn't see a half-initialized value
                         if (preprocess == null)
-                            value = Create();
+                            Value = Create();
                         else
                         {
                             var newValue = Create();
                             preprocess(newValue);
-                            value = newValue;
+                            Value = newValue;
                         }
                     }
                 }
             }
 
-            return value;
+            return Value;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         T Create() => valueFactory();
 
         /// <summary> Nulls the internal value, forcing a new value to be created next time. </summary>
-        public void Clear() => value = null;
+        public void Clear()
+        {
+            lock (lockObject)
+                Value = null;
+        }
     }
 }

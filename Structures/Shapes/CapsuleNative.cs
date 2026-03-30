@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 //#define DEBUGDRAW
 #endif
 
@@ -6,185 +6,137 @@ using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Drawing;
-using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 using VLib.Aline;
 using static Unity.Mathematics.math;
 using quaternion = Unity.Mathematics.quaternion;
 using Random = Unity.Mathematics.Random;
-using float4 = Unity.Mathematics.float4;
+using float3 = Unity.Mathematics.float3;
 
 namespace VLib
 {
-    /// <summary> A capsule with variable radii at both endpoints. </summary>
     [Serializable]
     public struct CapsuleNative
     {
-        public float4 pointA;
-        public float4 pointB;
+        public float3 pointA;
+        public float3 pointB;
+        public float radius;
 
-        /// <summary> float4 is Point-Radius </summary>
-        public CapsuleNative(float4 pointA, float4 pointB)
+        public CapsuleNative(float3 pointA, float3 pointB, float radius)
         {
             this.pointA = pointA;
             this.pointB = pointB;
+            this.radius = radius;
         }
-        
-        public CapsuleNative(float3 pointA, float3 pointB, float radius)
+
+        public CapsuleNative(in AffineTransform transform, float3 localPointA, float3 localPointB, float radius)
         {
-            this.pointA = new float4(pointA, radius);
-            this.pointB = new float4(pointB, radius);
+            pointA = math.transform(transform, localPointA);
+            pointB = math.transform(transform, localPointB);
+            this.radius = radius;
         }
 
-        /// <summary> Generate a capsule from a world transform and some local points. </summary>
-        public CapsuleNative(in AffineTransform transform, float3 localPointA, float3 localPointB, float radiusA, float radiusB)
-        {
-            pointA = new float4(math.transform(transform, localPointA), radiusA);
-            pointB = new float4(math.transform(transform, localPointB), radiusB);
-        }
+        public readonly bool IsZero => pointA.Equals(pointB) && pointA.Equals(float3.zero) && radius == 0f;
 
-        public CapsuleNative(CapsuleCollider capsuleCollider)
-        {
-            Vector3 direction = capsuleCollider.direction == 0 ? Vector3.right : capsuleCollider.direction == 1 ? Vector3.up : Vector3.forward;
-            pointA = new float4(capsuleCollider.transform.TransformPoint(capsuleCollider.center - direction * capsuleCollider.height * 0.5f), capsuleCollider.radius);
-            pointB = new float4(capsuleCollider.transform.TransformPoint(capsuleCollider.center + direction * capsuleCollider.height * 0.5f), capsuleCollider.radius);
-        }
-
-        public readonly bool IsZero => pointA.Equals(pointB) && pointA.Equals(float4.zero); // A==B check most likely to reject early, but still technically valid, so zero check after.
-        
-        public float3 Center => (pointA.xyz + pointB.xyz) * .5f;
-        public float3 AToB => pointB.xyz - pointA.xyz;
-
-        /// <returns> Largest distance from the line defining the capsule. </returns>
-        public readonly float MaxRadius() => max(pointA.w, pointB.w);
-        
-        /// <returns> Furthest distance from the center of the capsule. </returns>
-        public readonly float FurthestDistanceFromCenter() => max(pointA.w, pointB.w) + distance(pointB.xyz, pointA.xyz) * 0.5f;
-
-        public readonly SphereNative ToEncapsulatingSphere() => new((pointA.xyz + pointB.xyz) * 0.5f, FurthestDistanceFromCenter());
-
-        public void Translate(float3 translation)
-        {
-            pointA.xyz += translation;
-            pointB.xyz += translation;
-        }
-
-        public void SetWorldPositionRotation(in TranslationRotation capsuleTransform)
-        {
-            var aToB = AToB;
-            pointA.xyz = capsuleTransform.position;
-            
-            // Compute direction change
-            //var aToBNormalized = normalizesafe(aToB);
-            var rotation = (quaternion)Quaternion.FromToRotation(aToB, capsuleTransform.Forward());
-            var aToBNew = rotate(rotation, aToB);
-            
-            pointB.xyz = pointA.xyz + aToBNew;
-        }
+        public readonly float3 Center => (pointA + pointB) * 0.5f;
+        public readonly float3 AToB => pointB - pointA;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly bool ContainsPoint(float3 point) => PointSignedDistance(point) < 0;
+        public readonly float FurthestDistanceFromCenter() => radius + distance(pointA, pointB) * 0.5f;
 
-        //Adapted from: https://iquilezles.org/articles/distfunctions/
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly SphereNative ToEncapsulatingSphere() => new(Center, FurthestDistanceFromCenter());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly TaperedCapsuleNative ToTaperedCapsule() => new(pointA, pointB, radius);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly bool ContainsPoint(float3 point) => PointSignedDistance(point) <= 0f;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public readonly float PointSignedDistance(float3 point)
         {
-            CollisionComputeBase(point, out var pointToA, out var bToA, out var bToASqrDist, out var abLerpUnclamped);
-            float abLerp = saturate(abLerpUnclamped);
-            var radius = ComputeRadius(abLerp);
-            
-            return length( pointToA - bToA * abLerp ) - radius;
+            float3 segmentVector = pointB - pointA;
+            float segmentLengthSquared = dot(segmentVector, segmentVector);
+
+            if (segmentLengthSquared <= 1e-8f)
+                return distance(point, pointA) - radius;
+
+            float lerpValue = saturate(dot(point - pointA, segmentVector) / segmentLengthSquared);
+            float3 closestPoint = pointA + segmentVector * lerpValue;
+            return distance(point, closestPoint) - radius;
         }
-        
+
         public readonly float3 GetRandomPointInside(ref Random random)
         {
-            CollisionComputeBase(random.NextFloat3(pointA.xyz, pointB.xyz), out _, out var bToA, out _, out var abLerpUnclamped);
-            var radius = ComputeRadius(abLerpUnclamped);
-            var randomInRadius = random.NextFloat3Direction() * radius;
-            return pointA.xyz + bToA * abLerpUnclamped + randomInRadius;
+            float3 pointOnAxis = lerp(pointA, pointB, random.NextFloat());
+            return pointOnAxis + random.NextFloat3Direction() * radius;
         }
 
-        /// <summary> Computes whether the ray intersects the capsule. </summary>
-        /// <param name="ray"> The ray to check for intersection. </param>
-        /// <param name="raySegmentLength"> The length of the ray segment to check for intersection. Technically a ray is infinite, but a super long segment should work fine. </param>
-        /// <returns> True if the ray intersects the capsule. </returns>
-        public readonly bool IntersectsRay(in Ray ray, float raySegmentLength = 100000)
+        public readonly bool IntersectsRay(in Ray ray, float raySegmentLength = 100000f)
         {
-            VMath.ClosestPointBetweenTwoSegments(new float3x2(pointA.xyz, pointB.xyz), new float3x2(ray.origin, ray.origin + ray.direction * raySegmentLength),
-                out var closestPointOnCapsule, out var closestPointOnRay, out var capsuleABLerp);
-            
-            // Clamp capsule lerp to stay on the capsule
-            capsuleABLerp = saturate(capsuleABLerp);
-            var radius = ComputeRadius(capsuleABLerp);
-            
-            IntersectsRayDebug(ray, closestPointOnCapsule, closestPointOnRay, capsuleABLerp, radius);
-            
-            return distancesq(closestPointOnCapsule, closestPointOnRay) < radius * radius;
-        }
+            VMath.ClosestPointBetweenTwoSegments(
+                new float3x2(pointA, pointB),
+                new float3x2(ray.origin, ray.origin + ray.direction * raySegmentLength),
+                out var closestPointOnCapsule,
+                out var closestPointOnRay,
+                out _);
 
-        [Conditional("DEBUGDRAW")]
-        readonly void IntersectsRayDebug(in Ray ray, float3 closestPointOnSegAb, float3 closestPointOnSegCd, float capsuleABLerpT, float radius)
-        {
-            AlineBurst.EnqueueRay(ray, 10000, Color.white);
-            AlineBurst.EnqueueSphere(closestPointOnSegAb, .05f, Color.white);
-            AlineBurst.EnqueueSphere(closestPointOnSegCd, .05f, ColorExt.blueBright);
-            AlineBurst.EnqueueCapsule(this, Color.green);
-            AlineBurst.EnqueueSphere(math.lerp(pointA.xyz, pointB.xyz, capsuleABLerpT), radius, ColorExt.orange);
+            return distancesq(closestPointOnCapsule, closestPointOnRay) <= radius * radius;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly void CollisionComputeBase(float3 point, out float3 pointToA, out float3 bToA, out float bToASqrDist, out float abLerpUnclamped)
+        public readonly bool IntersectsCapsule(in CapsuleNative other)
         {
-            pointToA = point - pointA.xyz;
-            bToA = pointB.xyz - pointA.xyz;
-            bToASqrDist = dot(bToA, bToA);
-            abLerpUnclamped = dot(pointToA, bToA) / bToASqrDist;
+            var thisBroadSphere = ToEncapsulatingSphere();
+            var otherBroadSphere = other.ToEncapsulatingSphere();
+            float maxBroadPhaseDistance = thisBroadSphere.Radius + otherBroadSphere.Radius;
+
+            if (distancesq(thisBroadSphere.Position, otherBroadSphere.Position) > maxBroadPhaseDistance * maxBroadPhaseDistance)
+                return false;
+
+            VMath.ClosestPointBetweenTwoSegments(
+                new float3x2(pointA, pointB),
+                new float3x2(other.pointA, other.pointB),
+                out var closestA,
+                out var closestB,
+                out _);
+
+            float radiusSum = radius + other.radius;
+            return distancesq(closestA, closestB) <= radiusSum * radiusSum;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly float ComputeRadius(float abLerp) => lerp(pointA.w, pointB.w, abLerp);
-
-        /// <summary> Transforms this capsule by a local to world matrix. <br/>
-        /// Radius is scaled by the change in the length of the capsule. </summary>
         public void TransformLengthScaling(in float4x4 boneTransformLocalToWorldMatrix)
         {
-            var oldLength = distance(pointA.xyz, pointB.xyz);
-            
-            // Points
-            pointA.xyz = transform(boneTransformLocalToWorldMatrix, pointA.xyz);
-            pointB.xyz = transform(boneTransformLocalToWorldMatrix, pointB.xyz);
-            
-            // Radii - Uniform, scale by the change in length
-            var newLength = distance(pointA.xyz, pointB.xyz);
-            var scaleMult = newLength / max(.000001f, oldLength);
-            pointA.w *= scaleMult;
-            pointB.w *= scaleMult;
+            float oldLength = distance(pointA, pointB);
+
+            pointA = transform(boneTransformLocalToWorldMatrix, pointA);
+            pointB = transform(boneTransformLocalToWorldMatrix, pointB);
+
+            float newLength = distance(pointA, pointB);
+            float scaleMultiplier = newLength / max(0.000001f, oldLength);
+            radius *= scaleMultiplier;
         }
 
         public readonly void DrawAline(ref CommandBuilder draw, byte connectingLines = 4)
         {
-            draw.WireSphere(pointA.xyz, pointA.w);
-            draw.WireSphere(pointB.xyz, pointB.w);
-            
-            // Draw connecting lines
-            var pointAtoB = pointB.xyz - pointA.xyz;
-            var pointAToBNorm = normalizesafe(pointAtoB);
-            var offsetDir = cross(pointAToBNorm, up());
-            var rotatorForNextLine = quaternion.AxisAngle(pointAToBNorm, PI2 / connectingLines);
-            
+            draw.WireSphere(pointA, radius);
+            draw.WireSphere(pointB, radius);
+
+            float3 axis = pointB - pointA;
+            float3 axisNormal = normalizesafe(axis, forward());
+            float3 basis = abs(axisNormal.y) > 0.99f ? right() : up();
+            float3 offsetDirection = normalizesafe(cross(axisNormal, basis), right());
+            quaternion lineRotator = quaternion.AxisAngle(axisNormal, PI2 / connectingLines);
+
             for (int i = 0; i < connectingLines; i++)
             {
-                DrawConnectingLine(ref draw, offsetDir);
-                offsetDir = mul(rotatorForNextLine, offsetDir);
+                float3 pA = pointA + offsetDirection * radius;
+                float3 pB = pointB + offsetDirection * radius;
+                draw.Line(pA, pB);
+                offsetDirection = mul(lineRotator, offsetDirection);
             }
-        }
-
-        readonly void DrawConnectingLine(ref CommandBuilder draw, float3 offsetDir)
-        {
-            var pA = pointA.xyz + offsetDir * pointA.w;
-            var pB = pointB.xyz + offsetDir * pointB.w;
-            draw.Line(pA, pB);
         }
     }
 }

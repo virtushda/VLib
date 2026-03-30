@@ -1,7 +1,9 @@
-﻿using Unity.Collections;
+﻿using System.Diagnostics;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace Libraries.VLib.Unsafe.Extensions.Collections
 {
@@ -74,6 +76,7 @@ namespace Libraries.VLib.Unsafe.Extensions.Collections
             return array;
         }
 
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         public static void ManualReleaseSafetyHandle<T>(this ref NativeArray<T> array)
             where T : unmanaged
         {

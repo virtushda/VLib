@@ -60,24 +60,6 @@ namespace VLib
             VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, dst.Ptr, dstIndex, length);
         }
 
-        public static void CopyToUnsafe<T>(in this UnsafeList<T> src, int srcIndex, GCHandle dstHandlePinnedType, int dstIndex, int length)
-            where T : unmanaged
-        {
-            if (!dstHandlePinnedType.IsAllocated)
-            {
-                UnityEngine.Debug.LogError("Safety Exception: GCHandle is not allocated!");
-                return;
-            }
-
-            BurstAssert.True(length > 0);
-            BurstAssert.True(src.IsCreated);
-            BurstAssert.True(srcIndex >= 0 && srcIndex < src.Length);
-            BurstAssert.True(dstIndex >= 0);
-            BurstAssert.True(src.Length >= srcIndex + length);
-            
-            VCollectionUtils.MemcpyTyped(src.Ptr, srcIndex, (T*) dstHandlePinnedType.AddrOfPinnedObject(), dstIndex, length);
-        }
-
         public static void CopyToUnsafe<T>(in this UnsafeList<T> src, int srcIndex, T[] dstArray, int dstIndex, int length)
             where T : unmanaged
         {
